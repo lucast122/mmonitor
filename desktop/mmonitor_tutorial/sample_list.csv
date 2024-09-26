@@ -1,0 +1,7 @@
+sample_name,date,project_name,subproject_name,sample folder
+sample1,2023-06-01,R1,R1,/Users/timo/Documents/mmonitor_tutorial/16s_reads/sample_1/
+sample2,2023-06-05,R1,R1,/Users/timo/Documents/mmonitor_tutorial/16s_reads/sample_2/
+sample3,2023-06-06,R1,R1,/Users/timo/Documents/mmonitor_tutorial/16s_reads/sample_3/
+sample4,2023-06-10,R2,R2,/Users/timo/Documents/mmonitor_tutorial/16s_reads/sample_4/
+sample5,2023-06-16,R2,R2,/Users/timo/Documents/mmonitor_tutorial/16s_reads/sample_5/
+sample6,2023-06-20,R2,R2,/Users/timo/Documents/mmonitor_tutorial/16s_reads/sample_6/

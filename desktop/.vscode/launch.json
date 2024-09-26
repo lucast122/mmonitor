@@ -1,0 +1,14 @@
+{
+     "version": "0.2.0",
+     "configurations": [
+
+         {
+             "name": "Run Main",
+             "type": "debugpy",
+             "request": "launch",
+             "program": "${workspaceFolder}/src/mmonitor/__main__.py",
+             "console": "integratedTerminal",
+             "justMyCode": true
+         }
+     ]
+ }
