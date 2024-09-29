@@ -6,6 +6,7 @@ import sys
 import tarfile
 import time
 import tkinter as tk
+import numpy as np
 import urllib.request
 from datetime import datetime
 from threading import Thread
@@ -34,16 +35,20 @@ from mmonitor.userside.FastqStatistics import FastqStatistics
 from mmonitor.userside.InputWindow import InputWindow
 from mmonitor.userside.PipelineWindow import PipelinePopup
 from mmonitor.userside.FunctionalRunner import FunctionalRunner
-from userside.MMonitorCMD import MMonitorCMD
+from mmonitor.userside.FolderMonitor import FolderMonitor
+from mmonitor.userside.MMonitorCMD import MMonitorCMD
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import customtkinter as ctk
 import sys
 import traceback
+import subprocess
+import csv
+
 # Global constants for version and dimensions
-VERSION = "v0.0.4"
-MAIN_WINDOW_X: int = 1000
-MAIN_WINDOW_Y: int = 1000
+VERSION = "v1.0.0"
+MAIN_WINDOW_X: int = 260
+MAIN_WINDOW_Y: int = 600
 
 # Module description
 
@@ -100,7 +105,20 @@ class GUI(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-
+        self.centrifuge_index_path = f"{ROOT}/src/resources/dec22"
+        # Move this line to the beginning of __init__
+        self.analysis_var = tk.StringVar(value="taxonomy-wgs")  # Default to taxonomy-wgs
+        
+        SHOW_CONSOLE = False
+        self.sample_files = {}  # Dictionary to hold sample names and their associated files
+                
+        self.folder_monitor = None
+        self.create_file_list_window()
+        # Add a button to select folders to monitor
+        # hide MMonitor folder button until it works properly
+        # self.monitor_folders_button = ctk.CTkButton(self, text="Monitor Folders", command=self.select_and_monitor_folders)
+        # self.monitor_folders_button.pack(pady=10)
+        self.create_file_list_window()
         # Create a console for logging
         self.console_frame = ctk.CTkFrame(self)
         self.console_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
@@ -114,8 +132,9 @@ class GUI(ctk.CTk):
 
         
         # Redirect stdout and stderr to the console
-        sys.stdout = RedirectText(self.console_text)
-        sys.stderr = RedirectText(self.console_text)
+        if SHOW_CONSOLE:
+            sys.stdout = RedirectText(self.console_text)
+            sys.stderr = RedirectText(self.console_text)
 
 
         self.pipeline_popup = None
@@ -149,6 +168,26 @@ class GUI(ctk.CTk):
         self.annotation = tk.BooleanVar()
         self.kegg = tk.BooleanVar()
         self.sample_date = None
+
+        # Add this line to create the analysis_var
+        self.analysis_var = tk.StringVar(value="taxonomy-wgs")  # Default to taxonomy-wgs
+
+        
+        
+        
+
+    def select_and_monitor_folders(self):
+        folder = filedialog.askdirectory(title="Select Folder to Monitor")
+        if folder:
+            self.start_folder_monitoring([folder])  # Pass as a list
+
+    def start_folder_monitoring(self, folders):
+        if not isinstance(folders, list):
+            folders = [folders]
+        self.folder_monitor = FolderMonitor(folders, self)
+        self.folder_monitor.start()
+        self.show_file_list_window()
+
 
     def init_layout(self):
         ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
@@ -208,19 +247,18 @@ class GUI(ctk.CTk):
 
         # Define the 'categories' list
         categories = [
-            ("Local", [
-                ("Create Local DB", self.create_project, create_local_db_icon),
-                ("Choose Local DB", self.choose_project, add_db_icon),
-                ("Start Local dashboard", self.start_monitoring, start_offline_monitoring_icon)
+            # ("Local", [
+                # ("Create Local DB", self.create_project, create_local_db_icon),
+                # ("Choose Local DB", self.choose_project, add_db_icon),
+                # ("Start Local dashboard", self.start_monitoring, start_offline_monitoring_icon)
 
-            ]),
+            # ]),
             ("Webserver", [
-                ("User authentication", self.open_db_config_form, user_authentication_icon)
+                ("Select User", self.open_db_config_form, user_authentication_icon)
 
             ]),
             ("Add Data", [
-                ("Add metadata from CSV", self.append_metadata, add_metadata_icon),
-                ("Process sequencing files", self.checkbox_popup, run_analysis_pipeline_icon)
+                ("Run Analysis Pipeline", self.checkbox_popup, run_analysis_pipeline_icon)
             ])
         ]
         # Tooltips for the categories
@@ -504,7 +542,8 @@ class GUI(ctk.CTk):
 
         # check if centrifuge index exists, if not download it using check_file_exists method
         centrifuge_index_path = f"{ROOT}/src/resources/dec_22"
-        # download_thread = Thread(target=self.check_file_exists(f"{ROOT}/src/resources/{centrifuge_index}.tar",
+        self.centrifuge_index_path = centrifuge_index_path
+        # download_thread = Thread(target=self.check_file_exists(f"{ROOT}/src/resources/dec22.tar",
         #                                                        "https://software-ab.cs.uni-tuebingen.de/download/MMonitor/dec22.tar"))
         # download_thread.start()
         # download_thread.join()
@@ -550,7 +589,8 @@ class GUI(ctk.CTk):
                 subproject_name = self.input_window.multi_sample_input["subproject_names"][index]
                 sample_date = self.input_window.multi_sample_input["dates"][index]
                 self.centrifuge_runner.run_centrifuge(files, sample_name, centrifuge_index_path)
-                make_kraken_report(centrifuge_index_path)
+                self.centrifuge_runner.make_kraken_report(centrifuge_index_path)
+                
 
                 self.add_statistics(self.centrifuge_runner.concat_file_name, sample_name, project_name, subproject_name,
                                     sample_date)
@@ -742,47 +782,202 @@ class GUI(ctk.CTk):
         if self.monitor_thread is not None and self.monitor_thread.is_alive():
             post('http://localhost:8050/shutdown')
             self.monitor_thread.join()
+        if self.folder_monitor:
+            self.folder_monitor.stop()
         self.destroy()
+
 
     def open_db_config_form(self):
         db_config_form = DataBaseConfigForm(master=self)
         print(db_config_form.last_config)
 
+    def check_and_start_analysis(self, sample_name):
+        # Example condition: if the sample has accumulated 10 files
+        if len(self.sample_files[sample_name]) >= 10:
+            print(f"Starting analysis for sample {sample_name}")
+            self.run_analysis_for_sample(sample_name)
 
-# this method updates the django db after with the new db_config after the user saves a new db config
-def update_db_config_path(self):
-    self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
+    def run_analysis_for_sample(self, sample_name):
+        files = self.sample_files[sample_name]
+        analysis_type = self.get_selected_analysis_type()
+        if analysis_type == "taxonomy-16s":
+            self.emu_runner.run_emu(files, sample_name, min_abundance=0.01)
+        elif analysis_type == "taxonomy-wgs":
+            self.centrifuge_runner.run_centrifuge(files, sample_name, self.centrifuge_index_path)
+        self.sample_files[sample_name] = []
+        self.refresh_file_tree()
 
-    def on_open(self, ws):
-        print("WebSocket connection opened.")
-        # Now that the connection is open, you can send your message
-        send_message(ws, "Your message here")
+    def start_analysis(self):
+        selected_items = self.file_tree.selection()
+        for item in selected_items:
+            sample_name = self.file_tree.item(item, "text")
+            self.run_analysis_for_sample(sample_name)
 
-        print(f"WebSocket error: {error}")
+    def get_selected_analysis_type(self):
+        return self.analysis_var.get()
 
-    def on_error(self, ws, error):
-        print(f"WebSocket error: {error}")
 
-    def on_close(self, ws, close_status_code, close_msg):
-        print(f"WebSocket closed. Code: {close_status_code}, Message: {close_msg}")
+    def refresh_file_tree(self):
+        # Clear and rebuild the treeview
+        self.file_tree.delete(*self.file_tree.get_children())
+        for sample_name, files in self.sample_files.items():
+            self.file_tree.insert("", tk.END, iid=sample_name, text=sample_name, values=("", ""))
+            for file_path, is_new in files:
+                status = "New" if is_new else "Existing"
+                item_id = self.file_tree.insert(sample_name, tk.END, text=os.path.basename(file_path), values=(file_path, status))
+                if is_new:
+                    self.file_tree.item(item_id, tags=("new",))
 
-    def send_message(self, ws, message):
-        if ws.sock and ws.sock.connected:
-            ws.send(message)
+        # Configure tag colors
+        self.file_tree.tag_configure("new", foreground="green")
+
+    def create_file_list_window(self):
+        self.file_list_window = ctk.CTkToplevel(self)
+        self.file_list_window.title("Sequencer Files")
+        self.file_list_window.geometry("600x400")
+        self.file_list_window.protocol("WM_DELETE_WINDOW", self.hide_file_list_window)
+        self.file_list_window.withdraw()  # Hide the window initially
+
+        self.file_tree = ttk.Treeview(self.file_list_window)
+        self.file_tree.pack(fill=tk.BOTH, expand=True)
+        self.file_tree["columns"] = ("filepath", "status")
+        self.file_tree.column("#0", width=200, minwidth=200)
+        self.file_tree.column("filepath", width=300, minwidth=200)
+        self.file_tree.column("status", width=100, minwidth=100)
+        self.file_tree.heading("#0", text="Sample Name")
+        self.file_tree.heading("filepath", text="File Path")
+        self.file_tree.heading("status", text="Status")
+
+        # Add radio buttons for selecting analysis type
+        analysis_frame = ctk.CTkFrame(self.file_list_window)
+        analysis_frame.pack(pady=10)
+        
+        ctk.CTkRadioButton(analysis_frame, text="Taxonomy WGS", variable=self.analysis_var, value="taxonomy-wgs").pack(side=tk.LEFT, padx=10)
+        ctk.CTkRadioButton(analysis_frame, text="Taxonomy 16S", variable=self.analysis_var, value="taxonomy-16s").pack(side=tk.LEFT, padx=10)
+
+        # Add a button to start analysis
+        self.start_analysis_button = ctk.CTkButton(self.file_list_window, text="Start Analysis", command=self.start_analysis)
+        self.start_analysis_button.pack(pady=10)
+
+    def show_file_list_window(self):
+        self.file_list_window.deiconify()
+
+    def hide_file_list_window(self):
+        self.file_list_window.withdraw()
+
+    def add_new_file(self, file_path, sample_name, is_new):
+        if sample_name not in self.sample_files:
+            self.sample_files[sample_name] = []
+            # Add a new item to the treeview
+            self.file_tree.insert("", tk.END, iid=sample_name, text=sample_name, values=("", ""))
+        
+        self.sample_files[sample_name].append((file_path, is_new))
+        # Add the file under the sample in the treeview
+        status = "New" if is_new else "Existing"
+        item_id = self.file_tree.insert(sample_name, tk.END, text=os.path.basename(file_path), values=(file_path, status))
+        
+        if is_new:
+            self.file_tree.item(item_id, tags=("new",))
+        
+        # Configure tag colors
+        self.file_tree.tag_configure("new", foreground="green")
+
+        # Optionally, check if conditions are met to start analysis
+        self.check_and_start_analysis(sample_name)
+
+    def update_db_config_path(self):
+        self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
+
+    def run_pipeline(self, analysis_type):
+        input_window = InputWindow(self, self.emu_runner)
+        self.wait_window(input_window)
+
+        if input_window.do_quit:
+            return
+
+        if input_window.process_multiple_samples:
+            self.run_multi_sample_pipeline(analysis_type, input_window.multi_sample_input)
         else:
-            print("WebSocket is not connected. Attempting to reconnect...")
-            # Here you can attempt to reconnect if you wish
+            self.run_single_sample_pipeline(analysis_type, input_window)
 
-    # Later in your code, when you want to send a message:
-    # def send_server_notification(self):
-    #     ws = websocket.WebSocketApp("ws://134.2.78.150:8020/ws/notifications/",
-    #                                 on_open=self.on_open,
-    #                                 on_error=self.on_error,
-    #                                 on_close=self.on_close)
-    #     self.send_message(ws, "TEST")
-    #     ws.run_forever()
+    def run_single_sample_pipeline(self, analysis_type, input_window):
+        sample_name = input_window.sample_name
+        project_name = input_window.project_name
+        subproject_name = input_window.subproject_name
+        sample_date = input_window.selected_date.strftime('%Y-%m-%d')
+        files = input_window.file_paths_single_sample
 
+        # Get the directory containing the mmonitor package
+        mmonitor_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
+        # Use a default config file if self.db_path is None
+        config_path = self.db_path if self.db_path else os.path.join(ROOT, "src", "resources", "db_config.json")
+        
+        # Construct the command
+        cmd = [
+            sys.executable,  # Use the current Python interpreter
+            "-m", "mmonitor.userside.MMonitorCMD",
+            "-a", analysis_type,
+            "-c", config_path,
+            "-i", *files,
+            "-s", sample_name,
+            "-d", sample_date,
+            "-p", project_name,
+            "-u", subproject_name
+        ]
+        
+        # Set the PYTHONPATH to include the mmonitor directory
+        env = os.environ.copy()
+        env["PYTHONPATH"] = f"{mmonitor_dir}:{env.get('PYTHONPATH', '')}"
 
+        try:
+            subprocess.Popen(cmd, env=env)
+        except Exception as e:
+            print(f"Error running pipeline: {e}")
+            # You might want to show an error message to the user here
+
+    def run_multi_sample_pipeline(self, analysis_type, multi_sample_input):
+        # Create a temporary CSV file with the multi-sample input data
+        temp_csv_path = "temp_multi_sample.csv"
+        with open(temp_csv_path, 'w', newline='') as csvfile:
+            fieldnames = ['sample_name', 'date', 'project_name', 'subproject_name', 'sample_folder']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for i in range(len(multi_sample_input['sample_names'])):
+                writer.writerow({
+                    'sample_name': multi_sample_input['sample_names'][i],
+                    'date': multi_sample_input['dates'][i],
+                    'project_name': multi_sample_input['project_names'][i],
+                    'subproject_name': multi_sample_input['subproject_names'][i],
+                    'sample_folder': os.path.dirname(multi_sample_input['file_paths_lists'][i][0])
+                })
+
+        # Get the directory containing the mmonitor package
+        mmonitor_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        # Use a default config file if self.db_path is None
+        config_path = self.db_path if self.db_path else os.path.join(ROOT, "src", "resources", "db_config.json")
+
+        # Construct the command
+        cmd = [
+            sys.executable,  # Use the current Python interpreter
+            "-m", "mmonitor.userside.MMonitorCMD",
+            "-a", analysis_type,
+            "-c", config_path,
+            "-m", temp_csv_path
+        ]
+
+        # Set the PYTHONPATH to include the mmonitor directory
+        env = os.environ.copy()
+        env["PYTHONPATH"] = f"{mmonitor_dir}:{env.get('PYTHONPATH', '')}"
+
+        try:
+            subprocess.Popen(cmd, env=env)
+        except Exception as e:
+            print(f"Error running pipeline: {e}")
+            # You might want to show an error message to the user here
+
+    
 class ToolTip:
     def __init__(self, widget, tip_text):
         self.widget = widget
@@ -798,8 +993,7 @@ class ToolTip:
         self.tip_window.wm_overrideredirect(True)
         self.tip_window.wm_geometry(f"+{x}+{y}")
 
-        label = tk.Label(self.tip_window, text=self.tip_text, foreground="black", background="white", relief="solid",
-                         borderwidth=1,
+        label = tk.Label(self.tip_window, text=self.tip_text, foreground="black", background="white", relief="solid", borderwidth=1,
                          font=("Helvetica", "12", "normal"))
         label.pack(ipadx=1)
 
@@ -807,3 +1001,4 @@ class ToolTip:
         if self.tip_window:
             self.tip_window.destroy()
             self.tip_window = None
+

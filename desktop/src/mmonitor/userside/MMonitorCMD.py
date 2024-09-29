@@ -43,46 +43,48 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 class MMonitorCMD:
-    @staticmethod
-    def get_files_from_folder(folder_path, recursive=False):
-        """
-        Gets a path to a folder, checks if path contains sequencing files with specified endings and returns list
-        containing paths to sequencing files.
-        """
-        files = []
-
-        if recursive:
-            for dirpath, _, filenames in os.walk(folder_path):
-                for file in filenames:
-                    if file.endswith((".fastq", ".fq", ".fasta", ".fastq.gz")) and "concatenated" not in file:
-                        print(file)
-                        files.append(os.path.join(dirpath, file))
-        else:
-            for file in os.listdir(folder_path):
-                full_path = os.path.join(folder_path, file)
-                if os.path.isfile(full_path) and file.endswith(
-                        (".fastq", ".fq", ".fasta", ".fastq.gz")) and "concatenated" not in file:
-                    files.append(full_path)
-
-        if not files:
-            print(f"No sequencing files (.fastq, .fq, .fasta, .fastq.gz) found at {folder_path}")
-
-        return files
-
     def __init__(self):
         self.use_multiplexing = None
         self.multi_sample_input = None
         self.emu_runner = EmuRunner()
         self.centrifuge_runner = CentrifugeRunner()
         self.functional_runner = FunctionalRunner()
-        # self.args = self.parse_arguments()
         self.db_config = {}
-        # self.django_db = DjangoDBInterface(self.args.config)
         self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
+        self.args = None
+        self.django_db = None
 
-    def parse_arguments(self):
+    def initialize_from_args(self, args):
+        self.args = args
+        try:
+            self.django_db = DjangoDBInterface(self.args.config)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Error initializing database interface: {e}")
+            sys.exit(1)
+
+    def valid_file(self, path):
+        if not os.path.isfile(path):
+            raise argparse.ArgumentTypeError(f"{path} is not a valid file path")
+        return path
+
+    def valid_directory(self, path):
+        if not os.path.isdir(path):
+            raise argparse.ArgumentTypeError(f"{path} is not a valid directory path")
+        return path
+
+    @staticmethod
+    def valid_date(date_str):
+        try:
+            return datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid date format: {date_str}. Use YYYY-MM-DD")
+
+
+
+    @staticmethod
+    def parse_arguments():
         parser = argparse.ArgumentParser(description='MMonitor command line tool for various genomic analyses.')
-
+        
         # Main analysis type
         parser.add_argument('-a', '--analysis', required=True, choices=['taxonomy-wgs', 'taxonomy-16s', 'assembly', 'functional', 'stats'],
                             help='Type of analysis to perform. Choices are taxonomy-wgs, taxonomy-16s, assembly, functional and stats.'
@@ -94,14 +96,13 @@ class MMonitorCMD:
 
         # Input options: Multi CSV or single input folder
         group = parser.add_mutually_exclusive_group(required=True)
-        group.add_argument('-m', '--multicsv', type=self.valid_file,
+        group.add_argument('-m', '--multicsv', type=MMonitorCMD.valid_file,
                            help='Path to CSV containing information for multiple samples.')
-        group.add_argument('-i', '--input', type=self.valid_directory,
-                           help='Path to folder containing sequencing data.')
+        group.add_argument('-i', '--input', nargs='+', help='Input files for single sample processing')
 
         # Additional parameters
         parser.add_argument('-s', '--sample', type=str, help='Sample name.')
-        parser.add_argument('-d', '--date', type=self.valid_date, help='Sample date in YYYY-MM-DD format.')
+        parser.add_argument('-d', '--date', type=MMonitorCMD.valid_date, help='Sample date in YYYY-MM-DD format.')
         parser.add_argument('-p', '--project', type=str, help='Project name.')
         parser.add_argument('-u', '--subproject', type=str, help='Subproject name.')
         parser.add_argument('-b', '--barcodes', action="store_true",
@@ -128,23 +129,7 @@ class MMonitorCMD:
     import argparse
     import os
 
-    def valid_file(self, path):
-        if not os.path.isfile(path):
-            raise argparse.ArgumentTypeError(f"{path} is not a valid file path")
-        return path
-
-    def valid_directory(self, path):
-        if not os.path.isdir(path):
-            raise argparse.ArgumentTypeError(f"{path} is not a valid directory path")
-        return path
-
-    def valid_date(self, date_str):
-        try:
-            return datetime.strptime(date_str, '%Y-%m-%d').date()
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"{date_str} is not a valid date. Use YYYY-MM-DD format.")
-
-
+    
     def concatenate_fastq_files(self, file_paths, output_file):
         """
         Concatenate all FASTQ files from the provided list into a single file.
@@ -569,7 +554,7 @@ class MMonitorCMD:
                 # calculate QC statistics if qc argument is given by user
                 if self.args.qc:
                     print(f"Adding statistics for sample: {sample}...")
-                    print(f"Loading files: {file_paths}")
+                    # print(f"Loading files: {file_paths}")
                     print(f"concat files list {concat_files_list}")
 
 
@@ -598,6 +583,37 @@ class MMonitorCMD:
         # self.functional_runner.run_checkm2(bins_dir, out_path)
         # self.functional_runner.run_bakta(contig_file_path, bakta_dir)
         self.functional_runner.run_gtdb_tk(bins_dir, out_path)
+
+    def run(self):
+        if not self.args:
+            raise ValueError("Arguments not initialized. Call initialize_from_args() first.")
+        
+        if self.args.multicsv:
+            self.run_multi_sample()
+        else:
+            self.run_single_sample()
+
+    def run_single_sample(self):
+        if self.args.analysis == "taxonomy-16s":
+            self.taxonomy_nanopore_16s()
+        elif self.args.analysis == "taxonomy-wgs":
+            self.taxonomy_nanopore_wgs()
+        elif self.args.analysis == "assembly":
+            self.assembly_pipeline(self.args.sample, self.args.project, self.args.subproject, self.args.date, self.args.input)
+        elif self.args.analysis == "kegg":
+            self.run_kegg_analysis()
+        elif self.args.analysis == "mag-upload":
+            self.upload_mag()
+
+    def run_multi_sample(self):
+        self.load_from_csv()
+        for index, sample_name in enumerate(self.multi_sample_input["sample_names"]):
+            self.args.sample = sample_name
+            self.args.project = self.multi_sample_input["project_names"][index]
+            self.args.subproject = self.multi_sample_input["subproject_names"][index]
+            self.args.date = self.multi_sample_input["dates"][index]
+            self.args.input = self.multi_sample_input["file_paths_lists"][index]
+            self.run_single_sample()
 
 class OutputLogger:
     def __init__(self, log_file_path):
@@ -650,103 +666,7 @@ class OutputLogger:
 # Example usage
 
 if __name__ == "__main__":
-    def run_user_choice(sample_name, project_name, subproject_name, sample_date, files):
-        if command_runner.args.analysis == "taxonomy-16s":
-            command_runner.taxonomy_nanopore_16s()
-        if command_runner.args.analysis == "taxonomy-wgs":
-            command_runner.taxonomy_nanopore_wgs()
-        if command_runner.args.analysis == "stats":
-            command_runner.update_only_statistics()
-        if command_runner.args.analysis == "assembly":
-            command_runner.assembly_pipeline(sample_name, project_name, subproject_name, sample_date, files)
-
-    command_runner = MMonitorCMD()
-    print(command_runner.args)
-    command_runner.load_config()
-    command_runner.args = command_runner.parse_arguments()
-    command_runner.django_db = DjangoDBInterface(command_runner.args.config)
-
-    if not command_runner.args.multicsv:
-        sample_name = str(command_runner.args.sample)
-        if not command_runner.args.overwrite and self.check_sample_in_db(sample_name):
-            print("Sample is already in DB use --overwrite to overwrite it...")
-            pass
-        project_name = str(command_runner.args.project)
-        subproject_name = str(command_runner.args.subproject)
-        sample_date = command_runner.args.date if command_runner.args.date else datetime.now().strftime('%Y-%m-%d')
-
-        files = command_runner.get_files_from_folder(command_runner.args.input, False)
-        concat_file_name = command_runner.concatenate_files(files, sample_name)
-
-        print(f" contig_file_path: {contig_file_path}")
-        print(f" concat_file_path: {concat_file_name}")
-        print(f" out_path: {out_path}")
-        run_user_choice(sample_name, project_name, subproject_name, sample_date, files)
-    else:
-        command_runner.load_from_csv()
-        print("Processing multiple samples")
-        concat_files_list = []
-        all_file_paths = []
-        sample_names_to_process = []
-        project_names = []
-        subproject_names = []
-        sample_dates = []
-        for index, file_path_list in enumerate(command_runner.multi_sample_input["file_paths_lists"]):
-            files = file_path_list
-            all_file_paths.append(files)
-            sample_name = command_runner.multi_sample_input["sample_names"][index]
-            print(f"Analyzing amplicon data for sample {sample_name}.")
-            # when a sample is already in the database and user does not want to overwrite quit now
-            if not command_runner.args.overwrite:
-                if command_runner.check_sample_in_db(sample_name):
-                    print(
-                        f"Sample {sample_name} already in DB and overwrite not specified, continue with next sample...")
-                    continue
-
-            sample_names_to_process.append(sample_name)
-            if files[index].endswith(".gz"):
-                concat_file_name = f"{os.path.dirname(files[index])}/{sample_name}_concatenated.fastq.gz"
-            else:
-                concat_file_name = f"{os.path.dirname(files[index])}/{sample_name}_concatenated.fastq"
-            concat_files_list.append(concat_file_name)
-
-            project_name = command_runner.multi_sample_input["project_names"][index]
-            subproject_name = command_runner.multi_sample_input["subproject_names"][index]
-            sample_date = command_runner.multi_sample_input["dates"][index]
-
-            project_names.append(project_name)
-            subproject_names.append(subproject_name)
-            sample_dates.append(sample_date)
-
-        for idx, files in enumerate(all_file_paths):
-            sample_name = command_runner.multi_sample_input["sample_names"][idx]
-            total_files = len(all_file_paths)
-            print(f"Concatenating fastq files... ({idx + 1}/{total_files})")
-            if files[idx].endswith(".gz"):
-                concat_file_name = f"{os.path.dirname(files[idx])}/{sample_name}_concatenated.fastq.gz"
-                CentrifugeRunner.concatenate_gzipped_files(files, concat_file_name)
-            else:
-                concat_file_name = f"{os.path.dirname(files[idx])}/{sample_name}_concatenated.fastq"
-                CentrifugeRunner.concatenate_fastq_fast(files, concat_file_name, False)
-            concat_files_list.append(concat_file_name)
-        for idx, sample in enumerate(sample_names_to_process):
-            run_user_choice(command_runner.multi_sample_input["sample_names"][idx],
-                            command_runner.multi_sample_input["project_names"][idx],
-                            command_runner.multi_sample_input["subproject_names"][idx],
-                            command_runner.multi_sample_input["dates"][idx],
-                            files
-                            )
-
-
-
-
-
-    logger = OutputLogger(os.path.join(ROOT, 'src', 'resources', 'mmonitor_log.txt'))
-    # logger.start_logging()
-
-    # Your script's operations here. All stdout will be written to 'output_log.txt'.
-
-
-    # logger.stop_logging()
-
-    # logger.stop_logging()
+    cmd_runner = MMonitorCMD()
+    args = cmd_runner.parse_arguments()
+    cmd_runner.initialize_from_args(args)
+    cmd_runner.run()

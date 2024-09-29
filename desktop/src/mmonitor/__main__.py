@@ -25,10 +25,8 @@ if base_path not in sys.path:
 print(ROOT)
 
 def main():
-    GUI().start_app()
-    # EnhancedView().start_app()
-
+    app = GUI()
+    app.start_app()
 
 if __name__ == '__main__':
     main()
-        

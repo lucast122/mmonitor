@@ -1,6 +1,17 @@
+desktop/src/resources/db_config.json
+.DS_Store
+desktop/src/resources/db_config.json
+desktop/src/resources/pipeline_out/a/a_rel-abundance.tsv
+desktop/src/resources/pipeline_out/a/emu_alignments.sam
 ### JetBrains template
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
+desktop/src/resources/db_config.json
+desktop/pyproject.toml
+desktop/src/resources/pipeline_out/a/a_rel-abundance-threshold.tsv
+desktop/src/resources/pipeline_out/aa/
+desktop/src/resources/pipeline_out/kk/
+sync_changelog.sh
 
 # Manually added stuff
 /.idea/
@@ -231,3 +242,5 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+desktop/src/resources/pipeline_out/a/a_rel-abundance.tsv
+desktop/src/resources/pipeline_out/a/a_rel-abundance.tsv
