@@ -28,7 +28,7 @@ class CentrifugeRunner:
 
     def __init__(self):
         self.logger = logging.getLogger('timestamp')
-        self.check_centrifuge()
+        # self.check_centrifuge()
         self.cent_out = ""
         self.concat_file_name = ""
 

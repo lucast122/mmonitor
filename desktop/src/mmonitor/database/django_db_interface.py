@@ -43,25 +43,35 @@ def convert_date_format(date_str):
 class DjangoDBInterface:
 
     def __init__(self, db_config: str):
-        self.port = 8000
+        self.port = 443
         try:
             with open(db_config, 'r') as file:
                 self._db_config = json.load(file)
         except FileNotFoundError as e:
-            print("DB config not found")
-            print(e)
+            raise FileNotFoundError(f"DB config not found: {e}")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in DB config: {e}")
         self._connection = None
 
     def get_user_id(self, username: str, password: str):
-        django_url = f"http://{self._db_config['host']}:{self.port}/users/get_user_id/"
-        response = pyrequests.post(django_url, data={'username': username, 'password': password})
-        if response.status_code == 200:
-            return response.json()['user_id']
-        else:
+        django_url = f"https://{self._db_config['host']}:{self.port}/users/get_user_id/"
+        print(f"Attempting to get user ID from URL: {django_url}")
+        print(f"Using username: {username}")
+        try:
+            response = pyrequests.post(django_url, data={'username': username, 'password': password})
+            print(f"Response status code: {response.status_code}")
+            print(f"Response content: {response.content}")
+            if response.status_code == 200:
+                return response.json()['user_id']
+            else:
+                print(f"Failed to get user ID. Status code: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"Exception occurred while getting user ID: {str(e)}")
             return None
 
     def get_unique_sample_ids(self):
-        django_url = f"http://{self._db_config['host']}:{self.port}/users/get_unique_sample_ids/"
+        django_url = f"https://{self._db_config['host']}:{self.port}/users/get_unique_sample_ids/"
         response = pyrequests.post(django_url,
                                    data={'username': self._db_config['user'], 'password': self._db_config['password']})
         if response.status_code == 200:
@@ -147,7 +157,7 @@ class DjangoDBInterface:
         # Send all records in one request
         try:
             response = pyrequests.post(
-                f"http://{self._db_config['host']}:{self.port}/users/overwrite_nanopore_record/",
+                f"https://{self._db_config['host']}:{self.port}/users/overwrite_nanopore_record/",
                 json=records,  # Send the list of records
                 auth=HTTPBasicAuth(self._db_config['user'], self._db_config['password'])
             )
@@ -221,7 +231,7 @@ class DjangoDBInterface:
         # print(f"Sending record: {records}")
         try:
             response = pyrequests.post(
-                f"http://{self._db_config['host']}:{self.port}/users/overwrite_nanopore_record/",
+                f"https://{self._db_config['host']}:{self.port}/users/overwrite_nanopore_record/",
                 json=records,  # Send the list of records
                 auth=HTTPBasicAuth(self._db_config['user'], self._db_config['password'])
             )
@@ -250,7 +260,7 @@ class DjangoDBInterface:
 
         fai_file_path = f"{fasta_file_path}.fai"
 
-        url = f"http://{self._db_config['host']}:{self.port}/users/upload_mag/"
+        url = f"https://{self._db_config['host']}:{self.port}/users/upload_mag/"
         auth = HTTPBasicAuth(self._db_config['user'], self._db_config['password'])
         
         # Create the payload for metadata and files
