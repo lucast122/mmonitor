@@ -57,7 +57,7 @@ class EmuRunner:
             #       f" --output-dir {self.emu_out} --threads {multiprocessing.cpu_count()} --type map-ont --output-basename {sample_name}"
             # print(cmd)
             # os.system(cmd)
-            emu_db = f"/home/minion-computer/emu_db/latest/silva"
+            emu_db = f"{ROOT}/src/resources/emu_db/"
 
             df_taxonomy = pd.read_csv(os.path.join(emu_db, "taxonomy.tsv"), sep='\t',
                                       index_col='tax_id', dtype=str)
