@@ -6,6 +6,8 @@ import os
 import sys
 import numpy as np
 import logging
+import subprocess
+from datetime import datetime
 
 from build_mmonitor_pyinstaller import ROOT
 from mmonitor.userside.FastqStatistics import FastqStatistics
@@ -29,6 +31,8 @@ import numpy as np
 
 from datetime import date, datetime
 
+logger = logging.getLogger(__name__)
+
 class NumpyEncoder(json.JSONEncoder):
     """ Custom encoder for numpy data types """
     def default(self, obj):
@@ -46,23 +50,34 @@ class MMonitorCMD:
     def __init__(self):
         self.use_multiplexing = None
         self.multi_sample_input = None
-        self.emu_runner = EmuRunner()
+        self.emu_runner = None  # Initialize to None
         self.centrifuge_runner = CentrifugeRunner()
         self.functional_runner = FunctionalRunner()
         self.db_config = {}
         self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
         self.args = None
         self.django_db = None
+        self.centrifuge_db = None
+
+        # Add minimap2 from lib folder to PATH
+        minimap2_path = os.path.join(ROOT, "lib", "minimap2")
+        os.environ['PATH'] = f"{minimap2_path}:{os.environ['PATH']}"
+
+        # Optionally, you can print the updated PATH for debugging
+        print(f"Updated PATH: {os.environ['PATH']}")
 
     def initialize_from_args(self, args):
         self.args = args
         if self.args.emu_db:
             self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
+        else:
+            self.emu_runner = EmuRunner()  # Initialize here
         try:
             self.django_db = DjangoDBInterface(self.args.config)
         except (FileNotFoundError, ValueError) as e:
             print(f"Error initializing database interface: {e}")
             sys.exit(1)
+        self.centrifuge_db = args.centrifuge_db or os.path.join(ROOT, "src", "resources", "centrifuge_db", "p_compressed")
 
     def valid_file(self, path):
         if not os.path.isfile(path):
@@ -84,7 +99,7 @@ class MMonitorCMD:
 
 
     @staticmethod
-    def parse_arguments():
+    def parse_arguments(args=None):
         parser = argparse.ArgumentParser(description='MMonitor command line tool for various genomic analyses.')
         
         # Main analysis type
@@ -127,8 +142,16 @@ class MMonitorCMD:
                             help='Set the logging level.')
 
         parser.add_argument('--emu-db', type=str, help='Path to custom Emu database')
+        parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for processing.')
+        parser.add_argument('--centrifuge-db', type=str, help='Path to the Centrifuge database')
 
-        return parser.parse_args()
+        parsed_args = parser.parse_args(args)
+
+        # Check for required arguments
+        if parsed_args.analysis in ['functional', 'assembly'] and not parsed_args.input:
+            parser.error("the following arguments are required: -i/--input")
+
+        return parsed_args
 
     import argparse
     import os
@@ -272,18 +295,15 @@ class MMonitorCMD:
                                     sample_date, multi=True)
 
     def taxonomy_nanopore_16s(self):
-        if not os.path.exists(os.path.join(ROOT, "src", "resources", "emu_db", "taxonomy.tsv")):
-            print("emu db not found")
-            return
-
+        
         sample_name = str(self.args.sample)
         project_name = str(self.args.project)
         subproject_name = str(self.args.subproject)
         sample_date = self.args.date.strftime('%Y-%m-%d')
-        input_file = self.args.input[0]  # Use the first (and only) input file, which should be the concatenated file
+        input_files = self.args.input  # This should be a list of input files
 
         print(f"Analyzing amplicon data for sample {sample_name}.")
-        emu_success = self.emu_runner.run_emu([input_file], sample_name, self.args.minabundance)
+        emu_success = self.emu_runner.run_emu(input_files, sample_name, self.args.minabundance)
         
         if not emu_success:
             print(f"Emu analysis failed for sample {sample_name}.")
@@ -359,7 +379,7 @@ class MMonitorCMD:
                 concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq"
                 CentrifugeRunner.concatenate_fastq_fast(files, concat_file_name, False)
 
-            self.centrifuge_runner.run_centrifuge(concat_file_name, sample_name, cent_db_path)
+            self.centrifuge_runner.run_centrifuge(concat_file_name, sample_name, self.centrifuge_db)
             add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
             if self.args.qc:
                 self.add_statistics(self.centrifuge_runner.concat_file_name, sample_name, project_name, subproject_name,
@@ -422,11 +442,11 @@ class MMonitorCMD:
                                                                 concat_files_list,
                                                                 centrifuge_tsv_path)
             print(f"Running centrifuge for multiple samples from tsv {centrifuge_tsv_path}...")
-            CentrifugeRunner.run_centrifuge_multi_sample(centrifuge_tsv_path, cent_db_path)
+            CentrifugeRunner.run_centrifuge_multi_sample(centrifuge_tsv_path, self.centrifuge_db)
 
             print(f"Make kraken report from centrifuge reports...")
 
-            CentrifugeRunner.make_kraken_report_from_tsv(centrifuge_tsv_path, cent_db_path)
+            CentrifugeRunner.make_kraken_report_from_tsv(centrifuge_tsv_path, self.centrifuge_db)
 
 
             print(f"Adding all samples to database...")
@@ -447,33 +467,59 @@ class MMonitorCMD:
             for concat_file in concat_files_list:
                 os.remove(concat_file)
 
-    def assembly_pipeline(self, s_name, p_name, sp_name, s_date, fils):
-        concat_file_name = self.concatenate_files(fils, s_name)
-        print(concat_file_name)
-        contig_file_path = self.functional_runner.run_flye(concat_file_name, s_name, True, True)
-        out_path = os.path.join(self.pipeline_out, s_name)
-        self.functional_runner.run_medaka_consensus(contig_file_path, concat_file_name, out_path)
+    def assembly_pipeline(self):
+        output_dir = os.path.join(self.pipeline_out, self.args.sample)
+        os.makedirs(output_dir, exist_ok=True)
 
-        print(f" contig_file_path: {contig_file_path}")
-        print(f" concat_file_path: {concat_file_name}")
-        print(f" out_path: {out_path}")
-        os.startfile(out_path)
-        self.functional_runner.run_metabat2_pipeline(contig_file_path, concat_file_name, out_path)
-        bins_dir = os.path.join(out_path, "metabat_bins")
-        bakta_dir = os.path.join(out_path, "bakta_results")
+        # Assembly with Flye
+        assembly_out = self.functional_runner.run_flye(self.args.input, self.args.sample, output_dir, self.args.threads)
 
-        # self.functional_runner.run_checkm2(bins_dir, out_path)
-        # self.functional_runner.run_bakta(contig_file_path, bakta_dir)
-        self.functional_runner.run_gtdb_tk(bins_dir, out_path)
+        # Correction with Medaka
+        corrected_assembly = self.functional_runner.run_medaka(assembly_out, self.args.input[0], output_dir, self.args.threads)
+
+        # Binning with MetaBAT2
+        bins_dir = self.functional_runner.run_metabat2(corrected_assembly, self.args.input[0], output_dir, self.args.threads)
+
+        print("Assembly pipeline completed successfully.")
+
+    def functional_pipeline(self):
+        self.assembly_pipeline()
+        output_dir = os.path.join(self.pipeline_out, self.args.sample)
+        bins_dir = os.path.join(output_dir, "metabat2_bins")
+
+        # CheckM2
+        checkm2_out = self.functional_runner.run_checkm2(bins_dir, output_dir, self.args.threads)
+
+        # Annotation with Bakta
+        bakta_out = self.functional_runner.run_bakta(bins_dir, output_dir, self.args.threads)
+
+        # Taxonomy with GTDB-TK
+        gtdbtk_out = self.functional_runner.run_gtdbtk(bins_dir, output_dir, self.args.threads)
+
+        print("Functional analysis pipeline completed successfully.")
 
     def run(self):
-        if not self.args:
-            raise ValueError("Arguments not initialized. Call initialize_from_args() first.")
+        logger.debug(f"Starting run with analysis type: {self.args.analysis}")
         
-        if self.args.multicsv:
-            self.run_multi_sample()
-        else:
-            self.run_single_sample()
+        # Print the current PATH before running any analysis
+        logger.debug(f"Current PATH: {os.environ['PATH']}")
+
+        if self.args.analysis == "taxonomy-16s":
+            logger.debug("Running taxonomy-16s analysis")
+            self.taxonomy_nanopore_16s()
+        elif self.args.analysis == "taxonomy-wgs":
+            logger.debug("Running taxonomy-wgs analysis")
+            self.taxonomy_nanopore_wgs()
+        elif self.args.analysis == "assembly":
+            logger.debug("Running assembly pipeline")
+            self.assembly_pipeline()
+        elif self.args.analysis == "functional":
+            logger.debug("Running functional pipeline")
+            self.functional_pipeline()
+        elif self.args.analysis == "stats":
+            logger.debug("Running stats analysis")
+            self.update_only_statistics()
+        logger.debug("Finished run")
 
     def run_single_sample(self):
         if self.args.analysis == "taxonomy-16s":
@@ -481,7 +527,9 @@ class MMonitorCMD:
         elif self.args.analysis == "taxonomy-wgs":
             self.taxonomy_nanopore_wgs()
         elif self.args.analysis == "assembly":
-            self.assembly_pipeline(self.args.sample, self.args.project, self.args.subproject, self.args.date, self.args.input)
+            self.assembly_pipeline()
+        elif self.args.analysis == "functional":
+            self.functional_pipeline()
         elif self.args.analysis == "kegg":
             self.run_kegg_analysis()
         elif self.args.analysis == "mag-upload":

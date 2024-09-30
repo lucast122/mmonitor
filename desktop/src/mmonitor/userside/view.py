@@ -13,26 +13,26 @@ import csv
 import io
 import threading
 import gzip
+from requests import post
 from tkcalendar import DateEntry
 import datetime  # Make sure this import is at the top of your file
 import queue
-
+from .FolderWatcherWindow import FolderWatcherWindow
 from build_mmonitor_pyinstaller import ROOT, IMAGES_PATH
 from mmonitor.dashapp.index import Index
 from mmonitor.database.DBConfigForm import DataBaseConfigForm
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.database.mmonitor_db import MMonitorDBInterface
-from mmonitor.userside.CentrifugeRunner import CentrifugeRunner
-from mmonitor.userside.EmuRunner import EmuRunner
-from mmonitor.userside.FastqStatistics import FastqStatistics
-from mmonitor.userside.InputWindow import InputWindow
-from mmonitor.userside.PipelineWindow import PipelinePopup
-from mmonitor.userside.FunctionalRunner import FunctionalRunner
-from mmonitor.userside.FolderMonitor import FolderMonitor
-from mmonitor.userside.MMonitorCMD import MMonitorCMD
+from .CentrifugeRunner import CentrifugeRunner
+from .EmuRunner import EmuRunner
+from .FastqStatistics import FastqStatistics
+from .InputWindow import InputWindow
+from .PipelineWindow import PipelinePopup
+from .FunctionalRunner import FunctionalRunner
+from .MMonitorCMD import MMonitorCMD
 
 VERSION = "v1.0.0"
-MAIN_WINDOW_X, MAIN_WINDOW_Y = 260, 300
+MAIN_WINDOW_X, MAIN_WINDOW_Y = 260, 320
 
 class ConsoleWindow(ctk.CTkToplevel):
     def __init__(self, *args, **kwargs):
@@ -122,8 +122,8 @@ class GUI(ctk.CTk):
         buttons = [
             ("Select User", self.open_db_config_form, "mmonitor_button4_authenticate.png"),
             ("Run Analysis", self.checkbox_popup, "button_add_data2.png"),
+            ("Watch Folder", self.open_folder_watcher, "mmonitor-folder-watcher.png"),
             ("Toggle Console", self.toggle_console, "mmonitor_button_console.png"),
-            ("Folder Watcher", self.open_folder_watcher, "mmonitor-folder-watcher.png"),
             # ("Select Database", self.select_database, "mmonitor_button_select_db.png"),
             ("Quit", self.stop_app, "mmonitor_button_quit.png")
         ]
@@ -179,7 +179,7 @@ class GUI(ctk.CTk):
         self.pipeline_popup = PipelinePopup(self, self)
         self.wait_window(self.pipeline_popup)
 
-    def run_pipeline(self, analysis_type):
+    def run_pipeline(self, analysis_type,emu_db,centriduge_db):
         print(f"Starting pipeline for analysis type: {analysis_type}")
         input_window = InputWindow(self, self.emu_runner)
         self.wait_window(input_window)
@@ -327,18 +327,18 @@ class GUI(ctk.CTk):
         print("Application shutdown complete.")
         self.destroy()
 
-    def start_monitoring(self):
-        try:
-            self.dashapp = Index(self.db)
-            self.monitor_thread = Thread(target=self.dashapp.run_server, args=(False,))
-            self.monitor_thread.start()
-        except IndexError:
-            self.show_info(
-                "No data found in database. Please first run analysis pipeline to fill DB with data.")
-            return
+    # def start_monitoring(self):
+    #     try:
+    #         self.dashapp = Index(self.db)
+    #         self.monitor_thread = Thread(target=self.dashapp.run_server, args=(False,))
+    #         self.monitor_thread.start()
+    #     except IndexError:
+    #         self.show_info(
+    #             "No data found in database. Please first run analysis pipeline to fill DB with data.")
+    #         return
 
-        sleep(1)
-        open_new('http://localhost:8050')
+    #     # sleep(1)
+    #     open_new('http://localhost:8050')
 
     def check_and_start_analysis(self, sample_name):
         # Example condition: if the sample has accumulated 10 files
@@ -525,261 +525,3 @@ class CustomDatePicker(ctk.CTkToplevel):
             self.destroy()
         except ValueError:
             messagebox.showerror("Invalid Date", "Please enter a valid date.")
-
-class FolderWatcherWindow(ctk.CTkToplevel):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.title("Folder Watcher")
-        self.geometry("800x700")
-        self.samples = {}
-        self.watching = False
-        self.selected_date = datetime.date.today()
-        self.auto_analyze_var = tk.BooleanVar(value=False)
-        self.create_widgets()
-        
-        self.queue = queue.Queue()
-        self.after(100, self.process_queue)
-
-    def create_widgets(self):
-        self.folder_frame = ctk.CTkFrame(self)
-        self.folder_frame.pack(pady=10, padx=10, fill="x")
-
-        self.folder_label = ctk.CTkLabel(self.folder_frame, text="Folder to watch:")
-        self.folder_label.pack(side="left", padx=5)
-
-        self.folder_entry = ctk.CTkEntry(self.folder_frame, width=400)
-        self.folder_entry.pack(side="left", padx=5)
-
-        self.browse_button = ctk.CTkButton(self.folder_frame, text="Browse", command=self.browse_folder)
-        self.browse_button.pack(side="left", padx=5)
-
-        self.watch_button = ctk.CTkButton(self.folder_frame, text="Start Watching", command=self.toggle_watching)
-        self.watch_button.pack(side="left", padx=5)
-
-        # Sample information frame
-        self.info_frame = ctk.CTkFrame(self)
-        self.info_frame.pack(pady=10, padx=10, fill="x")
-
-        self.sample_name_label = ctk.CTkLabel(self.info_frame, text="Sample Name:")
-        self.sample_name_label.grid(row=0, column=0, padx=5, pady=5)
-        self.sample_name_entry = ctk.CTkEntry(self.info_frame, width=200)
-        self.sample_name_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        self.project_label = ctk.CTkLabel(self.info_frame, text="Project Name:")
-        self.project_label.grid(row=1, column=0, padx=5, pady=5)
-        self.project_entry = ctk.CTkEntry(self.info_frame, width=200)
-        self.project_entry.grid(row=1, column=1, padx=5, pady=5)
-
-        self.subproject_label = ctk.CTkLabel(self.info_frame, text="Subproject Name:")
-        self.subproject_label.grid(row=2, column=0, padx=5, pady=5)
-        self.subproject_entry = ctk.CTkEntry(self.info_frame, width=200)
-        self.subproject_entry.grid(row=2, column=1, padx=5, pady=5)
-
-        self.date_label = ctk.CTkLabel(self.info_frame, text="Date:")
-        self.date_label.grid(row=3, column=0, padx=5, pady=5)
-        self.date_button = ctk.CTkButton(self.info_frame, text="Select Date", command=self.open_date_picker)
-        self.date_button.grid(row=3, column=1, padx=5, pady=5)
-
-        self.use_file_date = ctk.CTkCheckBox(self.info_frame, text="Use file creation date")
-        self.use_file_date.grid(row=3, column=2, padx=5, pady=5)
-
-        # Analysis type selection
-        self.analysis_frame = ctk.CTkFrame(self)
-        self.analysis_frame.pack(pady=10, padx=10, fill="x")
-
-        self.analysis_var = tk.StringVar(value="taxonomy-wgs")
-        ctk.CTkRadioButton(self.analysis_frame, text="WGS Analysis", variable=self.analysis_var, value="taxonomy-wgs").pack(side="left", padx=10)
-        ctk.CTkRadioButton(self.analysis_frame, text="16S Analysis", variable=self.analysis_var, value="taxonomy-16s").pack(side="left", padx=10)
-
-        # Create a frame for the Treeview
-        tree_frame = ttk.Frame(self)
-        tree_frame.pack(pady=10, padx=10, fill="both", expand=True)
-
-        # Create the Treeview widget
-        self.tree = ttk.Treeview(tree_frame, columns=("status",))
-        self.tree.heading("#0", text="Sample/File")
-        self.tree.heading("status", text="Status")
-        self.tree.pack(side="left", fill="both", expand=True)
-
-        # Add a scrollbar
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.tree.configure(yscrollcommand=scrollbar.set)
-
-        # Manual start analysis button
-        self.start_analysis_button = ctk.CTkButton(self, text="Start Analysis", command=self.start_analysis)
-        self.start_analysis_button.pack(pady=10)
-
-        # Add auto-analyze checkbox
-        self.auto_analyze_check = ctk.CTkCheckBox(self, text="Auto-analyze new samples", variable=self.auto_analyze_var)
-        self.auto_analyze_check.pack(pady=10)
-
-    def browse_folder(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.folder_entry.delete(0, tk.END)
-            self.folder_entry.insert(0, folder)
-
-    def toggle_watching(self):
-        if not self.watching:
-            self.start_watching()
-        else:
-            self.stop_watching()
-
-    def start_watching(self):
-        folder = self.folder_entry.get()
-        if not folder:
-            messagebox.showerror("Error", "Please select a folder to watch.")
-            return
-
-        self.samples.clear()
-        self.tree.delete(*self.tree.get_children())
-
-        threading.Thread(target=self.scan_existing_files, args=(folder,), daemon=True).start()
-
-        self.parent.folder_monitor = FolderMonitor([folder], self)
-        self.parent.folder_monitor.start()
-        self.watching = True
-        self.watch_button.configure(text="Stop Watching")
-
-    def scan_existing_files(self, folder):
-        for root, dirs, files in os.walk(folder):
-            if "fastq_pass" in dirs:
-                fastq_pass_dir = os.path.join(root, "fastq_pass")
-                barcode_dirs = [d for d in os.listdir(fastq_pass_dir) if d.startswith("barcode")]
-                
-                if barcode_dirs:
-                    for barcode_dir in barcode_dirs:
-                        parent_folder = os.path.basename(os.path.dirname(fastq_pass_dir))
-                        self.process_sample_folder(os.path.join(fastq_pass_dir, barcode_dir), f"{parent_folder}_{barcode_dir}")
-                else:
-                    parent_folder = os.path.basename(os.path.dirname(fastq_pass_dir))
-                    self.process_sample_folder(fastq_pass_dir, parent_folder)
-
-    def process_sample_folder(self, folder, sample_name):
-        files = [f for f in os.listdir(folder) if f.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')) and not f.endswith('_concatenated.fastq.gz')]
-        if files:
-            self.queue.put(('add_sample', sample_name, folder, files))
-
-    def add_new_file(self, file_path):
-        if "_concatenated" in file_path:
-            return  # Ignore concatenated files
-
-        parent_folder = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(file_path))))
-        barcode_folder = os.path.basename(os.path.dirname(file_path))
-        sample_name = f"{parent_folder}_{barcode_folder}"
-        self.queue.put(('add_file', sample_name, file_path))
-
-    def process_queue(self):
-        try:
-            while True:
-                action, *args = self.queue.get_nowait()
-                if action == 'add_sample':
-                    self._add_sample(*args)
-                elif action == 'add_file':
-                    self._add_file(*args)
-        except queue.Empty:
-            pass
-        finally:
-            self.after(100, self.process_queue)
-
-    def _add_sample(self, sample_name, folder, files):
-        if sample_name not in self.samples:
-            self.samples[sample_name] = []
-            self.tree.insert("", "end", sample_name, text=sample_name)
-        
-        for file in files:
-            file_path = os.path.join(folder, file)
-            if file_path not in self.samples[sample_name]:
-                self.samples[sample_name].append(file_path)
-                self.tree.insert(sample_name, "end", text=file, values=("Existing",))
-
-    def _add_file(self, sample_name, file_path):
-        if sample_name not in self.samples:
-            self.samples[sample_name] = []
-            self.tree.insert("", "end", sample_name, text=sample_name)
-        
-        if file_path not in self.samples[sample_name]:
-            self.samples[sample_name].append(file_path)
-            self.tree.insert(sample_name, "end", text=os.path.basename(file_path), values=("New",))
-
-        if self.auto_analyze_var.get() and self.should_start_analysis(sample_name):
-            threading.Thread(target=self.start_analysis_for_sample, args=(sample_name,), daemon=True).start()
-
-    def stop_watching(self):
-        if self.parent.folder_monitor:
-            self.parent.folder_monitor.stop()
-        self.watching = False
-        self.watch_button.configure(text="Start Watching")
-
-    def get_sample_name(self, folder_path):
-        if "barcode" in folder_path:
-            return os.path.basename(folder_path)
-        return os.path.basename(os.path.dirname(folder_path))
-
-    def should_start_analysis(self, sample_name):
-        # Add your conditions here, e.g., number of files, time since last analysis, etc.
-        return len(self.samples[sample_name]) >= 5  # Start analysis when 5 or more files are available
-
-    def start_analysis_for_sample(self, sample_name):
-        analysis_type = self.analysis_var.get()
-        sample_date = self.selected_date.strftime("%Y-%m-%d") if not self.use_file_date.get() else datetime.datetime.fromtimestamp(os.path.getctime(self.samples[sample_name][0])).strftime("%Y-%m-%d")
-        
-        concat_file = self.get_or_create_concat_file(sample_name)
-        
-        cmd = [
-            sys.executable,
-            "-m", "mmonitor.userside.MMonitorCMD",
-            "-a", analysis_type,
-            "-c", self.parent.db_path or os.path.join(ROOT, "src", "resources", "db_config.json"),
-            "-i", concat_file,
-            "-s", self.sample_name_entry.get(),
-            "-d", sample_date,
-            "-p", self.project_entry.get(),
-            "-u", self.subproject_entry.get(),
-            "--overwrite"
-        ]
-        
-        env = os.environ.copy()
-        mmonitor_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        env["PYTHONPATH"] = f"{mmonitor_path}:{env.get('PYTHONPATH', '')}"
-
-        subprocess.Popen(cmd, env=env)
-
-    def get_or_create_concat_file(self, sample_name):
-        concat_file = os.path.join(os.path.dirname(self.samples[sample_name][0]), f"{sample_name}_concatenated.fastq.gz")
-        
-        if not os.path.exists(concat_file):
-            # Create new concatenated file
-            with gzip.open(concat_file, 'wb') as outfile:
-                for file in self.samples[sample_name]:
-                    with gzip.open(file, 'rb') as infile:
-                        outfile.write(infile.read())
-        else:
-            # Append new files to existing concatenated file
-            with gzip.open(concat_file, 'ab') as outfile:
-                for file in self.samples[sample_name]:
-                    if os.path.getmtime(file) > os.path.getmtime(concat_file):
-                        with gzip.open(file, 'rb') as infile:
-                            outfile.write(infile.read())
-        
-        return concat_file
-
-    def start_analysis(self):
-        selected_items = self.tree.selection()
-        if not selected_items:
-            messagebox.showinfo("Info", "Please select samples to analyze.")
-            return
-
-        for item in selected_items:
-            sample_name = self.tree.item(item, "text")
-            if sample_name in self.samples:
-                self.start_analysis_for_sample(sample_name)
-
-    def open_date_picker(self):
-        CustomDatePicker(self, self.set_date)
-
-    def set_date(self, date):
-        self.selected_date = date
-        self.date_button.configure(text=date.strftime("%Y-%m-%d"))

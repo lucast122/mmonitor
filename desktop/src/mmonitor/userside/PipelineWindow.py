@@ -4,6 +4,9 @@ import customtkinter as ctk
 import os
 import json
 from tkinter import filedialog
+from mmonitor.userside.MMonitorCMD import MMonitorCMD
+
+from build_mmonitor_pyinstaller import ROOT
 
 class PipelinePopup(ctk.CTkToplevel):
     def __init__(self, parent, gui_ref):
@@ -19,8 +22,10 @@ class PipelinePopup(ctk.CTkToplevel):
         self.annotation = tk.BooleanVar()
         self.kegg = tk.BooleanVar()
         self.test_mag_upload = tk.BooleanVar()
-        self.emu_db_path = None
-        self.centrifuge_db_path = None
+        # default databases paths to be used if user doesn't supply own path
+        self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db/")
+        self.centrifuge_db_path = os.path.join(ROOT, "src", "resources", "centrifuge_db/")
+        
         self.geometry("500x600")
         self.minsize(500, 600)
         self.title("Analysis Pipeline Configuration")
@@ -69,12 +74,22 @@ class PipelinePopup(ctk.CTkToplevel):
             self.centrifuge_db_path = db_path
 
     def run_analysis_pipeline(self):
-        if self.taxonomy_nanopore_wgs.get():
-            self.gui.run_pipeline("taxonomy-wgs", centrifuge_db=self.centrifuge_db_path)
-        elif self.taxonomy_nanopore_16s_bool.get():
-            self.gui.run_pipeline("taxonomy-16s", emu_db=self.emu_db_path)
-        elif self.assembly.get():
-            self.gui.run_pipeline("assembly")
-        elif self.kegg.get():
-            self.gui.run_pipeline("kegg")
+        if self.assembly.get() or self.functional.get():
+            analysis_type = "assembly" if self.assembly.get() else "functional"
+            cmd_runner = MMonitorCMD()
+            args = cmd_runner.parse_arguments([
+                "-a", analysis_type,
+                "-c", self.parent.db_path,
+                "-i"] + self.parent.sample_files[self.parent.sample_name] + [
+                "-s", self.parent.sample_name,
+                "-d", self.parent.selected_date.strftime("%Y-%m-%d"),
+                "-p", self.parent.project_name,
+                "-u", self.parent.subproject_name,
+                "--overwrite" if self.parent.overwrite else ""
+            ])
+            cmd_runner.initialize_from_args(args)
+            cmd_runner.run()
+        else:
+            # Handle other analysis types as before
+            pass
         self.destroy()
