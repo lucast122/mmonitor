@@ -1,0 +1,33 @@
+tax_id	abundance	species	genus	family	order	class	phylum	clade	superkingdom	subspecies	species subgroup	species group	estimated counts
+478	0.2646616257699605	Moraxella nonliquefaciens	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				210.93531573865852
+480	0.5803910561483501	Moraxella catarrhalis	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				462.571671750235
+1747	0.04271356783919598	Cutibacterium acnes	Cutibacterium	Propionibacteriaceae	Propionibacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				34.04271356783919
+477	0.004843080668413677	Moraxella lacunata	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				3.8599352927257007
+1524258	0.001256281407035176	Amphritea ceti	Amphritea	Oceanospirillaceae	Oceanospirillales	Gammaproteobacteria	Proteobacteria		Bacteria				1.0012562814070352
+476	0.010168923936842897	Moraxella bovis	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				8.104632377663789
+386891	0.008365577149673472	Moraxella bovoculi	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				6.667364988289758
+200413	0.003795134297940313	Moraxella oblonga	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				3.024722035458429
+470453	0.004598003994620019	Moraxella pluranimalium	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				3.6646091837121553
+1260	0.007537688442211055	Finegoldia magna	Finegoldia	Peptoniphilaceae	Tissierellales	Tissierellia	Firmicutes	Terrabacteria group	Bacteria				6.007537688442211
+1282	0.020095510334059884	Staphylococcus epidermidis	Staphylococcus	Staphylococcaceae	Bacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				16.01612173624573
+34060	0.0013040384161343943	Moraxella caviae	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				1.0393186176591123
+1288392	0.007550991599314839	Moraxella porci	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				6.018140304653927
+90241	0.0025127053766712325	Moraxella lincolnii	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				2.002626185206972
+287	0.002512562814070352	Pseudomonas aeruginosa	Pseudomonas	Pseudomonadaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria			Pseudomonas aeruginosa group	2.0025125628140703
+544580	0.001256281407035176	Actinomyces oris	Actinomyces	Actinomycetaceae	Actinomycetales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				1.0012562814070352
+1673725	0.005025125628140704	Peptoniphilus lacydonensis	Peptoniphilus	Peptoniphilaceae	Tissierellales	Tissierellia	Firmicutes	Terrabacteria group	Bacteria				4.005025125628141
+756892	0.002512562814069533	Acinetobacter indicus	Acinetobacter	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				2.002512562813418
+1727196	0.001256281407035176	Methylomonas sp. DH-1	Methylomonas	Methylococcaceae	Methylococcales	Gammaproteobacteria	Proteobacteria		Bacteria				1.0012562814070352
+306572	0.0012562814106962426	Psychrobacter celer	Psychrobacter	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				1.0012562843249053
+38284	0.006281379884532214	Corynebacterium accolens	Corynebacterium	Corynebacteriaceae	Corynebacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				5.006259767972175
+1296	0.002512262545058342	Staphylococcus sciuri	Staphylococcus	Staphylococcaceae	Bacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				2.0022732484114987
+1280	0.002512863082068134	Staphylococcus aureus	Staphylococcus	Staphylococcaceae	Bacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				2.0027518764083028
+29388	0.0012612735865523363	Staphylococcus capitis	Staphylococcus	Staphylococcaceae	Bacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				1.005235048482212
+37482	0.005024943040427856	Laceyella sacchari	Laceyella	Thermoactinomycetaceae	Bacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				4.004879603221001
+54007	0.001256281407035176	Anaerococcus octavius	Anaerococcus	Peptoniphilaceae	Tissierellales	Tissierellia	Firmicutes	Terrabacteria group	Bacteria				1.0012562814070352
+1528099	0.001256281407035176	Lawsonella clevelandensis	Lawsonella		Corynebacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				1.0012562814070352
+1303	0.001256281407035176	Streptococcus oralis	Streptococcus	Streptococcaceae	Lactobacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				1.0012562814070352
+38304	0.0025125899647140165	Corynebacterium tuberculostearicum	Corynebacterium	Corynebacteriaceae	Corynebacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				2.0025342018770713
+29321	0.001256281407035176	Corynebacterium otitidis	Corynebacterium	Corynebacteriaceae	Corynebacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				1.0012562814070352
+682979	0.001256281407035176	Microlunatus parietis	Microlunatus	Propionibacteriaceae	Propionibacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				1.0012562814070352
+unassigned	0.0												883.0

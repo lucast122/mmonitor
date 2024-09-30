@@ -12,11 +12,14 @@ from lib import emu
 
 class EmuRunner:
 
-    def __init__(self):
+    def __init__(self, custom_db_path=None):
         self.concat_file_name = None
         self.logger = logging.getLogger('timestamp')
         self.check_emu()
         self.emu_out = ""
+        self.emu_path = os.path.join(ROOT, "lib", "emu.py")
+        self.default_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
+        self.db_path = custom_db_path if custom_db_path else self.default_db_path
 
     @staticmethod
     def unpack_fastq_list(ls):
@@ -30,73 +33,39 @@ class EmuRunner:
 
     def check_emu(self):
         try:
-            subprocess.run([f"{ROOT}/lib/emu.py", '-h'], stdout=open(os.devnull, 'w'),
+            subprocess.run(["emu", '-h'], stdout=open(os.devnull, 'w'),
                             stderr=subprocess.STDOUT)
         except FileNotFoundError:
             self.logger.error(
-                "Make sure that emu.py is installed and on the sytem path. For more info visit http://www.ccb.jhu.edu/software/centrifuge/manual.shtml")
+                "Make sure that emu is installed and on the system path. For more info visit https://gitlab.com/treangenlab/emu")
 
-    def run_emu(self, sequence_list, sample_name, min_abundance):
+    def run_emu(self, input_files, sample_name, min_abundance=0.01):
+        output_dir = os.path.join(ROOT, "src", "resources", "pipeline_out", sample_name)
+        os.makedirs(output_dir, exist_ok=True)
+
         print(f"Running emu with min abundance of {min_abundance}")
-        self.emu_out = f"{ROOT}/src/resources/pipeline_out/{sample_name}/"
+        print(f"Emu out: {output_dir}")
+        print(f"min abundance: {min_abundance}")
+        print(f"Using database: {self.db_path}")
 
-        #remove concatenated files from sequence list to avoid concatenating twice
-        sequence_list = [s for s in sequence_list if "concatenated" not in s]
-        # print(sequence_list)
-        concat_file_name = f"{os.path.dirname(sequence_list[0])}/{sample_name}_concatenated.fastq.gz"
-        self.concat_file_name = concat_file_name
-        # print(f"concat_file_name: {concat_file_name}")
-        if not os.path.exists(concat_file_name):
-            self.concatenate_fastq_files(sequence_list, concat_file_name)
+        cmd = [
+            self.emu_path, "abundance",
+            "--type", "map-ont",
+            "--keep-counts",
+            "--output-dir", output_dir,
+            "--min-abundance", str(min_abundance),
+            "--threads", "12",
+            "--output-basename", f"{sample_name}_rel-abundance",
+            "--db", self.db_path
+        ] + input_files
 
-
-        if ".fasta" in sequence_list[0] or ".fa" in sequence_list[0] or ".fastq" in sequence_list[0]\
-                or ".fq" in sequence_list[0]:
-            # alternative way to call emu. this doesn't work with frozen build from pyinstaller so comment out for now
-            # cmd = f"python {ROOT}/lib/emu.py abundance {concat_file_name} --db {ROOT}/src/resources/emu_db/" \
-            #       f" --output-dir {self.emu_out} --threads {multiprocessing.cpu_count()} --type map-ont --output-basename {sample_name}"
-            # print(cmd)
-            # os.system(cmd)
-            emu_db = f"{ROOT}/src/resources/emu_db/"
-
-            df_taxonomy = pd.read_csv(os.path.join(emu_db, "taxonomy.tsv"), sep='\t',
-                                      index_col='tax_id', dtype=str)
-            db_species_tids = df_taxonomy.index
-            print(f"Emu out: {self.emu_out}")
-            if not os.path.exists(self.emu_out):
-                os.makedirs(self.emu_out)
-
-            out_file_base = self.emu_out
-            sam_out = f"{out_file_base}/emu_alignments.sam"
-            tsv_out = f"{out_file_base}/{sample_name}_rel-abundance"
-            # print(f"Out file: {out_file_base}")
-            print(f"min abundance: {min_abundance}")
-            SAM_FILE = emu.generate_alignments(concat_file_name, sam_out, emu_db, "map-ont",
-                                               f"{multiprocessing.cpu_count()}", 50, 500000000)
-            log_prob_cigar_op, locs_p_cigar_zero, longest_align_dict = \
-                emu.get_cigar_op_log_probabilities(SAM_FILE)
-            log_prob_rgs, counts_unassigned, counts_assigned = emu.log_prob_rgs_dict(
-                SAM_FILE, log_prob_cigar_op, longest_align_dict, locs_p_cigar_zero)
-            f_full, f_set_thresh, read_dist = emu.expectation_maximization_iterations(log_prob_rgs,
-                                                                                      db_species_tids,
-                                                                                      .01,
-                                                                                      input_threshold=min_abundance)
-            # print(f_full)
-            # print(f_set_thresh)
-
-            emu.freq_to_lineage_df(f_full, tsv_out, df_taxonomy,
-                                   counts_assigned, counts_unassigned, True)
-
-            # convert and save frequency to a tsv
-            if f_set_thresh:
-                emu.freq_to_lineage_df(
-                    f_set_thresh,
-                    os.path.join(out_file_base, f"{sample_name}_rel-abundance-threshold"),
-
-                    df_taxonomy, counts_assigned, counts_unassigned, True)
-        # remove concatenated file after processing
-        # TODO: calculate statistics and then remove, for now don't remove
-        # os.remove(concat_file_name)
+        try:
+            subprocess.run(cmd, check=True)
+            print(f"Emu analysis completed for sample {sample_name}.")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Emu: {e}")
+            return False
 
     def get_files_from_folder(self, folder_path):
         """

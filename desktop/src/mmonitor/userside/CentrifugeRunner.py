@@ -182,19 +182,10 @@ class CentrifugeRunner:
     def get_files_from_folder(self, folder_path):
         """
         Gets a path to a folder, checks if path contains sequencing files with specified endings and returns list
-        containing paths to sequencing files. centrifuge
+        containing paths to sequencing files.
         """
         files = []
-        found = False
-        try:
-            for file in os.listdir(folder_path):
-                print(file)
-                if file.endswith(".fastq") or file.endswith(".fq") or file.endswith(".fasta") or file.endswith(
-                        ".fastq.gz"):
-                    files.append(f"{folder_path}/{file}")
-                    found = True
-            if not found:
-                self.logger.error(f"No sequencing files (.fastq, .fq found at {folder_path}")
-            return files
-        except FileNotFoundError:
-            self.logger.error(f"Invalid folder path")
+        for file in os.listdir(folder_path):
+            if file.endswith((".fastq", ".fq", ".fasta", ".fastq.gz")):
+                files.append(os.path.join(folder_path, file))
+        return files
