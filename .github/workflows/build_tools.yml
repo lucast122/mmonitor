@@ -1,0 +1,46 @@
+name: Build Flye, Samtools, Minimap2, and Main Application
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-tools:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Install build dependencies on Ubuntu
+      - name: Install build dependencies on Ubuntu
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y sudo git build-essential python3 python3-pip zlib1g-dev
+
+      # Install build dependencies on macOS
+      - name: Install build dependencies on macOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install python3 zlib xz bzip2 curl
+
+      # Build Flye, Samtools, Minimap2
+      - name: Build Flye, Samtools, and Minimap2
+        run: |
+          # Your build commands for tools here
+
+      # Upload the built binaries and Python executable as artifacts
+      - name: Upload binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-${{ matrix.os }}
+          path: dist/
+
