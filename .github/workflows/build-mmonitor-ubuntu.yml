@@ -1,0 +1,118 @@
+name: Build Flye, Centrifuge, Samtools, and Main Application
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-flye:
+    name: Build Flye from Source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Flye
+        run: |
+          git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
+          cd desktop/lib/Flye
+          python3 setup.py build
+          python3 setup.py install --user
+      - name: Upload Flye binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: flye-binaries
+          path: ~/.local/bin/flye
+
+  build-samtools:
+    name: Build Samtools from Source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build HTSlib
+        run: |
+          git clone --recursive https://github.com/samtools/htslib.git
+          cd htslib
+          git submodule update --init --recursive
+          autoheader
+          autoconf
+          autoreconf -i
+          ./configure
+          make
+          sudo make install
+      - name: Build Samtools
+        run: |
+          git clone https://github.com/samtools/samtools.git
+          cd samtools
+          autoreconf -i
+          ./configure
+          make
+          sudo make install
+      - name: Upload Samtools binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: samtools-binaries
+          path: /usr/local/bin/samtools
+
+  build-centrifuge:
+    name: Build Centrifuge from Source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Centrifuge
+        run: |
+          git clone https://github.com/DaehwanKimLab/centrifuge.git
+          cd centrifuge
+          make
+      - name: Upload Centrifuge binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: centrifuge-binaries
+          path: centrifuge
+
+  build-mmonitor-pyinstaller:
+    name: Build MMonitor with PyInstaller
+    runs-on: ubuntu-latest
+    needs: [build-flye, build-samtools, build-centrifuge]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Install PyInstaller
+        run: |
+          python3 -m pip install pyinstaller
+      - name: Set PYTHONPATH
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
+      - name: Build MMonitor
+        run: |
+          cd desktop/src/mmonitor
+          pyinstaller --onefile __main__.py --distpath ../../output
+          ls -lah
+      - name: Upload MMonitor binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmonitor-binary
+          path: desktop/output/
+
+  set-path-for-included-dependencies:
+    name: Set up PATH for included dependencies
+    runs-on: ubuntu-latest
+    needs: build-mmonitor-pyinstaller
+    steps:
+      - name: Set PATH
+        run: |
+          echo "export PATH=\$PATH:\$GITHUB_WORKSPACE/desktop/lib/Flye:\$GITHUB_WORKSPACE/desktop/lib/centrifuge:\$GITHUB_WORKSPACE/desktop/lib/samtools" >> $GITHUB_ENV
