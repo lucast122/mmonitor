@@ -1,4 +1,4 @@
-name: Build Flye, Centrifuge, Samtools, and Main Application on macOS
+name: Build Flye, Centrifuger, Samtools, and Main Application on macOS
 
 on:
   push:
@@ -72,38 +72,34 @@ jobs:
           name: samtools-binaries
           path: /usr/local/bin/samtools
 
-  build-centrifuge:
+  build-centrifuger:
+    name: Install Centrifuger using Conda on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       
-      - name: Install dependencies
+      - name: Install Conda
         run: |
-          brew install gcc  # Install dependencies if needed
+          brew install --cask miniconda
+          conda init bash
 
-      - name: Clone Centrifuge
-        run: git clone https://github.com/DaehwanKimLab/centrifuge.git
-        
-      - name: Build Centrifuge
+      - name: Create and activate Conda environment, and install Centrifuger
         run: |
-          cd centrifuge
-          make
-
-      - name: Install Centrifuge locally
-        run: |
-          make install prefix=$HOME/.local
-
-      - name: Add local bin to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Test Centrifuge installation
-        run: centrifuge --version
+          conda create -n centrifuger_env python=3.9 -y
+          conda activate centrifuger_env
+          conda install -c conda-forge -c bioconda centrifuger -y
+      
+      - name: Upload Centrifuger binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: centrifuger-binaries
+          path: ~/.conda/envs/centrifuger_env/bin/centrifuger
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest
-    needs: [build-flye, build-samtools, build-centrifuge]
+    needs: [build-flye, build-samtools, build-centrifuger]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
