@@ -1,4 +1,4 @@
-name: Build Flye, Centrifuge, Samtools, and Main Application
+name: Build Flye, Centrifuger, Samtools, and Main Application
 
 on:
   push:
@@ -61,28 +61,37 @@ jobs:
           name: samtools-binaries
           path: /usr/local/bin/samtools
 
-  build-centrifuge:
-    name: Build Centrifuge from Source
+  build-centrifuger:
+    name: Install Centrifuger using Conda on Ubuntu
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Build Centrifuge
+      
+      - name: Install Conda
         run: |
-          git clone https://github.com/DaehwanKimLab/centrifuge.git
-          cd centrifuge
-          make
-      - name: Upload Centrifuge binaries
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+          bash Miniconda3-latest-Linux-x86_64.sh -b
+          eval "$(/root/miniconda3/bin/conda shell.bash hook)"
+
+      - name: Create and activate Conda environment, and install Centrifuger
+        run: |
+          conda create -n centrifuger_env python=3.9 -y
+          conda activate centrifuger_env
+          conda install -c conda-forge -c bioconda centrifuger -y
+      
+      - name: Upload Centrifuger binaries
         uses: actions/upload-artifact@v4
         with:
-          name: centrifuge-binaries
-          path: centrifuge
+          name: centrifuger-binaries
+          path: ~/.conda/envs/centrifuger_env/bin/centrifuger
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller
     runs-on: ubuntu-latest
-    needs: [build-flye, build-samtools, build-centrifuge]
+    needs: [build-flye, build-samtools, build-centrifuger]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,29 +99,4 @@ jobs:
       - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Install PyInstaller
-        run: |
-          python3 -m pip install pyinstaller
-      - name: Set PYTHONPATH
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
-      - name: Build MMonitor
-        run: |
-          cd desktop/src/mmonitor
-          pyinstaller --onefile __main__.py --distpath ../../output
-          ls -lah
-      - name: Upload MMonitor binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: mmonitor-binary
-          path: desktop/output/
-
-  set-path-for-included-dependencies:
-    name: Set up PATH for included dependencies
-    runs-on: ubuntu-latest
-    needs: build-mmonitor-pyinstaller
-    steps:
-      - name: Set PATH
-        run: |
-          echo "export PATH=\$PATH:\$GITHUB_WORKSPACE/desktop/lib/Flye:\$GITHUB_WORKSPACE/desktop/lib/centrifuge:\$GITHUB_WORKSPACE/desktop/lib/samtools" >> $GITHUB_ENV
+          pip install -r requirements
