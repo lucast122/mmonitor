@@ -30,15 +30,14 @@ jobs:
 
       # Cache Flye binaries
       - name: Cache Flye binaries
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: binaries/flye/
           key: ${{ runner.os }}-flye-binaries
 
-      # Upload Flye binaries
+      # Upload Flye binaries using the new version (v3)
       - name: Upload Flye binaries
-        if: env.GITHUB_ACTIONS == 'true'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: flye-binaries
           path: binaries/flye/
@@ -78,15 +77,14 @@ jobs:
 
       # Cache Samtools binaries
       - name: Cache Samtools binaries
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: binaries/samtools/
           key: ${{ runner.os }}-samtools-binaries
 
-      # Upload Samtools binaries
+      # Upload Samtools binaries using v3
       - name: Upload Samtools binaries
-        if: env.GITHUB_ACTIONS == 'true'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: samtools-binaries
           path: binaries/samtools/
@@ -114,17 +112,15 @@ jobs:
 
       # Cache Centrifuge binaries
       - name: Cache Centrifuge binaries
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: binaries/centrifuge/
           key: ${{ runner.os }}-centrifuge-binaries
 
-      # Upload Centrifuge binaries
+      # Upload Centrifuge binaries using v3
       - name: Upload Centrifuge binaries
-        if: env.GITHUB_ACTIONS == 'true'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: centrifuge-binaries
           path: binaries/centrifuge/
-
 
