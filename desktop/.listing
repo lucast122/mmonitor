@@ -1,6 +1,7 @@
+lr--r--r--   1 ftp      anonymous       16 Oct  1 03:54 README.txt -> ../../README.txt
 dr-xr-xr-x 1310 ftp      anonymous   110592 Sep 29 23:48 archaea
-lr--r--r--   1 ftp      anonymous       61 Oct  1 03:54 assembly_summary_refseq_historical.txt -> ../../ASSEMBLY_REPORTS/assembly_summary_refseq_historical.txt
 lr--r--r--   1 ftp      anonymous       50 Oct  1 03:54 assembly_summary_refseq.txt -> ../../ASSEMBLY_REPORTS/assembly_summary_refseq.txt
+lr--r--r--   1 ftp      anonymous       61 Oct  1 03:54 assembly_summary_refseq_historical.txt -> ../../ASSEMBLY_REPORTS/assembly_summary_refseq_historical.txt
 dr-xr-xr-x 59684 ftp      anonymous  4726784 Oct  1 03:50 bacteria
 dr-xr-xr-x 641 ftp      anonymous    53248 Sep 29 23:49 fungi
 dr-xr-xr-x 433 ftp      anonymous    36864 Oct  1 03:54 invertebrate
@@ -10,7 +11,6 @@ dr-xr-xr-x 189 ftp      anonymous    16384 Oct  1 03:54 plant
 lr--r--r--   1 ftp      anonymous       31 Oct  1 03:54 plasmid -> ../../../refseq/release/plasmid
 lr--r--r--   1 ftp      anonymous       31 Oct  1 03:54 plastid -> ../../../refseq/release/plastid
 dr-xr-xr-x 120 ftp      anonymous    12288 Sep 29 23:48 protozoa
-lr--r--r--   1 ftp      anonymous       16 Oct  1 03:54 README.txt -> ../../README.txt
 dr-xr-xr-x   3 ftp      anonymous     4096 Sep 27  2022 unknown
 dr-xr-xr-x 236 ftp      anonymous    20480 Oct  1 03:54 vertebrate_mammalian
 dr-xr-xr-x 431 ftp      anonymous    36864 Sep 29 23:49 vertebrate_other
