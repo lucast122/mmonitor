@@ -18,6 +18,7 @@ import tarfile
 import ssl
 import sys
 import requests
+from .centrifuge_downloader import download_file, download_and_process_genomes
 
 def get_taxid_from_species_name(species_name):
     # First, try to get the taxid from our existing mapping
@@ -464,15 +465,24 @@ class DatabaseWindow(ctk.CTkToplevel):
             os.makedirs(library_dir)
 
             # Download NCBI taxonomy
-            subprocess.run(["centrifuge-download", "-o", taxonomy_dir, "taxonomy"], check=True)
+            centrifuge_path_download = os.path.join(ROOT, 'lib', 'centrifuge_mac', 'centrifuge-download')
+            centrifuge_path_build = os.path.join(ROOT, 'lib', 'centrifuge_mac', 'centrifuge-build')
+            subprocess.run([centrifuge_path_download, "-o", taxonomy_dir, "taxonomy"], check=True)
 
-            # Download genomes for selected domains
-            with open("seqid2taxid.map", "w") as f:
-                subprocess.run(["centrifuge-download", "-o", library_dir, "-m", "-d", ",".join(selected_domains), "refseq"], stdout=f, check=True)
+            # Download and process genomes for selected domains
+            for domain in selected_domains:
+                assembly_summary_url = f"https://ftp.ncbi.nlm.nih.gov/genomes/refseq/{domain}/assembly_summary.txt"
+                assembly_summary_path = os.path.join(library_dir, f"{domain}_assembly_summary.txt")
+                download_file(assembly_summary_url, assembly_summary_path)
+                download_and_process_genomes(
+                    assembly_summary_path,
+                    os.path.join(library_dir, domain),
+                    num_threads=os.cpu_count()
+                )
 
-            # Concatenate sequences
-            with open("input-sequences.fna", "w") as outfile:
-                for root, dirs, files in os.walk(library_dir):
+            # Concatenate all downloaded genomes
+            with open(os.path.join(library_dir, "input-sequences.fna"), "w") as outfile:
+                for root, _, files in os.walk(library_dir):
                     for file in files:
                         if file.endswith(".fna"):
                             with open(os.path.join(root, file), "r") as infile:
@@ -480,18 +490,14 @@ class DatabaseWindow(ctk.CTkToplevel):
 
             # Build Centrifuge index
             subprocess.run([
-                "centrifuge-build",
+                centrifuge_path_build,
                 "-p", str(os.cpu_count()),
-                "--conversion-table", "seqid2taxid.map",
+                "--conversion-table", os.path.join(taxonomy_dir, "seqid2taxid.map"),
                 "--taxonomy-tree", os.path.join(taxonomy_dir, "nodes.dmp"),
                 "--name-table", os.path.join(taxonomy_dir, "names.dmp"),
-                "input-sequences.fna",
+                os.path.join(library_dir, "input-sequences.fna"),
                 index_name
             ], check=True)
-
-            # Clean up
-            os.remove("input-sequences.fna")
-            os.remove("seqid2taxid.map")
 
             self.close_progress_window()
             messagebox.showinfo("Success", f"Centrifuge database built successfully at {self.centrifuge_db_path}")

@@ -1,0 +1,22 @@
+
+Prokka Wishlist
+---------------
+
+* New --first-blast option, like --proteins?
+* New --last-blast option eg. "nr" [Check who emailed me this]
+* annotate possible frame-shifts
+* FAQ about annotation transfer
+* use included binary if PATH one is wrong version [Simon Gladman]
+* reconsider !~m/a-z/ rule in cleanup_product() [Roderick Felsheim]
+* all Kingdom=ALL or ANY for metagenomes [Andreas Bremges]
+* make --cleanup option  for /product names [Andreas Bremges]
+* locus_tag rules: http://www.ncbi.nlm.nih.gov/genomes/locustag/Proposal.pdf
+* Bug: "existing RNA (repeat_region)" CRISPR is not RNA ?
+* Factor out some functions into modules!
+* Check for large genomic tracts which are unannotated. Sometimes Prodigal misses big genes.
+* Add an example input/output so users can check their copy is producing similar results.
+* Output potential homopolymer assembly errors near CDS flanks
+* Add the CLUSTERS "PHA" library to Viruses mode.
+* Option to include ribosomal binding sites (RBS) as features.
+* Add hyperlinks to tool references in Manual
+
