@@ -72,31 +72,31 @@ jobs:
           name: samtools-binaries
           path: /usr/local/bin/samtools
 
-  build-centrifuger:
-    name: Install Centrifuger using Conda on macOS
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Install Conda
-        run: |
-          brew install --cask miniconda
-          
+build-centrifuger:
+  name: Build Centrifuger from Source on macOS
+  runs-on: macos-latest
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Create and activate Conda environment, and install Centrifuger
-        run: |
-          conda init bash
-          source ~/.bashrc
-          conda create -n centrifuger_env python=3.10 -y
-          conda activate centrifuger_env
-          conda install -c conda-forge -c bioconda centrifuger -y
-      
-      - name: Upload Centrifuger binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: centrifuger-binaries
-          path: ~/.conda/envs/centrifuger_env/bin/centrifuger
+    - name: Install dependencies
+      run: |
+        brew install gcc
+
+    - name: Clone Centrifuger
+      run: git clone https://github.com/mourisl/centrifuger.git
+
+    - name: Build Centrifuger
+      run: |
+        cd centrifuger
+        make
+
+    - name: Upload Centrifuger binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: centrifuger-binaries
+        path: centrifuger/centrifuger
+
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
