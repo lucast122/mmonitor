@@ -1,3 +1,5 @@
 /.idea/
 __pychache__/
-/venv/
+/venv/desktop/custom_emu_db/species_taxid.fasta
+desktop/custom_emu_db/taxonomy.tsv
+desktop/custom_emu_db/

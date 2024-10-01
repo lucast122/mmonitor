@@ -16,33 +16,34 @@ import gzip
 import urllib.request
 import tarfile
 import ssl
+import sys
+import requests
 
-def process_chunk(chunk):
-    result = []
-    skipped = 0
-    for line in chunk:
-        if line.startswith(">"):
-            parts = line.split()
-            seq_id = parts[0][1:]  # Remove the '>' character
-            species_name = " ".join(parts[1:3])  # Use only genus and species
-            taxid = get_taxid_from_species_name(species_name)
-            if taxid:
-                result.append(f"{seq_id}\t{taxid}\n")
-            else:
-                skipped += 1
-                print(f"Skipped line (no taxid found): {line.strip()}")
-        else:
-            # This is a sequence line, not a header line
-            continue
-    print(f"Processed chunk: {len(chunk)} lines, {len(result)} results, {skipped} skipped")
-    return result, skipped
+def get_taxid_from_species_name(species_name):
+    # First, try to get the taxid from our existing mapping
+    taxid = species_taxid_map.get(species_name)
+    if taxid:
+        return taxid
+    
+    # If not found, try to fetch from NCBI
+    # try:
+    #     print(f"Fetching taxid for {species_name} from NCBI...")
+    #     url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term={species_name}&retmode=json"
+    #     response = requests.get(url)
+    #     data = response.json()
+    #     id_list = data['esearchresult']['idlist']
+    #     if id_list:
+    #         return id_list[0]
+    # except Exception as e:
+    #     print(f"Error fetching taxid for {species_name}: {e}")
+    else:
+        return None
 
 def download_and_process_taxdump():
     taxdump_url = "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
     local_file = "taxdump.tar.gz"
     
     print("Downloading taxdump.tar.gz...")
-    # Create an SSL context that doesn't verify certificates
     context = ssl._create_unverified_context()
     
     try:
@@ -70,10 +71,6 @@ def download_and_process_taxdump():
         print(f"Error processing names.dmp: {e}")
         return {}
     
-    print("Saving processed mapping...")
-    with open('species_taxid_mapping.json', 'w') as f:
-        json.dump(species_to_taxid, f)
-    
     print("Cleaning up...")
     os.remove(local_file)
     os.remove('names.dmp')
@@ -86,26 +83,25 @@ def download_and_process_taxdump():
     
     return species_to_taxid
 
-def get_taxid_from_species_name(species_name):
-    mapping_file = 'species_taxid_mapping.json'
-    
-    if not os.path.exists(mapping_file):
-        print("Mapping file not found. Downloading and processing...")
-        species_taxid_map = download_and_process_taxdump()
-        if not species_taxid_map:
-            print("Failed to create species to taxid mapping.")
-            return None
-    else:
-        with open(mapping_file, 'r') as f:
-            species_taxid_map = json.load(f)
-    
-    taxid = species_taxid_map.get(species_name)
-    
-    if taxid:
-        return taxid
-    else:
-        print(f"No taxid found for species: {species_name}")
-        return None
+def process_chunk(chunk, species_taxid_map):
+    result = []
+    skipped = 0
+    missing_keys = set()
+    for line in chunk:
+        if line.startswith(">"):
+            parts = line.split()
+            seq_id = parts[0][1:]  # Remove the '>' character
+            species_name = " ".join(parts[1:3])  # Use only genus and species
+            taxid = species_taxid_map.get(species_name)
+            if taxid:
+                result.append(f"{seq_id}\t{taxid}\n")
+            else:
+                skipped += 1
+                missing_keys.add(species_name)
+    print(f"Processed chunk: {len(chunk)} lines, {len(result)} results, {skipped} skipped")
+    if missing_keys:
+        print(f"Missing keys: {', '.join(missing_keys)}")
+    return result, skipped, missing_keys
 
 def create_species_taxid_mapping(output_file):
     # This function should be called once to create the mapping file
@@ -182,22 +178,26 @@ class DatabaseWindow(ctk.CTkToplevel):
             self.save_config()
 
     def confirm_build_emu_db(self):
-        response = messagebox.askyesno("Confirm Build", "Building the Emu database requires an internet connection and may take a while depending on your internet speed and computer. Do you want to proceed?")
-        if response:
-            self.build_emu_db()
+        selected_domains = self.create_domain_selection_dialog()
+        if selected_domains:
+            response = messagebox.askyesno("Confirm Build", f"Building the Emu database for {', '.join(selected_domains)} requires an internet connection and may take a while. MMonitor will become unresponsive during this process. Do you want to proceed?")
+            if response:
+                self.build_emu_db(selected_domains)
 
     def confirm_build_centrifuge_db(self):
-        response = messagebox.askyesno("Confirm Build", "Building the Centrifuge database requires an internet connection and may take a while depending on your internet speed and computer. Do you want to proceed?")
-        if response:
-            self.build_centrifuge_db()
+        selected_domains = self.create_domain_selection_dialog()
+        if selected_domains:
+            response = messagebox.askyesno("Confirm Build", f"Building the Centrifuge database for {', '.join(selected_domains)} requires an internet connection and may take a while. MMonitor will become unresponsive during this process. Do you want to proceed?")
+            if response:
+                self.build_centrifuge_db(selected_domains)
 
-    def build_emu_db(self):
+    def build_emu_db(self, selected_domains):
         self.show_progress_window("Building Emu Database")
-        threading.Thread(target=self._build_emu_db).start()
+        threading.Thread(target=self._build_emu_db, args=(selected_domains,)).start()
 
-    def build_centrifuge_db(self):
+    def build_centrifuge_db(self, selected_domains):
         self.show_progress_window("Building Centrifuge Database")
-        threading.Thread(target=self._build_centrifuge_db).start()
+        threading.Thread(target=self._build_centrifuge_db, args=(selected_domains,)).start()
 
     def show_progress_window(self, title):
         self.progress_window = ctk.CTkToplevel(self)
@@ -215,7 +215,7 @@ class DatabaseWindow(ctk.CTkToplevel):
         if hasattr(self, 'progress_window'):
             self.progress_window.destroy()
 
-    def _build_emu_db(self):
+    def _build_emu_db(self, selected_domains):
         try:
             # Create a new directory for the custom database
             custom_db_path = os.path.join(self.base_dir, "custom_emu_db")
@@ -239,50 +239,65 @@ class DatabaseWindow(ctk.CTkToplevel):
                 self.log_progress(result.stdout)
                 self.log_progress(result.stderr)
 
-                # Download 16S rRNA sequences
+                # Download 16S rRNA sequences for selected domains
                 self.log_progress("Downloading 16S rRNA sequences...")
-                rna_path = os.path.join(temp_dir, "16S.fna.gz")
-                result = subprocess.run(["wget", "-O", rna_path, "https://ftp.ncbi.nlm.nih.gov/refseq/TargetedLoci/Bacteria/bacteria.16SrRNA.fna.gz"], 
-                                        capture_output=True, text=True, check=True)
-                self.log_progress(result.stdout)
-                self.log_progress(result.stderr)
-                
-                result = subprocess.run(["gunzip", "-f", rna_path], 
-                                        capture_output=True, text=True, check=True)
-                self.log_progress(result.stdout)
-                self.log_progress(result.stderr)
+                rna_files = []
+                for domain in selected_domains:
+                    if domain == "bacteria":
+                        url = "https://ftp.ncbi.nlm.nih.gov/refseq/TargetedLoci/Bacteria/bacteria.16SrRNA.fna.gz"
+                    elif domain == "archaea":
+                        url = "https://ftp.ncbi.nlm.nih.gov/refseq/TargetedLoci/Archaea/archaea.16SrRNA.fna.gz"
+                    elif domain == "fungi":
+                        url = "https://ftp.ncbi.nlm.nih.gov/refseq/TargetedLoci/Fungi/fungi.18SrRNA.fna.gz"
+                    
+                    rna_path = os.path.join(temp_dir, f"{domain}_rRNA.fna.gz")
+                    result = subprocess.run(["wget", "-O", rna_path, url], 
+                                            capture_output=True, text=True, check=True)
+                    self.log_progress(result.stdout)
+                    self.log_progress(result.stderr)
+                    
+                    result = subprocess.run(["gunzip", "-f", rna_path], 
+                                            capture_output=True, text=True, check=True)
+                    self.log_progress(result.stdout)
+                    self.log_progress(result.stderr)
+                    
+                    rna_files.append(rna_path[:-3])  # Remove .gz extension
+
+                # Concatenate all RNA files
+                combined_rna_path = os.path.join(temp_dir, "combined_rRNA.fna")
+                with open(combined_rna_path, 'w') as outfile:
+                    for rna_file in rna_files:
+                        with open(rna_file) as infile:
+                            outfile.write(infile.read())
 
                 # Create seq2taxid map
                 self.log_progress("Creating seq2taxid map...")
                 seq2taxid_path = os.path.join(custom_db_path, "seq2taxid.map")
-                unzipped_rna_path = os.path.join(temp_dir, "16S.fna")
-                skipped_entries, total_entries = self.create_seq2taxid_map(unzipped_rna_path, seq2taxid_path)
+                skipped_entries, total_entries = self.create_seq2taxid_map(combined_rna_path, seq2taxid_path)
 
                 self.log_progress(f"Seq2taxid map creation complete. Processed {total_entries} entries, skipped {skipped_entries} entries due to missing taxid.")
 
                 if os.path.getsize(seq2taxid_path) == 0:
-                    with open("16S.fna", "r") as f:
-                        first_lines = f.readlines(1000)
-                    self.log_progress(f"First 1000 lines of 16S.fna:\n{''.join(first_lines)}")
-                    raise ValueError(f"seq2taxid map is empty. Cannot proceed with database building. Input file size: {os.path.getsize('16S.fna')} bytes, Output file size: {os.path.getsize(seq2taxid_path)} bytes")
+                    raise ValueError(f"seq2taxid map is empty. Cannot proceed with database building.")
 
                 # Build Emu database
                 self.log_progress("Building Emu database...")
-                emu_output_path = os.path.join(custom_db_path, "emu_custom_db")
+                emu_output_path = os.path.join(ROOT, "src", "resources", "emu_custom_db")
                 if os.path.exists(emu_output_path):
                     shutil.rmtree(emu_output_path)
                 
-                # Get the number of available CPU cores
                 num_cores = multiprocessing.cpu_count()
-                self.log_progress(f"Using {num_cores} CPU cores for database building")
-                emu_path = os.path.join(ROOT, "lib", "emu.py")
+                self.log_progress(f"Preprocessing finished. Starting database building...")
+
+                emu_script_path = os.path.join(ROOT, "lib", "emu.py")
                 emu_build_command = [
-                    sys.executable, emu_path, "build-database", "emu_custom_db",
-                    "--sequences", "16S.fna",
+                    sys.executable,
+                    emu_script_path,
+                    "build-database",
+                    "--sequences", combined_rna_path,
                     "--seq2tax", seq2taxid_path,
                     "--ncbi-taxonomy", custom_db_path,
-                    "--output", emu_output_path,
-                    "--threads", str(num_cores)  # Use all available cores
+                    emu_output_path
                 ]
                 self.log_progress(f"Running command: {' '.join(emu_build_command)}")
                 
@@ -302,18 +317,16 @@ class DatabaseWindow(ctk.CTkToplevel):
 
                 self.log_progress("Emu database build completed.")
 
-                # Clean up
-                self.log_progress("Cleaning up temporary files...")
-                os.remove("taxdump.tar.gz")
-                os.remove("16S.fna")
+            self.close_progress_window()
+            messagebox.showinfo("Success", f"Emu database built successfully at {emu_output_path}")
+            
+            # Update the emu_db_path to the new custom database
+            self.emu_db_path = emu_output_path
+            self.save_config()
 
-                self.close_progress_window()
-                messagebox.showinfo("Success", f"Emu database built successfully at {emu_output_path}")
-                
-                # Update the emu_db_path to the new custom database
-                self.emu_db_path = emu_output_path
-                self.save_config()
-                
+            # Ask user if they want to open the folder
+            self.ask_to_open_folder(custom_db_path)
+            
         except subprocess.CalledProcessError as e:
             self.close_progress_window()
             error_message = f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.\n"
@@ -328,12 +341,6 @@ class DatabaseWindow(ctk.CTkToplevel):
             error_message = f"An unexpected error occurred: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
             self.log_progress(f"Error: {error_message}")
             self.show_error_message(error_message)
-        finally:
-            # Ensure cleanup happens even if an error occurs
-            if os.path.exists("taxdump.tar.gz"):
-                os.remove("taxdump.tar.gz")
-            if os.path.exists("16S.fna"):
-                os.remove("16S.fna")
 
     def create_seq2taxid_map(self, input_file, output_file):
         try:
@@ -343,53 +350,59 @@ class DatabaseWindow(ctk.CTkToplevel):
             file_size = os.path.getsize(input_file)
             self.log_progress(f"Input file size: {file_size} bytes")
 
-            with open(input_file, 'r') as infile:
-                # Read and log the first few lines of the file
-                first_lines = infile.readlines(20)
-                self.log_progress(f"First 20 lines of input file:\n{''.join(first_lines)}")
-                infile.seek(0)  # Reset file pointer to the beginning
+            self.log_progress("Downloading and processing taxonomy data...")
+            species_taxid_map = download_and_process_taxdump()
 
-                chunks = []
-                current_chunk = []
-                line_count = 0
-                for line in infile:
-                    line_count += 1
-                    if line.startswith(">"):
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                            current_chunk = []
-                    current_chunk.append(line)
-                    
-                    if line_count % 100000 == 0:
-                        self.log_progress(f"Processed {line_count} lines...")
-
-                if current_chunk:
-                    chunks.append(current_chunk)
-
-            self.log_progress(f"Total lines read: {line_count}")
-            self.log_progress(f"Total chunks created: {len(chunks)}")
-
-            if not chunks:
-                raise ValueError("No chunks created from input file. File might be empty or have an unexpected format.")
-
-            self.log_progress("Starting multiprocessing pool...")
-            with multiprocessing.Pool() as pool:
-                results = pool.map(process_chunk, chunks)
-            self.log_progress("Multiprocessing pool completed.")
-
+            self.log_progress("Processing input file and creating seq2taxid map...")
             total_processed = 0
             total_skipped = 0
+            all_missing_keys = set()
 
-            self.log_progress("Writing results to output file...")
-            with open(output_file, 'w') as outfile:
-                for result, skipped in results:
-                    outfile.writelines(result)
-                    total_processed += len(result)
-                    total_skipped += skipped
+            with open(input_file, 'r') as infile, open(output_file, 'w') as outfile, open(input_file + '.filtered', 'w') as filtered_file:
+                current_seq = []
+                include_current_seq = False
+                for line in infile:
+                    if line.startswith('>'):
+                        if current_seq:
+                            if include_current_seq:
+                                filtered_file.writelines(current_seq)
+                            current_seq = []
+                        
+                        parts = line.split()
+                        seq_id = parts[0][1:]
+                        species_name = " ".join(parts[1:3])
+                        taxid = species_taxid_map.get(species_name)
+                        
+                        if taxid:
+                            outfile.write(f"{seq_id}\t{taxid}\n")
+                            total_processed += 1
+                            include_current_seq = True
+                        else:
+                            total_skipped += 1
+                            all_missing_keys.add(species_name)
+                            include_current_seq = False
+                    
+                    current_seq.append(line)
+                
+                if current_seq and include_current_seq:
+                    filtered_file.writelines(current_seq)
+
+            # Replace the original input file with the filtered one
+            os.replace(input_file + '.filtered', input_file)
 
             self.log_progress(f"Total processed: {total_processed} entries")
             self.log_progress(f"Total skipped: {total_skipped} entries")
             self.log_progress(f"Output file size: {os.path.getsize(output_file)} bytes")
+            self.log_progress(f"Total missing keys: {len(all_missing_keys)}")
+            if all_missing_keys:
+                self.log_progress(f"Sample of missing keys: {', '.join(list(all_missing_keys)[:10])}")
+
+            # Write error details to a separate file
+            error_file = os.path.join(os.path.dirname(output_file), "seq2taxid_errors.log")
+            with open(error_file, 'w') as f:
+                for species in all_missing_keys:
+                    f.write(f"Missing taxid for species: {species}\n")
+            self.log_progress(f"Detailed error log written to: {error_file}")
 
             if total_processed == 0:
                 raise ValueError(f"No entries processed in input file. File might be empty or have an unexpected format.")
@@ -435,7 +448,7 @@ class DatabaseWindow(ctk.CTkToplevel):
         finally:
             self.after(100, self.process_message_queue)
 
-    def _build_centrifuge_db(self):
+    def _build_centrifuge_db(self, selected_domains):
         try:
             index_name = "centrifuge_custom_index"
             taxonomy_dir = os.path.join(self.centrifuge_db_path, "taxonomy")
@@ -453,9 +466,9 @@ class DatabaseWindow(ctk.CTkToplevel):
             # Download NCBI taxonomy
             subprocess.run(["centrifuge-download", "-o", taxonomy_dir, "taxonomy"], check=True)
 
-            # Download genomes
+            # Download genomes for selected domains
             with open("seqid2taxid.map", "w") as f:
-                subprocess.run(["centrifuge-download", "-o", library_dir, "-m", "-d", "archaea,bacteria,fungi", "refseq"], stdout=f, check=True)
+                subprocess.run(["centrifuge-download", "-o", library_dir, "-m", "-d", ",".join(selected_domains), "refseq"], stdout=f, check=True)
 
             # Concatenate sequences
             with open("input-sequences.fna", "w") as outfile:
@@ -481,10 +494,56 @@ class DatabaseWindow(ctk.CTkToplevel):
             os.remove("seqid2taxid.map")
 
             self.close_progress_window()
-            messagebox.showinfo("Success", "Centrifuge database built successfully")
+            messagebox.showinfo("Success", f"Centrifuge database built successfully at {self.centrifuge_db_path}")
+
+            # Ask user if they want to open the folder
+            self.ask_to_open_folder(self.centrifuge_db_path)
+
         except subprocess.CalledProcessError as e:
             self.close_progress_window()
             messagebox.showerror("Error", f"Failed to build Centrifuge database: {str(e)}")
         except Exception as e:
             self.close_progress_window()
             messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+
+    def create_domain_selection_dialog(self):
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Select Domains")
+        dialog.geometry("300x200")
+
+        var_bacteria = ctk.BooleanVar(value=True)
+        var_archaea = ctk.BooleanVar(value=True)
+        var_fungi = ctk.BooleanVar(value=True)
+
+        ctk.CTkCheckBox(dialog, text="Bacteria", variable=var_bacteria).pack(pady=5)
+        ctk.CTkCheckBox(dialog, text="Archaea", variable=var_archaea).pack(pady=5)
+        ctk.CTkCheckBox(dialog, text="Fungi", variable=var_fungi).pack(pady=5)
+
+        selected_domains = []
+
+        def on_confirm():
+            if var_bacteria.get():
+                selected_domains.append("bacteria")
+            if var_archaea.get():
+                selected_domains.append("archaea")
+            if var_fungi.get():
+                selected_domains.append("fungi")
+            dialog.destroy()
+
+        ctk.CTkButton(dialog, text="Confirm", command=on_confirm).pack(pady=20)
+
+        self.wait_window(dialog)
+        return selected_domains
+
+    def ask_to_open_folder(self, folder_path):
+        response = messagebox.askyesno("Open Folder", f"Do you want to open the folder containing the built database?\n\nPath: {folder_path}")
+        if response:
+            try:
+                if sys.platform == "win32":
+                    os.startfile(folder_path)
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", folder_path])
+                else:  # assume linux or unix
+                    subprocess.Popen(["xdg-open", folder_path])
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to open folder: {str(e)}")
