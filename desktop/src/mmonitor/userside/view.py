@@ -17,22 +17,39 @@ from requests import post
 from tkcalendar import DateEntry
 import datetime  # Make sure this import is at the top of your file
 import queue
-from .FolderWatcherWindow import FolderWatcherWindow
+from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
 from build_mmonitor_pyinstaller import ROOT, IMAGES_PATH
 from mmonitor.dashapp.index import Index
 from mmonitor.database.DBConfigForm import DataBaseConfigForm
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.database.mmonitor_db import MMonitorDBInterface
-from .CentrifugeRunner import CentrifugeRunner
-from .EmuRunner import EmuRunner
-from .FastqStatistics import FastqStatistics
-from .InputWindow import InputWindow
-from .PipelineWindow import PipelinePopup
-from .FunctionalRunner import FunctionalRunner
-from .MMonitorCMD import MMonitorCMD
+from mmonitor.userside.CentrifugeRunner import CentrifugeRunner
+from mmonitor.userside.EmuRunner import EmuRunner
+from mmonitor.userside.FastqStatistics import FastqStatistics
+from mmonitor.userside.InputWindow import InputWindow
+from mmonitor.userside.PipelineWindow import PipelinePopup
+from mmonitor.userside.FunctionalRunner import FunctionalRunner
+from mmonitor.userside.MMonitorCMD import MMonitorCMD
+from mmonitor.userside.DatabaseWindow import DatabaseWindow
 
 VERSION = "v1.0.0"
-MAIN_WINDOW_X, MAIN_WINDOW_Y = 260, 320
+MAIN_WINDOW_X, MAIN_WINDOW_Y = 260, 400
+CONSOLE_WIDTH = 300
+
+class TeeOutput(io.StringIO):
+    def __init__(self, original_stream, gui):
+        super().__init__()
+        self.original_stream = original_stream
+        self.gui = gui
+
+    def write(self, s):
+        self.original_stream.write(s)
+        self.gui.update_console(s)
+        with open("database_build.log", "a") as log_file:
+            log_file.write(s)
+
+    def flush(self):
+        self.original_stream.flush()
 
 class ConsoleWindow(ctk.CTkToplevel):
     def __init__(self, *args, **kwargs):
@@ -68,22 +85,24 @@ class GUI(ctk.CTk):
         print("Initializing GUI...")
         super().__init__()
         self.title(f"MMonitor {VERSION}")
-        self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}")
-        self.minsize(MAIN_WINDOW_X, MAIN_WINDOW_Y)
+        self.geometry(f"{MAIN_WINDOW_X + CONSOLE_WIDTH}x{MAIN_WINDOW_Y}")
+        self.resizable(False, False)
 
-        self.console_window = None
-        self.console_visible = False
+        self.console_expanded = False
+        self.console_auto_opened = False
         self.folder_monitor = None
         self.folder_watcher_window = None
+        self.database_window = None
         self.setup_variables()
         self.setup_runners()
         self.init_layout()
 
         # Redirect stdout and stderr
-        sys.stdout = StdoutRedirector(self)
-        sys.stderr = StdoutRedirector(self)
+        sys.stdout = TeeOutput(sys.stdout, self)
+        sys.stderr = TeeOutput(sys.stderr, self)
 
         print("GUI initialization complete.")
+        print("Starting MMonitor application...")
 
     def setup_variables(self):
         print("Setting up variables...")
@@ -109,13 +128,30 @@ class GUI(ctk.CTk):
     def init_layout(self):
         print("Initializing layout...")
         ctk.set_default_color_theme("blue")
+        
+        # Create a PanedWindow
+        self.paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
+        self.paned_window.pack(fill=tk.BOTH, expand=True)
+
+        # Create main frame
+        self.main_frame = ctk.CTkFrame(self.paned_window, width=MAIN_WINDOW_X)
+        self.paned_window.add(self.main_frame)
+
+        # Create console frame
+        self.console_frame = ctk.CTkFrame(self.paned_window, width=CONSOLE_WIDTH)
+        self.paned_window.add(self.console_frame)
+
         self.create_header()
         self.create_buttons()
-        self.create_console_toggle()
+        self.create_console()
+        
+        # Set initial position of sash
+        self.paned_window.sashpos(0, MAIN_WINDOW_X)
+
         print("Layout initialization complete.")
 
     def create_header(self):
-        header_label = ctk.CTkLabel(self, text=f"Metagenome Monitor {VERSION}", font=("Helvetica", 18))
+        header_label = ctk.CTkLabel(self.main_frame, text=f"Metagenome Monitor {VERSION}", font=("Helvetica", 18))
         header_label.pack(pady=10)
 
     def create_buttons(self):
@@ -124,17 +160,18 @@ class GUI(ctk.CTk):
             ("Run Analysis", self.checkbox_popup, "button_add_data2.png"),
             ("Watch Folder", self.open_folder_watcher, "mmonitor-folder-watcher.png"),
             ("Toggle Console", self.toggle_console, "mmonitor_button_console.png"),
-            # ("Select Database", self.select_database, "mmonitor_button_select_db.png"),
+            ("Manage Databases", self.open_database_window, "mmonitor_button_database.png"),
             ("Quit", self.stop_app, "mmonitor_button_quit.png")
         ]
 
         for text, command, icon_name in buttons:
             icon = self.load_icon(icon_name)
-            btn = ctk.CTkButton(self, text=text, command=command, image=icon, width=210, height=40)
+            btn = ctk.CTkButton(self.main_frame, text=text, command=command, image=icon, width=210, height=40)
             btn.pack(pady=5)
 
-    def create_console_toggle(self):
-        pass  # This method is no longer needed as the console toggle is now part of the main buttons
+    def create_console(self):
+        self.console_text = ctk.CTkTextbox(self.console_frame, wrap=tk.WORD, state="disabled")
+        self.console_text.pack(expand=True, fill='both')
 
     def load_icon(self, icon_name):
         icon_path = os.path.join(IMAGES_PATH, icon_name)
@@ -146,32 +183,45 @@ class GUI(ctk.CTk):
             return None  # Or return a default icon if you have one
 
     def toggle_console(self):
-        if self.console_visible:
-            self.close_console()
+        if self.console_expanded:
+            self.collapse_console()
         else:
-            self.open_console()
+            self.expand_console()
 
-    def open_console(self):
-        if self.console_window is None or not self.console_window.winfo_exists():
-            self.console_window = ConsoleWindow(self)
-            self.console_window.protocol("WM_DELETE_WINDOW", self.close_console)
-        self.console_window.deiconify()
-        self.console_visible = True
+    def expand_console(self):
+        self.console_expanded = True
+        self.animate_console(MAIN_WINDOW_X, MAIN_WINDOW_X + CONSOLE_WIDTH)
 
-    def close_console(self):
-        if self.console_window and self.console_window.winfo_exists():
-            self.console_window.withdraw()
-        self.console_visible = False
+    def collapse_console(self):
+        self.console_expanded = False
+        self.animate_console(MAIN_WINDOW_X + CONSOLE_WIDTH, MAIN_WINDOW_X)
+
+    def animate_console(self, start, end):
+        steps = 10
+        step_size = (end - start) / steps
+        
+        def animate_step(current_step):
+            if current_step <= steps:
+                new_pos = int(start + (step_size * current_step))
+                self.paned_window.sashpos(0, new_pos)
+                self.after(20, animate_step, current_step + 1)
+
+        animate_step(0)
 
     def update_console(self, text):
-        if not self.console_visible:
-            self.open_console()
-        if self.console_window:
-            self.console_window.write(text)
+        self.console_text.configure(state="normal")
+        self.console_text.insert(tk.END, text)
+        self.console_text.see(tk.END)
+        self.console_text.configure(state="disabled")
+
+        if not self.console_auto_opened and "Starting MMonitor application..." in text:
+            self.console_auto_opened = True
+            self.after(100, self.expand_console)
 
     def open_db_config_form(self):
         print("Opening database configuration form...")
         db_config_form = DataBaseConfigForm(master=self)
+        self.wait_window(db_config_form)
         print(f"Database configuration updated: {db_config_form.last_config}")
 
     def checkbox_popup(self):
@@ -179,7 +229,7 @@ class GUI(ctk.CTk):
         self.pipeline_popup = PipelinePopup(self, self)
         self.wait_window(self.pipeline_popup)
 
-    def run_pipeline(self, analysis_type,emu_db,centriduge_db):
+    def run_pipeline(self, analysis_type, emu_db, centrifuge_db):
         print(f"Starting pipeline for analysis type: {analysis_type}")
         input_window = InputWindow(self, self.emu_runner)
         self.wait_window(input_window)
@@ -199,7 +249,7 @@ class GUI(ctk.CTk):
         # Start the thread
         thread.start()
 
-        # Optionally, you can add a loading indicator or progress bar here
+        # Show loading indicator
         self.show_loading_indicator()
 
     def show_loading_indicator(self):
@@ -469,6 +519,12 @@ class GUI(ctk.CTk):
         if database_path:
             self.centrifuge_index_path = database_path
             messagebox.showinfo("Database Selected", f"Database directory set to: {database_path}")
+
+    def open_database_window(self):
+        if self.database_window is None or not self.database_window.winfo_exists():
+            self.database_window = DatabaseWindow(self)
+        self.database_window.lift()
+        self.database_window.focus_force()
 
 class ToolTip:
     def __init__(self, widget, tip_text):

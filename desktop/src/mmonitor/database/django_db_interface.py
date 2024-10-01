@@ -164,10 +164,13 @@ class DjangoDBInterface:
             )
             if response.status_code != 201:
                 print(f"Failed to add records: {response.content}")
+                return False
             else:
                 print(f"Records added successfully.")
+                return True
         except Exception as e:
             print(e)
+            return False
 
     def send_nanopore_record_centrifuge(self, kraken_out_path: str, sample_name: str, project_id: str, subproject_id: str,
                                         date: str, overwrite: bool):
