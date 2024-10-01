@@ -73,24 +73,32 @@ jobs:
           path: /usr/local/bin/samtools
 
   build-centrifuge:
-    name: Build Centrifuge from Source on macOS
     runs-on: macos-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Install dependencies
+        run: |
+          brew install g++  # Install dependencies if needed
 
+      - name: Clone Centrifuge
+        run: git clone https://github.com/DaehwanKimLab/centrifuge.git
+        
       - name: Build Centrifuge
         run: |
-          git clone https://github.com/DaehwanKimLab/centrifuge.git
           cd centrifuge
-          # Disable optimizations incompatible with macOS
-          sed -i '' 's/-m32 -msse2 -funroll-loops//' Makefile
           make
-      - name: Upload Centrifuge binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: centrifuge-binaries
-          path: centrifuge
+
+      - name: Install Centrifuge locally
+        run: |
+          make install prefix=$HOME/.local
+
+      - name: Add local bin to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Test Centrifuge installation
+        run: centrifuge --version
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
