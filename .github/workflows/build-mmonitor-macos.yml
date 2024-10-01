@@ -80,7 +80,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          brew install g++  # Install dependencies if needed
+          brew install gcc  # Install dependencies if needed
 
       - name: Clone Centrifuge
         run: git clone https://github.com/DaehwanKimLab/centrifuge.git
