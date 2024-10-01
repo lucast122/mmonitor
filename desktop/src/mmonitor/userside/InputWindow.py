@@ -33,58 +33,78 @@ def get_files_from_folder(folder_path):
 class InputWindow(ctk.CTkToplevel):
     def __init__(self, parent, emu_runner):
         super().__init__()
+        self.parent = parent
+        self.emu_runner = emu_runner
+        self.setup_variables()
+        self.setup_window()
+        self.create_widgets()
+
+    def setup_variables(self):
         self.selected_date = None
         self.sample_name = None
         self.project_name = None
         self.subproject_name = None
-        self.parent = parent
-        self.emu_runner = emu_runner
-        self.file_paths_single_sample = []  # Store full paths of selected files
-        self.multi_sample_input = {}  # dictionary that will contain file path lists and all other relevant information
+        self.file_paths_single_sample = []
+        self.multi_sample_input = {}
         self.do_quit = False
-        # Toplevel window
-
-        font = ctk.CTkFont(family="Helvetica", size=12)
-
-        self.title("Sample Data Input")
-        self.geometry("500x800")
-        self.minsize(500, 800)
         self.process_multiple_samples = False
+        self.use_multiplexing = tk.BooleanVar(value=False)
 
-        padding_y = 2
-        label_width = 25
-        ctk.CTkLabel(self, text="Sample Name", font=font).pack(pady=padding_y)
-        self.sample_name_entry = ctk.CTkEntry(self)
-        self.sample_name_entry.pack(pady=2)
+    def setup_window(self):
+        self.title("Sample Data Input")
+        self.geometry("600x800")
+        self.minsize(600, 800)
 
-        ctk.CTkLabel(self, text="Project Name", font=font).pack(pady=padding_y)
-        self.project_name_entry = ctk.CTkEntry(self)
-        self.project_name_entry.pack(pady=padding_y)
-        # Trace change in project_name_entry to mirror its content into subproject_name_entry
-        self.project_name_entry.bind("<KeyRelease>", self.mirror_project_name)
+    def create_widgets(self):
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(padx=20, pady=20, fill="both", expand=True)
 
-        ctk.CTkLabel(self, text="Subproject Name", font=font).pack(pady=padding_y)
-        self.subproject_name_entry = ctk.CTkEntry(self)
-        self.subproject_name_entry.pack(pady=padding_y)
+        self.create_input_fields(main_frame)
+        self.create_file_display(main_frame)
+        self.create_buttons(main_frame)
 
-        ctk.CTkLabel(self, text="Sample Date", font=font).pack(pady=padding_y)
-        self.date_btn = ctk.CTkButton(self, text="Select Date", command=self.open_calendar)
-        self.date_btn.pack(pady=padding_y)
+    def create_input_fields(self, parent):
+        fields = [
+            ("Sample Name", "sample_name_entry"),
+            ("Project Name", "project_name_entry"),
+            ("Subproject Name", "subproject_name_entry"),
+        ]
 
-        ctk.CTkLabel(self, text="Files", font=font).pack(pady=padding_y)
-        self.file_display = tk.Text(self, width=400, height=15, wrap="word",
-                                    state=tk.DISABLED)  # Adjusted size and made read-only
-        self.file_display.pack(pady=padding_y)
+        for label, attr_name in fields:
+            frame = ctk.CTkFrame(parent)
+            frame.pack(fill="x", pady=5)
+            ctk.CTkLabel(frame, text=label, width=120).pack(side="left", padx=5)
+            entry = ctk.CTkEntry(frame)
+            entry.pack(side="right", expand=True, fill="x", padx=5)
+            setattr(self, attr_name, entry)
 
-        self.use_multiplexing = tk.BooleanVar(value=False)  # BooleanVar to store the checkbox value
+        date_frame = ctk.CTkFrame(parent)
+        date_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(date_frame, text="Sample Date", width=120).pack(side="left", padx=5)
+        self.date_btn = ctk.CTkButton(date_frame, text="Select Date", command=self.open_calendar)
+        self.date_btn.pack(side="right", padx=5)
 
-        ctk.CTkButton(self, text="Add FASTQ from folder", command=self.add_data_single_sample).pack(pady=padding_y)
-        ctk.CTkButton(self, text="Add multiple samples from CSV", command=self.load_from_csv).pack(pady=padding_y)
-        self.multiplexing_checkbox = ctk.CTkCheckBox(self, text="Use Multiplexing", variable=self.use_multiplexing)
-        self.multiplexing_checkbox.pack(pady=padding_y)
+    def create_file_display(self, parent):
+        ctk.CTkLabel(parent, text="Files").pack(pady=5)
+        self.file_display = ctk.CTkTextbox(parent, height=200, wrap="word", state="disabled")
+        self.file_display.pack(fill="both", expand=True, pady=5)
 
-        ctk.CTkButton(self, text="Submit", command=self.submit).pack(pady=padding_y)
-        ctk.CTkButton(self, text="Quit", command=self.quit).pack(pady=padding_y)
+    def create_buttons(self, parent):
+        button_frame = ctk.CTkFrame(parent)
+        button_frame.pack(fill="x", pady=10)
+
+        buttons = [
+            ("Add FASTQ from folder", self.add_data_single_sample),
+            ("Add multiple samples from CSV", self.load_from_csv),
+            ("Submit", self.submit),
+            ("Quit", self.quit)
+        ]
+
+        for text, command in buttons:
+            ctk.CTkButton(button_frame, text=text, command=command).pack(pady=5, fill="x")
+
+        self.multiplexing_checkbox = ctk.CTkCheckBox(button_frame, text="Use Multiplexing", variable=self.use_multiplexing)
+        self.multiplexing_checkbox.pack(pady=5)
 
     def mirror_project_name(self, event):
         # Get the current value of project name entry and set it to subproject name entry
@@ -118,7 +138,6 @@ class InputWindow(ctk.CTkToplevel):
         self.sample_name = self.sample_name_entry.get()
         self.project_name = self.project_name_entry.get()
         self.subproject_name = self.subproject_name_entry.get()
-
         self.destroy()
 
     def load_from_csv(self):
@@ -229,11 +248,12 @@ class InputWindow(ctk.CTkToplevel):
         return files
 
     def update_file_display(self, files):
-        self.file_display.config(state=tk.NORMAL)
+        self.file_display.configure(state="normal")
+        self.file_display.delete("1.0", tk.END)  # Clear existing content
         for file in files:
             self.file_paths_single_sample.append(file)
             self.file_display.insert(tk.END, os.path.abspath(file) + "\n")
-        self.file_display.config(state=tk.DISABLED)
+        self.file_display.configure(state="disabled")
 
     def open_popup(self, text, title, icon):
         CTkMessagebox(message=text, title=title, icon=icon, option_1="Okay")

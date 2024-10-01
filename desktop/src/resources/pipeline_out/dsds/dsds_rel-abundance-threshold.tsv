@@ -1,0 +1,7 @@
+tax_id	abundance	species	genus	family	order	class	phylum	clade	superkingdom	subspecies	species subgroup	species group	estimated counts
+478	0.29519971148315177	Moraxella nonliquefaciens	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				235.27417005207195
+480	0.6245658942363582	Moraxella catarrhalis	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				497.7790177063775
+1747	0.04450261780104712	Cutibacterium acnes	Cutibacterium	Propionibacteriaceae	Propionibacteriales	Actinobacteria	Actinobacteria	Terrabacteria group	Bacteria				35.468586387434556
+476	0.012171567055359524	Moraxella bovis	Moraxella	Moraxellaceae	Pseudomonadales	Gammaproteobacteria	Proteobacteria		Bacteria				9.700738943121541
+1282	0.02356020942408377	Staphylococcus epidermidis	Staphylococcus	Staphylococcaceae	Bacillales	Bacilli	Firmicutes	Terrabacteria group	Bacteria				18.777486910994764
+unassigned	0.0												883.0

@@ -94,6 +94,7 @@ class DjangoDBInterface:
         if user_id is None:
             print("Invalid user credentials")
             return
+
         try:
             sample_ids = self.get_unique_sample_ids()
             if sample_name in sample_ids and not overwrite:
@@ -103,25 +104,25 @@ class DjangoDBInterface:
         except TypeError as e:
             print(f"Type error {e}")
 
+        abundance_file = f"{emu_out_path}/{sample_name}_rel-abundance-threshold.tsv"
+        if not os.path.exists(abundance_file):
+            abundance_file = f"{emu_out_path}/{sample_name}_rel-abundance.tsv"
+            if not os.path.exists(abundance_file):
+                print(f"No abundance file found for sample {sample_name}. Skipping database update.")
+                return
 
         try:
             df = pd.read_csv(
-                f"{emu_out_path}/{sample_name}_rel-abundance-threshold.tsv",
+                abundance_file,
                 sep='\t',
                 header=None,
                 usecols=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13],
                 names=['Taxid', 'Abundance', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Superkingdom',
                        'Clade', 'Subspecies', "count"]
             )
-        except FileNotFoundError as e:
-            df = pd.read_csv(
-                f"{emu_out_path}/{sample_name}_rel-abundance.tsv",
-                sep='\t',
-                header=None,
-                usecols=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13],
-                names=['Taxid', 'Abundance', 'Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Superkingdom',
-                       'Clade', 'Subspecies', "count"]
-            )
+        except Exception as e:
+            print(f"Error reading abundance file for sample {sample_name}: {e}")
+            return
 
         df.fillna("Not Available", inplace=True)
         df.sort_values('Abundance', ascending=False, inplace=True)
