@@ -62,33 +62,28 @@ jobs:
           path: /usr/local/bin/samtools
 
   build-centrifuger:
-    name: Install Centrifuger using Conda on Ubuntu
+    name: Build Centrifuger from Source on Ubuntu
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Install Conda
+  
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+  
+      - name: Clone Centrifuger
+        run: git clone https://github.com/mourisl/centrifuger.git
+  
+      - name: Build Centrifuger
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-          bash Miniconda3-latest-Linux-x86_64.sh -b
-          eval "$(/root/miniconda3/bin/conda shell.bash hook)"
-
-      - name: Create and activate Conda environment, and install Centrifuger
-        run: |
-          conda init bash
-          source ~/.bashrc
-          conda create -n centrifuger_env python=3.9 -y
-          conda activate centrifuger_env
-          conda install -c conda-forge -c bioconda centrifuger -y
-      
+          cd centrifuger
+          make
+  
       - name: Upload Centrifuger binaries
         uses: actions/upload-artifact@v4
         with:
           name: centrifuger-binaries
-          path: ~/.conda/envs/centrifuger_env/bin/centrifuger
+          path: centrifuger/centrifuger
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller
