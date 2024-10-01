@@ -107,14 +107,16 @@ jobs:
 
       - name: Build MMonitor
         run: |
-          cd desktop/src/mmonitor
           pyinstaller --onefile __main__.py --distpath ./output
+
+      - name: List output directory contents
+        run: ls -l ./output
 
       - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
         with:
           name: mmonitor-binary
-          path: ./output/__main__
+          path: ./output/
 
   set-path-for-included-dependencies:
     name: Set up PATH for included dependencies
