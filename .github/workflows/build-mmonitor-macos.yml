@@ -82,11 +82,12 @@ jobs:
       - name: Install Conda
         run: |
           brew install --cask miniconda
-          conda init bash
+          
 
       - name: Create and activate Conda environment, and install Centrifuger
         run: |
           conda init bash
+          source ~/.bashrc
           conda create -n centrifuger_env python=3.10 -y
           conda activate centrifuger_env
           conda install -c conda-forge -c bioconda centrifuger -y
