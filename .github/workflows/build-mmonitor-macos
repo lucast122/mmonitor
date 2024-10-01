@@ -1,0 +1,41 @@
+name: Build Flye, Centrifuge, Samtools, and Main Application on macOS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-flye:
+    name: Build Flye from Source
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python3
+        run: brew install python3
+
+      - name: Set up Virtual Environment
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+
+      - name: Build Flye
+        run: |
+          source venv/bin/activate
+          git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
+          cd desktop/lib/Flye
+          python3 setup.py build
+          python3 setup.py install --user
+
+      - name: Upload Flye binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: flye-binaries
+          path: ~/.local/bin/flye
