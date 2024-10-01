@@ -1,4 +1,4 @@
-name: Build Flye, Centrifuge, Samtools, and Main Application for macOS
+name: Build Flye, Centrifuge, Samtools, and Main Application on macOS
 
 on:
   push:
@@ -11,19 +11,21 @@ on:
 
 jobs:
   build-flye:
-    name: Build Flye from Source
+    name: Build Flye from Source on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install Python and create virtual environment
         run: |
-          brew install python3
+          python3 -m venv venv
+          source venv/bin/activate
           python3 -m pip install --upgrade pip setuptools
 
       - name: Build Flye
         run: |
+          source venv/bin/activate
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
           python3 setup.py build
@@ -35,7 +37,7 @@ jobs:
           path: ~/.local/bin/flye
 
   build-samtools:
-    name: Build Samtools from Source
+    name: Build Samtools from Source on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -71,7 +73,7 @@ jobs:
           path: /usr/local/bin/samtools
 
   build-centrifuge:
-    name: Build Centrifuge from Source
+    name: Build Centrifuge from Source on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -81,6 +83,8 @@ jobs:
         run: |
           git clone https://github.com/DaehwanKimLab/centrifuge.git
           cd centrifuge
+          # Disable optimizations incompatible with macOS
+          sed -i '' 's/-m32 -msse2 -funroll-loops//' Makefile
           make
       - name: Upload Centrifuge binaries
         uses: actions/upload-artifact@v4
@@ -89,7 +93,7 @@ jobs:
           path: centrifuge
 
   build-mmonitor-pyinstaller:
-    name: Build MMonitor with PyInstaller
+    name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest
     needs: [build-flye, build-samtools, build-centrifuge]
     steps:
@@ -116,12 +120,3 @@ jobs:
         with:
           name: mmonitor-binary
           path: desktop/output/
-
-  set-path-for-included-dependencies:
-    name: Set up PATH for included dependencies
-    runs-on: macos-latest
-    needs: build-mmonitor-pyinstaller
-    steps:
-      - name: Set PATH
-        run: |
-          echo "export PATH=\$PATH:\$GITHUB_WORKSPACE/desktop/lib/Flye:\$GITHUB_WORKSPACE/desktop/lib/centrifuge:\$GITHUB_WORKSPACE/desktop/lib/samtools" >> $GITHUB_ENV
