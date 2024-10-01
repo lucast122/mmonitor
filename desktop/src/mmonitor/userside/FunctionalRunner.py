@@ -5,6 +5,8 @@ import os.path
 import subprocess
 import zipfile
 from os import path
+import sys
+import os
 
 import pandas as pd
 import requests
@@ -29,13 +31,12 @@ class FunctionalRunner:
         self.working_directory = os.getcwd()
         # get absolute path of all tools used and safe as class variable
         # os.chdir("../../lib/")
-        self.flye_path = os.path.abspath(f"{ROOT}/lib/Flye-2.9.4/bin/flye")
+        self.flye_path = os.path.join(ROOT, "lib", "Flye-2.9.5", "bin", "flye")
         self.resources_path = os.path.join(ROOT,"src","resources")
-
+        self.minimap2_path = os.path.join(ROOT, "lib", "minimap2", "minimap2")
 
         print(self.flye_path)
-        self.minimap_path = os.path.abspath("Flye-2.9/lib/minimap2/python/minimap2.py")
-        print(self.minimap_path)
+        print(self.minimap2_path)
         os.chdir(self.working_directory)
         # all kegg ids to input into keggcharter. TODO: put them in a file and parse instead of hardcoding here
         self.kegg_ids = [10, 20, 30, 40, 51, 52, 53, 61, 62, 71, 73, 100, 120, 121, 130, 140, 190, 195, 196, 220, 230,
@@ -52,8 +53,7 @@ class FunctionalRunner:
                          920, 930, 940, 941, 942,
                          943, 944, 945, 950, 960, 965, 966, 970, 980, 981, 982, 983, 984, 996, 997, 998, 999, 1010,
                          1040, 1051, 1052, 1053,
-                         1054, 1055, 1056, 1057, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1070, 1100, 1110, 1120,
-                         1200, 1210,
+                         1054, 1055, 1056, 1057, 1059, 1060, 1061, 1062, 1063, 1064, 1065, 1066, 1100, 1110, 1120, 1200, 1210,
                          1212, 1220, 1230, 1232, 1240, 1250, 1501, 1502, 1503, 1521, 1522, 1523, 1524, 2010, 2020, 2024,
                          2025, 2026,
                          2030, 2040, 2060, 3008, 3010, 3013, 3015, 3018, 3020, 3022, 3030, 3040, 3050, 3060, 3070, 3230,
@@ -82,6 +82,9 @@ class FunctionalRunner:
         self.kegg_ids = [s.zfill(5) for s in self.kegg_ids]
 
         self.kegg_ids = ",".join(self.kegg_ids)
+
+        self.checkm2_db_path = os.path.expanduser("~/.checkm2db")
+        self.gtdbtk_db_path = os.path.expanduser("~/.gtdbtk")
 
     def check_software_avail(self):
         try:
@@ -121,39 +124,23 @@ class FunctionalRunner:
                 "Make sure that racon is installed and on the system path. For more info visit https://github.com/bbuchfink/diamond")
 
 
-    def run_flye(self, read_file_path, sample_name, hq, meta):
-        print("Running flye for assembly...")
+    def run_flye(self, input_files, sample_name, output_dir, threads):
+        flye_out = os.path.join(output_dir, "flye_out")
+        os.makedirs(flye_out, exist_ok=True)
 
-        output_dir = os.path.join(self.resources_path, "pipeline_out")
-        print(output_dir)
+        env = os.environ.copy()
+        env["PATH"] = f"{os.path.dirname(self.minimap2_path)}:{env['PATH']}"
 
-
-        # Create output directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        # Select the appropriate Flye parameter for the input reads
-        read_type = "--nano-hq" if hq else "--nano-raw"
-
-        # Construct Flye command
-        flye_cmd = [
-            f"{self.flye_path}",
-            read_type, read_file_path,
-            "--out-dir", os.path.join(output_dir, sample_name),
-            "-t", str(self.cpus)
-        ]
-
-        # Append --meta if meta is True
-        if meta:
-            flye_cmd.append("--meta")
-
-        # Execute Flye command
+        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
         try:
-            result = subprocess.run(flye_cmd, check=True, text=True, capture_output=True)
-            print("Flye command executed successfully:", result.stdout)
-            return os.path.join(output_dir, sample_name, "assembly.fasta")
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
+            print(f"Flye stdout: {result.stdout}")
+            print(f"Flye stderr: {result.stderr}")
         except subprocess.CalledProcessError as e:
-            print("Error executing Flye command:", e.stderr)
+            print(f"Error running Flye: {e}")
+            print(f"Flye stderr: {e.stderr}")
+            raise
+        return os.path.join(flye_out, "assembly.fasta")
 
 
     def run_metabat2_pipeline(self, contig_file, read_file, dir_path):
@@ -449,49 +436,112 @@ class FunctionalRunner:
             except subprocess.CalledProcessError as db_e:
                 print("Error downloading CheckM2 database or retrying the command:", db_e.stderr)
 
-    def run_gtdb_tk(self, bins_dir, dir_path):
-        output_dir = os.path.join(dir_path, "gtdbtk_results")
+    def run_gtdbtk(self, bins_dir, output_dir, threads):
+        gtdbtk_out = os.path.join(output_dir, "gtdbtk_out")
+        os.makedirs(gtdbtk_out, exist_ok=True)
 
-        # Create output directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        try:
+            subprocess.run(["gtdbtk", "--version"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except FileNotFoundError:
+            print("GTDB-TK not found. Attempting to install using pip...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "gtdbtk"], check=True)
+                print("GTDB-TK installed successfully.")
+            except subprocess.CalledProcessError as e:
+                print(f"Failed to install GTDB-TK: {e}")
+                return None
 
-        gtdbtk_cmd = [
+        cmd = [
             "gtdbtk", "classify_wf",
             "--genome_dir", bins_dir,
-            "--out_dir", output_dir,
-            "-x", ".fa",
-            "--cpus", str(self.cpus),
-            "--mash_db", "/mnt/disk2/db/release220/" #TODO: replace with correct PATH this was only quick fix for testing
+            "--out_dir", gtdbtk_out,
+            "--cpus", str(threads),
+            "--extension", "fa"
         ]
+
         try:
-            print(f"gtdbtk cmd: {gtdbtk_cmd}")
-            result = subprocess.run(gtdbtk_cmd, check=True, text=True, capture_output=True)
-            print("GTDB-Tk command executed successfully:", result.stdout)
+            subprocess.run(cmd, check=True)
+            print("GTDB-TK analysis completed successfully.")
+            return gtdbtk_out
         except subprocess.CalledProcessError as e:
-            print("Error executing GTDB-Tk command:", e.stderr)
-
-        try:
-            classification_file = os.path.join(output_dir, "gtdbtk.bac120.summary.tsv")
-            classifications = pd.read_csv(classification_file, sep='\t')
-
-            for index, row in classifications.iterrows():
-                bin_name = row['user_genome']
-                taxonomy = row['classification']
-                taxonomy_name = taxonomy.split(';')[-1].strip()
-                taxonomy_name = taxonomy_name.replace(' ', '_')
-                old_bin_path = os.path.join(bins_dir, f"{bin_name}.fa")
-                new_bin_path = os.path.join(bins_dir, f"{taxonomy_name}.fa")
-
-                if os.path.exists(old_bin_path):
-                    os.rename(old_bin_path, new_bin_path)
-                    print(f"Renamed {old_bin_path} to {new_bin_path}")
-                else:
-                    print(f"Bin file {old_bin_path} does not exist and cannot be renamed.")
-        except Exception as e:
-            print(f"Error processing GTDB-Tk results: {e}")
+            print(f"Error running GTDB-TK: {e}")
+            return None
 
     def run_keggcharter(self, kegg_out, keggcharter_input):
         # self.create_keggcharter_input(keggcharter_input)
         cmd = f"python {ROOT}/lib/KEGGCharter-0.3.4/keggcharter.py -o {kegg_out} -f {keggcharter_input} -tc taxonomy -ecc EC_number --input-quantification -mm {self.kegg_ids}"
         os.system(cmd)
+
+    def run_flye(self, input_files, sample_name, output_dir, threads):
+        flye_out = os.path.join(output_dir, "flye_out")
+        os.makedirs(flye_out, exist_ok=True)
+
+        # Check which minimap2 is being used
+        try:
+            minimap2_path = subprocess.check_output(["which", "minimap2"]).decode().strip()
+            print(f"Using minimap2 from: {minimap2_path}")
+        except subprocess.CalledProcessError:
+            print("minimap2 not found in PATH")
+
+        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Flye: {e}")
+            print(f"Flye stderr: {e.stderr}")
+            raise
+        return os.path.join(flye_out, "assembly.fasta")
+
+    def run_medaka(self, assembly, reads, output_dir, threads):
+        medaka_out = os.path.join(output_dir, "medaka_out")
+        os.makedirs(medaka_out, exist_ok=True)
+        cmd = ["medaka_consensus", "-i", reads, "-d", assembly, "-o", medaka_out, "-t", str(threads)]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Medaka: {e}")
+            print(f"Medaka stderr: {e.stderr}")
+            raise
+        return os.path.join(medaka_out, "consensus.fasta")
+
+    def run_metabat2(self, assembly, reads, output_dir, threads):
+        bins_dir = os.path.join(output_dir, "metabat2_bins")
+        os.makedirs(bins_dir, exist_ok=True)
+        cmd = ["metabat2", "-i", assembly, "-o", os.path.join(bins_dir, "bin"), "-t", str(threads)]
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running MetaBAT2: {e}")
+            print(f"MetaBAT2 stderr: {e.stderr}")
+            raise
+        return bins_dir
+
+    def run_checkm2(self, bins_dir, output_dir, threads):
+        if not os.path.exists(self.checkm2_db_path):
+            print("Downloading CheckM2 database...")
+            subprocess.run(["checkm2", "database", "--download"], check=True)
+        
+        checkm2_out = os.path.join(output_dir, "checkm2_out")
+        cmd = ["checkm2", "predict", "--threads", str(threads), "--input", bins_dir, "--output-directory", checkm2_out]
+        subprocess.run(cmd, check=True)
+        return checkm2_out
+
+    def run_bakta(self, bins_dir, output_dir, threads):
+        bakta_out = os.path.join(output_dir, "bakta_out")
+        os.makedirs(bakta_out, exist_ok=True)
+        for bin_file in os.listdir(bins_dir):
+            if bin_file.endswith(".fa") or bin_file.endswith(".fasta"):
+                bin_path = os.path.join(bins_dir, bin_file)
+                cmd = ["bakta", "--threads", str(threads), "--output", os.path.join(bakta_out, bin_file), bin_path]
+                subprocess.run(cmd, check=True)
+        return bakta_out
+
+    def run_gtdbtk(self, bins_dir, output_dir, threads):
+        if not os.path.exists(self.gtdbtk_db_path):
+            print("Downloading GTDB-TK database...")
+            subprocess.run(["gtdbtk", "download", "--all"], check=True)
+        
+        gtdbtk_out = os.path.join(output_dir, "gtdbtk_out")
+        cmd = ["gtdbtk", "classify_wf", "--genome_dir", bins_dir, "--out_dir", gtdbtk_out, "--cpus", str(threads)]
+        subprocess.run(cmd, check=True)
+        return gtdbtk_out

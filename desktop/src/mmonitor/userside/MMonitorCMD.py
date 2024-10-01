@@ -6,6 +6,8 @@ import os
 import sys
 import numpy as np
 import logging
+import subprocess
+from datetime import datetime
 
 from build_mmonitor_pyinstaller import ROOT
 from mmonitor.userside.FastqStatistics import FastqStatistics
@@ -29,6 +31,8 @@ import numpy as np
 
 from datetime import date, datetime
 
+logger = logging.getLogger(__name__)
+
 class NumpyEncoder(json.JSONEncoder):
     """ Custom encoder for numpy data types """
     def default(self, obj):
@@ -46,21 +50,34 @@ class MMonitorCMD:
     def __init__(self):
         self.use_multiplexing = None
         self.multi_sample_input = None
-        self.emu_runner = EmuRunner()
+        self.emu_runner = None  # Initialize to None
         self.centrifuge_runner = CentrifugeRunner()
         self.functional_runner = FunctionalRunner()
         self.db_config = {}
         self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
         self.args = None
         self.django_db = None
+        self.centrifuge_db = None
+
+        # Add minimap2 from lib folder to PATH
+        minimap2_path = os.path.join(ROOT, "lib", "minimap2")
+        os.environ['PATH'] = f"{minimap2_path}:{os.environ['PATH']}"
+
+        # Optionally, you can print the updated PATH for debugging
+        print(f"Updated PATH: {os.environ['PATH']}")
 
     def initialize_from_args(self, args):
         self.args = args
+        if self.args.emu_db:
+            self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
+        else:
+            self.emu_runner = EmuRunner()  # Initialize here
         try:
             self.django_db = DjangoDBInterface(self.args.config)
         except (FileNotFoundError, ValueError) as e:
             print(f"Error initializing database interface: {e}")
             sys.exit(1)
+        self.centrifuge_db = args.centrifuge_db or os.path.join(ROOT, "src", "resources", "centrifuge_db", "p_compressed")
 
     def valid_file(self, path):
         if not os.path.isfile(path):
@@ -82,7 +99,7 @@ class MMonitorCMD:
 
 
     @staticmethod
-    def parse_arguments():
+    def parse_arguments(args=None):
         parser = argparse.ArgumentParser(description='MMonitor command line tool for various genomic analyses.')
         
         # Main analysis type
@@ -124,7 +141,17 @@ class MMonitorCMD:
         parser.add_argument('--loglevel', type=str, default='INFO', choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'],
                             help='Set the logging level.')
 
-        return parser.parse_args()
+        parser.add_argument('--emu-db', type=str, help='Path to custom Emu database')
+        parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for processing.')
+        parser.add_argument('--centrifuge-db', type=str, help='Path to the Centrifuge database')
+
+        parsed_args = parser.parse_args(args)
+
+        # Check for required arguments
+        if parsed_args.analysis in ['functional', 'assembly'] and not parsed_args.input:
+            parser.error("the following arguments are required: -i/--input")
+
+        return parsed_args
 
     import argparse
     import os
@@ -268,178 +295,51 @@ class MMonitorCMD:
                                     sample_date, multi=True)
 
     def taxonomy_nanopore_16s(self):
-        global sample_name, project_name, subproject_name, sample_date
+        
+        sample_name = str(self.args.sample)
+        project_name = str(self.args.project)
+        subproject_name = str(self.args.subproject)
+        sample_date = self.args.date.strftime('%Y-%m-%d')
+        input_files = self.args.input  # This should be a list of input files
 
+        print(f"Analyzing amplicon data for sample {sample_name}.")
+        emu_success = self.emu_runner.run_emu(input_files, sample_name, self.args.minabundance)
+        
+        if not emu_success:
+            print(f"Emu analysis failed for sample {sample_name}.")
+            return
 
-        def add_sample_to_databases(sample_name, project_name, subproject_name, sample_date):
-            emu_out_path = f"{ROOT}/src/resources/pipeline_out/{sample_name}/"
+        print(f"Emu analysis completed for sample {sample_name}.")
+        
+        # Update the database after successful Emu analysis
+        if self.update_database_16s(sample_name, project_name, subproject_name, sample_date):
+            print(f"Database successfully updated with results for sample {sample_name}.")
+        else:
+            print(f"Failed to update database with results for sample {sample_name}.")
+
+    def update_database_16s(self, sample_name, project_name, subproject_name, sample_date):
+        emu_out_path = os.path.join(ROOT, "src", "resources", "pipeline_out", sample_name)
+        if not os.path.exists(emu_out_path):
+            print(f"No output directory found for sample {sample_name}. Skipping database update.")
+            return False
+        
+        abundance_file = os.path.join(emu_out_path, f"{sample_name}_rel-abundance.tsv")
+        if not os.path.exists(abundance_file):
+            print(f"No abundance file found for sample {sample_name}. Skipping database update.")
+            return False
+        
+        try:
             self.django_db.update_django_with_emu_out(emu_out_path, "species", sample_name, project_name, sample_date,
                                                       subproject_name, self.args.overwrite)
-            print(self.args.overwrite)
-
-
-        if not os.path.exists(os.path.join(ROOT, "src", "resources", "emu_db", "taxonomy.tsv")):
-            print("emu db not found")
-
-        if not self.args.multicsv:
-            sample_name = str(self.args.sample)
-            print(f"Analyzing amplicon data for sample {sample_name}.")
-            # when a sample is already in the database and user does not want to overwrite quit now
-            if not self.args.overwrite:
-                if self.check_sample_in_db(sample_name):
-                    return
-            project_name = str(self.args.project)
-            subproject_name = str(self.args.subproject)
-            sample_date = self.args.date.strftime('%Y-%m-%d')  # Convert date to string format
-            files = self.args.input
-            if self.args.update:
-                print("Update parameter specified. Will only update results from file.")
-                add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
-                return
-
-            self.emu_runner.run_emu(files, sample_name, self.args.minabundance)
-
-            add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
-            if self.args.qc:
-                self.add_statistics(self.emu_runner.concat_file_name, sample_name, project_name, subproject_name,
-                                    sample_date)
-                print("adding statistics")
-
-        else:
-            self.load_from_csv()
-            print("Processing multiple samples")
-            for index, file_path_list in enumerate(self.multi_sample_input["file_paths_lists"]):
-                files = file_path_list
-                sample_name = self.multi_sample_input["sample_names"][index]
-                # when a sample is already in the database and user does not want to overwrite quit now
-                if not self.args.overwrite:
-                    if self.check_sample_in_db(sample_name):
-                        print(
-                            f"Sample {sample_name} already in DB and overwrite not specified, continue with next sample...")
-                        continue
-                project_name = self.multi_sample_input["project_names"][index]
-                subproject_name = self.multi_sample_input["subproject_names"][index]
-                sample_date = self.multi_sample_input["dates"][index]
-                if self.args.update:
-                    print("Update parameter specified. Will only update results from file.")
-                    add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
-                    continue
-
-                self.emu_runner.run_emu(files, sample_name, self.args.minabundance)
-                add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
-                print(f"Finished processing sample {index+1} of {len(file_path_list)}")
-                if self.args.qc:
-                    self.add_statistics(self.emu_runner.concat_file_name, sample_name, project_name, subproject_name,
-                                        sample_date)
-                    print("adding statistics")
-
-        # calculate QC statistics if qc argument is given by user
-
-        # emu_out_path = f"{ROOT}/src/resources/pipeline_out/subset/"
-
-        # if self.db is not None:
-        #     self.db.update_table_with_emu_out(emu_out_path, "species", sample_name, "project", self.sample_date)
-        #
-        # self.db_mysql.update_django_with_emu_out(emu_out_path, "species", sample_name, project_name, sample_date,
-        #                                          subproject_name)
-
-        print("Analysis complete. You can start monitoring now.")
-
-    def load_from_csv(self):
-        file_path = self.args.multicsv
-
-        if not file_path:
-            print("CSV file not provided")
-            return
-
-        # Check if CSV is empty
-        if os.path.getsize(file_path) == 0:
-            print("Selected CSV file is empty.")
-            return
-
-        error_messages = []  # list to accumulate error messages
-
-        # Prepare dictionary to hold multiple sample data
-        self.multi_sample_input = {
-            "file_paths_lists": [],
-            "sample_names": [],
-            "dates": [],
-            "project_names": [],
-            "subproject_names": []
-        }
-
-        with open(file_path, 'r') as file:
-            reader = csv.DictReader(file)
-
-            for row in reader:
-                # Check if provided path exists
-                if not os.path.exists(row["sample folder"].strip()):
-                    error_message = f"Invalid path from CSV: {row['sample folder'].strip()}"
-                    print(error_message)
-                    error_messages.append(error_message)
-                    continue
-
-                # Look for the fastq_pass folder in the provided path and its child directories
-                folder_path = None
-                for root, dirs, files in os.walk(row["sample folder"].strip()):
-                    if "fastq_pass" in dirs:
-                        folder_path = os.path.join(root, "fastq_pass")
-                        break
-                    else:
-                        folder_path = os.path.join(root)
-
-                if not folder_path:
-                    error_message = f"'fastq_pass' directory not found for path: {row['sample folder'].strip()}"
-                    print(error_message)
-                    error_messages.append(error_message)
-                    continue
-
-                # If multiplexing is selected, navigate further to the barcode_x folder
-                if self.args.barcodes:
-                    barcode_id_string = str(row['Barcode ID'])
-
-                    if len(barcode_id_string) == 1:
-                        barcode_id_string = f"0{barcode_id_string}"
-
-                    barcode_folder = f"barcode{barcode_id_string}"
-                    folder_path = os.path.join(folder_path, barcode_folder)
-
-                    if not os.path.exists(folder_path):
-                        error_message = f"Barcode folder '{barcode_folder}' not found."
-                        print(error_message)
-                        error_messages.append(error_message)
-                        continue
-
-                files = self.get_files_from_folder(folder_path)
-
-                # Extract attributes from CSV and check for errors
-                required_columns = ["sample_name", "date", "project_name", "subproject_name"]
-                for col in required_columns:
-                    if not row[col]:
-                        error_message = f"Missing {col} in CSV for path: {row['sample folder']}"
-                        print(error_message)
-                        error_messages.append(error_message)
-
-                # Store extracted CSV information to multi_sample_input
-                self.multi_sample_input["file_paths_lists"].append(files)
-                self.multi_sample_input["sample_names"].append(row["sample_name"])
-                self.multi_sample_input["dates"].append(row["date"])
-                self.multi_sample_input["project_names"].append(row["project_name"])
-                self.multi_sample_input["subproject_names"].append(row["subproject_name"])
-
-            # Provide feedback on the number of samples to be processed
-            num_samples_to_process = len(self.multi_sample_input["file_paths_lists"])
-            if num_samples_to_process <= 5:
-                print(f"Processing {num_samples_to_process} samples.")
-            else:
-                print(f"Processing {num_samples_to_process} samples. This may take a while.")
-
-        # Handle error messages from loading the CSV
+            print(f"Database successfully updated with Emu results for sample {sample_name}.")
+            return True
+        except Exception as e:
+            print(f"Error updating database with Emu results for sample {sample_name}: {e}")
+            return False
 
     def taxonomy_nanopore_wgs(self):
         cent_db_path = os.path.join(ROOT, 'src', 'resources', 'dec_22')
         today = datetime.now()
-        # Format the date as "year month day"
         default_date = today.strftime("%Y-%m-%d")
 
         def add_sample_to_databases(sample_name, project_name, subproject_name, sample_date):
@@ -464,7 +364,9 @@ class MMonitorCMD:
             if sample_date is None:
                 sample_date = default_date
 
-            files = self.get_files_from_folder(self.args.input)
+            # Use the get_files_from_folder method from CentrifugeRunner
+            files = self.centrifuge_runner.get_files_from_folder(self.args.input[0])  # Assuming args.input is a list with at least one element
+            
             if self.args.update:
                 print("Update parameter specified. Will only update results from file.")
                 add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
@@ -477,7 +379,7 @@ class MMonitorCMD:
                 concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq"
                 CentrifugeRunner.concatenate_fastq_fast(files, concat_file_name, False)
 
-            self.centrifuge_runner.run_centrifuge(concat_file_name, sample_name, cent_db_path)
+            self.centrifuge_runner.run_centrifuge(concat_file_name, sample_name, self.centrifuge_db)
             add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
             if self.args.qc:
                 self.add_statistics(self.centrifuge_runner.concat_file_name, sample_name, project_name, subproject_name,
@@ -540,11 +442,11 @@ class MMonitorCMD:
                                                                 concat_files_list,
                                                                 centrifuge_tsv_path)
             print(f"Running centrifuge for multiple samples from tsv {centrifuge_tsv_path}...")
-            CentrifugeRunner.run_centrifuge_multi_sample(centrifuge_tsv_path, cent_db_path)
+            CentrifugeRunner.run_centrifuge_multi_sample(centrifuge_tsv_path, self.centrifuge_db)
 
             print(f"Make kraken report from centrifuge reports...")
 
-            CentrifugeRunner.make_kraken_report_from_tsv(centrifuge_tsv_path, cent_db_path)
+            CentrifugeRunner.make_kraken_report_from_tsv(centrifuge_tsv_path, self.centrifuge_db)
 
 
             print(f"Adding all samples to database...")
@@ -565,33 +467,59 @@ class MMonitorCMD:
             for concat_file in concat_files_list:
                 os.remove(concat_file)
 
-    def assembly_pipeline(self, s_name, p_name, sp_name, s_date, fils):
-        concat_file_name = self.concatenate_files(fils, s_name)
-        print(concat_file_name)
-        contig_file_path = self.functional_runner.run_flye(concat_file_name, s_name, True, True)
-        out_path = os.path.join(self.pipeline_out, s_name)
-        self.functional_runner.run_medaka_consensus(contig_file_path, concat_file_name, out_path)
+    def assembly_pipeline(self):
+        output_dir = os.path.join(self.pipeline_out, self.args.sample)
+        os.makedirs(output_dir, exist_ok=True)
 
-        print(f" contig_file_path: {contig_file_path}")
-        print(f" concat_file_path: {concat_file_name}")
-        print(f" out_path: {out_path}")
-        os.startfile(out_path)
-        self.functional_runner.run_metabat2_pipeline(contig_file_path, concat_file_name, out_path)
-        bins_dir = os.path.join(out_path, "metabat_bins")
-        bakta_dir = os.path.join(out_path, "bakta_results")
+        # Assembly with Flye
+        assembly_out = self.functional_runner.run_flye(self.args.input, self.args.sample, output_dir, self.args.threads)
 
-        # self.functional_runner.run_checkm2(bins_dir, out_path)
-        # self.functional_runner.run_bakta(contig_file_path, bakta_dir)
-        self.functional_runner.run_gtdb_tk(bins_dir, out_path)
+        # Correction with Medaka
+        corrected_assembly = self.functional_runner.run_medaka(assembly_out, self.args.input[0], output_dir, self.args.threads)
+
+        # Binning with MetaBAT2
+        bins_dir = self.functional_runner.run_metabat2(corrected_assembly, self.args.input[0], output_dir, self.args.threads)
+
+        print("Assembly pipeline completed successfully.")
+
+    def functional_pipeline(self):
+        self.assembly_pipeline()
+        output_dir = os.path.join(self.pipeline_out, self.args.sample)
+        bins_dir = os.path.join(output_dir, "metabat2_bins")
+
+        # CheckM2
+        checkm2_out = self.functional_runner.run_checkm2(bins_dir, output_dir, self.args.threads)
+
+        # Annotation with Bakta
+        bakta_out = self.functional_runner.run_bakta(bins_dir, output_dir, self.args.threads)
+
+        # Taxonomy with GTDB-TK
+        gtdbtk_out = self.functional_runner.run_gtdbtk(bins_dir, output_dir, self.args.threads)
+
+        print("Functional analysis pipeline completed successfully.")
 
     def run(self):
-        if not self.args:
-            raise ValueError("Arguments not initialized. Call initialize_from_args() first.")
+        logger.debug(f"Starting run with analysis type: {self.args.analysis}")
         
-        if self.args.multicsv:
-            self.run_multi_sample()
-        else:
-            self.run_single_sample()
+        # Print the current PATH before running any analysis
+        logger.debug(f"Current PATH: {os.environ['PATH']}")
+
+        if self.args.analysis == "taxonomy-16s":
+            logger.debug("Running taxonomy-16s analysis")
+            self.taxonomy_nanopore_16s()
+        elif self.args.analysis == "taxonomy-wgs":
+            logger.debug("Running taxonomy-wgs analysis")
+            self.taxonomy_nanopore_wgs()
+        elif self.args.analysis == "assembly":
+            logger.debug("Running assembly pipeline")
+            self.assembly_pipeline()
+        elif self.args.analysis == "functional":
+            logger.debug("Running functional pipeline")
+            self.functional_pipeline()
+        elif self.args.analysis == "stats":
+            logger.debug("Running stats analysis")
+            self.update_only_statistics()
+        logger.debug("Finished run")
 
     def run_single_sample(self):
         if self.args.analysis == "taxonomy-16s":
@@ -599,7 +527,9 @@ class MMonitorCMD:
         elif self.args.analysis == "taxonomy-wgs":
             self.taxonomy_nanopore_wgs()
         elif self.args.analysis == "assembly":
-            self.assembly_pipeline(self.args.sample, self.args.project, self.args.subproject, self.args.date, self.args.input)
+            self.assembly_pipeline()
+        elif self.args.analysis == "functional":
+            self.functional_pipeline()
         elif self.args.analysis == "kegg":
             self.run_kegg_analysis()
         elif self.args.analysis == "mag-upload":
@@ -614,6 +544,14 @@ class MMonitorCMD:
             self.args.date = self.multi_sample_input["dates"][index]
             self.args.input = self.multi_sample_input["file_paths_lists"][index]
             self.run_single_sample()
+
+    def run_emu(self, files, sample_name, min_abundance):
+        print(f"Running Emu for sample {sample_name}")
+        # ... (rest of the method)
+        # Replace any sys.stdout.write() or sys.stderr.write() with print()
+        print(f"Emu analysis complete for sample {sample_name}")
+
+    # Apply similar changes to other methods that might be writing directly to stdout/stderr
 
 class OutputLogger:
     def __init__(self, log_file_path):

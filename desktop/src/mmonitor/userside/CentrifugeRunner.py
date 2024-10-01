@@ -12,7 +12,9 @@ import gzip
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import Manager
 import shutil
-
+import platform
+import subprocess
+import os
 def process_file(file, temp_dir):
     is_gzipped = file.endswith('.gz')
     temp_file = os.path.join(temp_dir, os.path.basename(file) + ".tmp")
@@ -28,9 +30,9 @@ class CentrifugeRunner:
 
     def __init__(self):
         self.logger = logging.getLogger('timestamp')
-        # self.check_centrifuge()
         self.cent_out = ""
         self.concat_file_name = ""
+        self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
 
     @staticmethod
     def concatenate_files_in_memory(file_paths):
@@ -160,41 +162,28 @@ class CentrifugeRunner:
             self.logger.error(
                 "Make sure that centrifuge is installed and on the sytem path. For more info visit http://www.ccb.jhu.edu/software/centrifuge/manual.shtml")
 
-    def run_centrifuge(self, concat_file_path,sample_name,database_path):
-        # print(sequence_list)
-        #remove concatenated files from sequence list to avoid concatenating twice
-        # sequence_list = [s for s in sequence_list if "concatenated" not in s]
-        # concat_file_name = f"{os.path.dirname(sequence_list[0])}/{sample_name}_concatenated.fastq.gz"
-        self.concat_file_name = concat_file_path
-        print(concat_file_path)
-        self.cent_out = f"{ROOT}/src/resources/pipeline_out/{sample_name}_cent_out"
-
-        # self.concatenate_fastq_files(sequence_list,concat_file_name)
-        # self.concatenate_fastq_parallel(sequence_list, concat_file_name)
-
-        if concat_file_path.lower().endswith(('.fq', '.fastq', '.fastq.gz', '.fq.gz')):
-            cmd = f'centrifuge -x "{database_path}" -U {concat_file_path} -p {multiprocessing.cpu_count()} -S {self.cent_out}'
-            print(cmd)
-            os.system(cmd)
-            self.make_kraken_report(database_path, self.cent_out)
-            return
+    def run_centrifuge(self, concat_file_name, sample_name, cent_db_path):
+        os.makedirs(self.pipeline_out, exist_ok=True)
+        cmd = f"centrifuge -x {cent_db_path} -U {concat_file_name} --report-file {self.pipeline_out}/{sample_name}_centrifuge_report.tsv -S {self.pipeline_out}/{sample_name}_centrifuge_out.txt"
+        print(cmd)
+        try:
+            subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+            print("Centrifuge analysis completed successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Centrifuge: {e}")
+            print(f"Centrifuge stderr: {e.stderr}")
+            if "command not found" in e.stderr:
+                print("Centrifuge is not installed or not in the system PATH")
+        except FileNotFoundError:
+            print("Centrifuge is not installed or not in the system PATH")
 
     def get_files_from_folder(self, folder_path):
         """
         Gets a path to a folder, checks if path contains sequencing files with specified endings and returns list
-        containing paths to sequencing files. centrifuge
+        containing paths to sequencing files.
         """
         files = []
-        found = False
-        try:
-            for file in os.listdir(folder_path):
-                print(file)
-                if file.endswith(".fastq") or file.endswith(".fq") or file.endswith(".fasta") or file.endswith(
-                        ".fastq.gz"):
-                    files.append(f"{folder_path}/{file}")
-                    found = True
-            if not found:
-                self.logger.error(f"No sequencing files (.fastq, .fq found at {folder_path}")
-            return files
-        except FileNotFoundError:
-            self.logger.error(f"Invalid folder path")
+        for file in os.listdir(folder_path):
+            if file.endswith((".fastq", ".fq", ".fasta", ".fastq.gz")):
+                files.append(os.path.join(folder_path, file))
+        return files
