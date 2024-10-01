@@ -18,7 +18,9 @@ import tarfile
 import ssl
 import sys
 import requests
-from .centrifuge_downloader import download_file, download_and_process_genomes
+import wget
+import ftplib
+from io import BytesIO
 
 def get_taxid_from_species_name(species_name):
     # First, try to get the taxid from our existing mapping
@@ -203,13 +205,15 @@ class DatabaseWindow(ctk.CTkToplevel):
     def show_progress_window(self, title):
         self.progress_window = ctk.CTkToplevel(self)
         self.progress_window.title(title)
-        self.progress_window.geometry("300x100")
+        self.progress_window.geometry("400x150")
         self.progress_window.transient(self)
         self.progress_window.grab_set()
 
-        ctk.CTkLabel(self.progress_window, text="Building database...").pack(pady=10)
+        self.progress_label = ctk.CTkLabel(self.progress_window, text="Initializing...")
+        self.progress_label.pack(pady=10)
+
         self.progress_bar = ctk.CTkProgressBar(self.progress_window, mode="indeterminate")
-        self.progress_bar.pack(pady=10)
+        self.progress_bar.pack(pady=10, padx=20, fill="x")
         self.progress_bar.start()
 
     def close_progress_window(self):
@@ -451,6 +455,8 @@ class DatabaseWindow(ctk.CTkToplevel):
 
     def _build_centrifuge_db(self, selected_domains):
         try:
+            self.show_progress_window("Building Centrifuge Database")
+
             index_name = "centrifuge_custom_index"
             taxonomy_dir = os.path.join(self.centrifuge_db_path, "taxonomy")
             library_dir = os.path.join(self.centrifuge_db_path, "library")
@@ -465,39 +471,86 @@ class DatabaseWindow(ctk.CTkToplevel):
             os.makedirs(library_dir)
 
             # Download NCBI taxonomy
+            self.update_progress("Downloading NCBI taxonomy...")
             centrifuge_path_download = os.path.join(ROOT, 'lib', 'centrifuge_mac', 'centrifuge-download')
             centrifuge_path_build = os.path.join(ROOT, 'lib', 'centrifuge_mac', 'centrifuge-build')
             subprocess.run([centrifuge_path_download, "-o", taxonomy_dir, "taxonomy"], check=True)
 
-            # Download and process genomes for selected domains
-            for domain in selected_domains:
-                assembly_summary_url = f"https://ftp.ncbi.nlm.nih.gov/genomes/refseq/{domain}/assembly_summary.txt"
-                assembly_summary_path = os.path.join(library_dir, f"{domain}_assembly_summary.txt")
-                download_file(assembly_summary_url, assembly_summary_path)
-                download_and_process_genomes(
-                    assembly_summary_path,
-                    os.path.join(library_dir, domain),
-                    num_threads=os.cpu_count()
-                )
+            # Download genomes for selected domains
+            input_sequences = os.path.join(library_dir, "input-sequences.fna")
+            seqid2taxid_map = os.path.join(taxonomy_dir, "seqid2taxid.map")
 
-            # Concatenate all downloaded genomes
-            with open(os.path.join(library_dir, "input-sequences.fna"), "w") as outfile:
-                for root, _, files in os.walk(library_dir):
-                    for file in files:
-                        if file.endswith(".fna"):
-                            with open(os.path.join(root, file), "r") as infile:
-                                outfile.write(infile.read())
+            with open(input_sequences, 'w') as outfile, open(seqid2taxid_map, 'w') as mapfile:
+                for domain in selected_domains:
+                    self.update_progress(f"Downloading {domain} genomes... This may take a while.")
+                    ftp_url = "ftp.ncbi.nlm.nih.gov"
+                    ftp_dir = f"/genomes/refseq/{domain}/"
+                    
+                    ftp = ftplib.FTP(ftp_url)
+                    ftp.login()
+                    ftp.cwd(ftp_dir)
+                    
+                    # Get list of all subdirectories (each represents a species)
+                    species_dirs = ftp.nlst()
+                    
+                    for species_dir in species_dirs[:10]:  # Limit to 10 species for testing
+                        if species_dir.startswith('all_assembly'):  # Skip non-species directories
+                            continue
+                        
+                        try:
+                            ftp.cwd(f"{ftp_dir}{species_dir}")
+                            files = ftp.nlst()
+                            
+                            for file in files:
+                                if file.endswith("_genomic.fna.gz"):
+                                    self.update_progress(f"Downloading: {file}")
+                                    
+                                    # Download and process the file
+                                    buffer = BytesIO()
+                                    ftp.retrbinary(f"RETR {file}", buffer.write)
+                                    buffer.seek(0)
+                                    
+                                    with gzip.open(buffer, 'rt') as f:
+                                        for line in f:
+                                            if line.startswith('>'):
+                                                seq_id = line.split()[0][1:]
+                                                taxid = line.split('taxid|')[-1].split()[0] if 'taxid|' in line else 'unknown'
+                                                mapfile.write(f"{seq_id}\t{taxid}\n")
+                                            outfile.write(line)
+                            
+                            ftp.cwd('..')  # Go back to the main domain directory
+                        except Exception as e:
+                            self.update_progress(f"Error processing {species_dir}: {str(e)}")
+                    
+                    ftp.quit()
+
+            # Check if files were created and have content
+            if not os.path.exists(input_sequences) or os.path.getsize(input_sequences) == 0:
+                raise ValueError(f"Input sequences file is empty or does not exist: {input_sequences}")
+            if not os.path.exists(seqid2taxid_map) or os.path.getsize(seqid2taxid_map) == 0:
+                raise ValueError(f"Seqid2taxid map file is empty or does not exist: {seqid2taxid_map}")
+
+            self.update_progress("Files created successfully. Starting Centrifuge index build...")
 
             # Build Centrifuge index
-            subprocess.run([
+            self.update_progress("Building Centrifuge index... This may take a while.")
+            build_command = [
                 centrifuge_path_build,
                 "-p", str(os.cpu_count()),
-                "--conversion-table", os.path.join(taxonomy_dir, "seqid2taxid.map"),
+                "--conversion-table", seqid2taxid_map,
                 "--taxonomy-tree", os.path.join(taxonomy_dir, "nodes.dmp"),
                 "--name-table", os.path.join(taxonomy_dir, "names.dmp"),
-                os.path.join(library_dir, "input-sequences.fna"),
+                input_sequences,
                 index_name
-            ], check=True)
+            ]
+            result = subprocess.run(build_command, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                raise subprocess.CalledProcessError(result.returncode, build_command, result.stdout, result.stderr)
+
+            self.log_progress(result.stdout)
+            if result.stderr:
+                self.log_progress(f"Errors: {result.stderr}")
 
             self.close_progress_window()
             messagebox.showinfo("Success", f"Centrifuge database built successfully at {self.centrifuge_db_path}")
@@ -507,10 +560,14 @@ class DatabaseWindow(ctk.CTkToplevel):
 
         except subprocess.CalledProcessError as e:
             self.close_progress_window()
-            messagebox.showerror("Error", f"Failed to build Centrifuge database: {str(e)}")
+            error_message = f"Failed to build Centrifuge database: {str(e)}\nStdout: {e.stdout}\nStderr: {e.stderr}"
+            self.log_progress(error_message)
+            messagebox.showerror("Error", error_message)
         except Exception as e:
             self.close_progress_window()
-            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+            error_message = f"An unexpected error occurred: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            self.log_progress(error_message)
+            messagebox.showerror("Error", error_message)
 
     def create_domain_selection_dialog(self):
         dialog = ctk.CTkToplevel(self)
@@ -553,3 +610,7 @@ class DatabaseWindow(ctk.CTkToplevel):
                     subprocess.Popen(["xdg-open", folder_path])
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to open folder: {str(e)}")
+    def update_progress(self, message):
+        if hasattr(self, 'progress_label'):
+            self.progress_label.configure(text=message)
+        self.log_progress(message)
