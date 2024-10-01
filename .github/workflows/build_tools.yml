@@ -20,10 +20,11 @@ jobs:
       - name: Build Flye
         run: |
           # Commands to build Flye
-          cd desktop/lib/Flye-2.9.5
+          git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
+          cd desktop/lib/Flye
           python3 setup.py build
           python3 setup.py install --user
-          
+
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
@@ -39,27 +40,20 @@ jobs:
 
       - name: Build HTSlib
         run: |
-          # Commands to build HTSlib (dependency for Samtools)
-          # Clone HTSlib and its submodule (htscodecs)
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib
-          git submodule update --init --recursive
-          # Generate configure script if missing
           autoheader
           autoconf
           autoreconf -i
-          # Configure and build HTSlib
-          autoreconf -i  # Regenerate configure script for samtools as well
           ./configure
           make
           sudo make install
 
       - name: Build Samtools
         run: |
-          # Commands to build Samtools
           git clone https://github.com/samtools/samtools.git
           cd samtools
-          autoreconf -i  # Regenerate configure script for samtools as well
+          autoreconf -i
           ./configure
           make
           sudo make install
@@ -79,7 +73,6 @@ jobs:
 
       - name: Build Centrifuge
         run: |
-          # Commands to build Centrifuge
           git clone https://github.com/DaehwanKimLab/centrifuge.git
           cd centrifuge
           make
@@ -93,19 +86,27 @@ jobs:
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller
     runs-on: ubuntu-latest
-    needs: [build-flye, build-samtools, build-centrifuge]  # Ensure dependencies are built first
+    needs: [build-flye, build-samtools, build-centrifuge]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install PyInstaller
+      - name: Install Python dependencies
         run: |
           python3 -m pip install --upgrade pip
-          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Install PyInstaller
+        run: |
+          python3 -m pip install pyinstaller
+
+      - name: Set PYTHONPATH
+        run: |
+          # Add necessary paths for Python imports
+          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
 
       - name: Build MMonitor
         run: |
-          # Assuming your main script is located in desktop/src/mmonitor/__main__.py
           cd desktop/src/mmonitor
           pyinstaller --onefile __main__.py
 
@@ -114,4 +115,13 @@ jobs:
         with:
           name: mmonitor-binary
           path: dist/__main__
+
+  set-path-for-included-dependencies:
+    name: Set up PATH for included dependencies
+    runs-on: ubuntu-latest
+    needs: build-mmonitor-pyinstaller
+    steps:
+      - name: Set PATH
+        run: |
+          echo "export PATH=\$PATH:\$GITHUB_WORKSPACE/desktop/lib/Flye:\$GITHUB_WORKSPACE/desktop/lib/centrifuge:\$GITHUB_WORKSPACE/desktop/lib/samtools" >> $GITHUB_ENV
 
