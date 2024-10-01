@@ -1,0 +1,193 @@
+
+Prokka ChangeLog
+----------------
+
+v1.12 - 14 Mar 2017
+* Lots of bug fixes.
+* Improved documentation, especially installation
+* Newer static binaries for Linux and MacOS
+* Updated protein and ncRNA databases
+* Better default unique locus_tag based on contig MD5
+* Option --cdsrnaolap to allow tRNA/rRNA overlapping CDS
+* Option --addmrna to add mRNA features for each CDS
+* Option --noanno to just predict CDS coordinates but not /product
+* Option --fast to just BLAST sprot and ignore slower HMMs
+* Better log file
+* New .tsv output of annotated features
+
+v1.11 - 15 Feb 2015
+* Option --proteins now supports .GBK/.EMBL files directly!
+* Support for user supplied HMM via --hmms [Connor Driscoll]
+* Add Prodigal -c option when in metagenome mode [Daan Speth]
+* Wierd coordinate errors with long Spades contig names [Stephan Pabinger]
+* Replaced dodgy OSX aragorn binary [Yevgeny Nikolaichik]
+* Handle translation table 25 [Mads Albertsen]
+* Fix semantically incorrect GFF3 output [Marc Hoeppner]
+* Fix contigs with pipe characters from Quiver [Vaughn Cooper]
+* Keep original contig ordering [Jane Hawkey]
+* Fix protein translation with alternate --gcode [Andreas Leimbach]
+* Various bug fixes in prokka-* support scripts [Andreas Leimbach]
+* Workaround tbl2asn bug with COORDINATES:profile [Wiep Smits]
+* Provide MD5 checksum for website download [Willem VA Viljoen]
+* Hopefully slightly improved cleanup_product() function
+* Ensure released are tagged on github for Linux Brew [Shaun Jackman]
+* Check databases exist before searching against them
+* Updated bundled binaries
+
+v1.10 - 28 July 2014
+* Support for barrnap 0.4 with Archaea and Mito support [Lionel Guy]
+* New legal assembly_gap feature in gbk, sqn, tbl files [Connor Skennerton]
+* Bug fix: for hypos with /gene and /EC [Connor Skennerton]
+* Improved cleanup_product [Connor Skennerton]
+* Bug fix: aragorn tmRNA parsing [Connor Skennerton]
+* New --depends option to list all dependencies
+* Check for exes needed for --setupdb before attemping it [nsoranzo]
+* Bug fix: missing ID on 'gene' feature tytpes [Chris Fields]
+* Upgraded minced to 0.1.6 to avoid out-by-1 bug
+* Bug fix: Bio::RootI file handle issues in latest BioPerl [Chris Fields]
+* Bug fix: --setupdb doesn't have bundled binaries in PATH [Connor Skennerton]
+* Command line and other improvements [Shaun Jackman]
+* Added --rnammer switch to prefer RNAmmer over Barrnap 
+* Added --rawproduct to turn off /product cleaning
+* Typo in help for --compliant [Haruo Suzuki]
+
+v1.9 - 8 May 2014
+* MAJOR: Bug in prokka-uniprot_to_fasta_db: was allowing Altname instead of Recname
+         This affected the /product names that were used in the core protein database!
+* Updated kingdom databases (sprot)
+* Updated 'cmscan' binaries from 1.1rc to 1.1 (linux + darwin)
+* Fixed bug when input fasta has duplicate sequence IDs [James Doonan]
+* Removed linux/nhmmer binary as it is not used by Prokka
+* Experimental --kingdom Mitochondria
+* prokka-uniprot_to_fasta_db now has --term empty as default
+* More prokka-XXXX_to_fasta_db scripts (not for general use just yet)
+* New --setupdb function to press/index databases ready for Prokka to use
+* New --cleandb function to remove all redundant indices (useful for making tarball)
+* Introduction of 'HAMAP' HMM before CLUSTERS as smaller, faster, reliable
+* Removal of 'Cdd' HMM as no longer maintained
+* Removal of 'TIGRFAMs' HMM as doesn't add much
+* New dependencies of hmmpress and cmpress to support --setupdb
+* Fixed bug with parsing "X.Yb" version format with signalp [Peter Cock]
+* Put unique prefix on contig names in --compliant mode [Peter Cock]
+
+v1.8 - Nov 2013
+* Added support for 'minced' CRISPR finder [Connor Skennerton]
+* If --cpus > no. cores in system, reduce it down
+* Improved message explaining CDS overlapping existing RNAs
+* Defend against Bio::SearchIO bug for parsing hmmscan [Andrew Page]
+
+v1.7.2 - 2 Nov 2013
+* Fixed serious++ memory leak if --genes/--compliant used [Geoff Winsor]
+
+v1.7.1 - 10 Oct 2013
+* bug when --cpu 0 set [Lionel Guy]
+* added two more entries to FAQ
+* check for BioPerl >= 1.6.2 (not 1.6) for hmmer3 parsing [Bastien Chevreux]
+* typo: "againt" => "against" [Dieter Bulach]
+* cleanup product exception for 'rep' phage protein [Dieter Bulach]
+* check for Parallel >= 20130422 bug https://savannah.gnu.org/bugs/?34241 [Nicola Soranzo]
+* BUG: rnammer used -S bac no matter what --kingdom was [Harald Gruber-Vodicka]
+
+v1.7 - 3 Sep 2013
+* complete overhaul of method of using GNU parallel, twice as fast now!
+* add support for my BARRNAP rRNA predictor software, will use before RNAmmer
+* added --norrna flag to disable rRNA searching
+* added --notrna flaf to disable tRNA searching
+* add --plasmid option to enable /plasmid in 'source' tag
+* add .txt output file summarising feature counts
+* added name/version/author to --help output
+* bugfix: parallel *.seq command line too long with >10^5 contigs [Jon Graf]
+* updated kingdom uniprot databases
+* filtered hypothetical/UPF/DUF proteins from all HMMs
+* put TIGRFAMs before Cdd as COG names showing their age now
+* bug: didn't check if <contigs.fa> was a readable, non-empty file
+* option --moncontig renamed to --moncontiglen (backward compatible)
+* default value for --mincontig set to 1 rather than 0
+* exit if input fasta file doesn't contain any valid sequences
+* added new binaries/{linux,darwin}, only used if not already installed
+
+v1.6 - 7 Aug 2013
+* fixed bug: 'infernal' exe doesn't exist, look for 'cmscan'
+* added custom trusted E.coli --proteins file derived from EcoCyc
+* added prokka-biocyc_to_fasta to make Prokka databases from Biocyc downloads
+* leave contig names alone if --centre is NOT set
+* make --centre '' the default
+* fixed bug where --centre '' caused faulty /protein_id and no CDS in .gbk
+* new --metagenome for working with fragmented genomes (sets prodigal --meta)
+* new --compliant option to auto-set options for NCBI submission
+* dont remove CDS overlapping ncRNA found via --rfam
+* document the "tbl2asn" out of date problem!
+* add --gnu option to parallel and require version XXX
+* fixed problem where .gbk had no CDS features (added "-a s" to tbl2asn)
+* added parallel and blastp to version checking
+* enforcing minimum version of software to ensure compatibility
+* signalp(--gram),makeblastdb(--proteins),cmscan(--rfam) are now optional installs
+* added support to add platform binaries to binaries/{linux,darwin}/
+* added prokka-build_kingdom_dbs to enable user updating of uniprot BLAST dbs
+* added prokka-build_genus_dbs to enable user to generate new ones ???
+* added support for binaries/linux and binaries/darwin to be included
+* fixed bug: wrong detection of rfam index file
+
+v1.5.2 - 14 Sep 2012
+* fixed bug to handle -ve strand ncRNAs [Adam Caldwell]
+
+v1.5.1 - 13 Sep 2012
+* fixed bug parsing cmscan output [Adam Caldwell]
+* added Infernal to documentation requirements
+* record $USER in .log file
+
+v1.5 - 9 Sep 2012
+* fixed .faa output not honouring --gctable [Adam Caldwell]
+* option --addgenes causes duplicate entries in the .ffn output
+* removed --coverage option which wasn't being used/honoured
+* changed /usr/bin/perl to /usr/bin/env perl
+* added support for tmRNA (ssrA/10S) features from Aragorn
+* added support for Infernal/cmscan 1.1 against Rfam
+* added a "Bug" to docs
+* consisified some warning messages
+* added LICENSE for Rfam and Pfam
+* removed redundant sprot fasta files: prokka/db/kingdom/*/sprot
+
+v1.4.1 - 14 Aug 2012
+* fixed bug which rejected --increment 1 default! [Simon Gladman]
+
+v1.4 - 13 Aug 2012
+* improved cleaning up of product names to (help) satisfy NCBI tests
+* added LICENCE information for Swissprot, TIGRFams in doc/ [Emailed Uniprot]
+* option to change locus_tag numbering increment [Roderick Felsheim]
+* fixed bug where setting --gcode was over-ridden by --kingdom
+
+v1.3 - 17 Jun 2012
+* removed 'sprot' fasta files, can recover from indices with fastacmd/blastdbcmd
+* removed Time::Seconds->walltime() as it is too new [Heikki Lehvaslaiho]
+* checked for GNU parallel VS "parallel" from Debian moreutils pkg [Heikki Lehvaslaiho]
+* fixed 'ribsomnal' / 'Ecoli.faa' typo in manual
+* added citations for GNU Parallel and all other tools [Ole Tange]
+* add /protein_id tags to CDS [NCBI]
+* added --citation option to show publication reference
+* improved manual w/ details on how to get RNAmmer working with old HMMER
+* added "Installation" section to manual
+* changed NCBI error suggestion file from *.val to *.err
+* added prokka-make_tarball script to automate new releases
+
+v1.2 -  28 Apr 2012
+* fixed changelog 1.01 to 1.1 as released
+* fixed bug so only newly created files are listed at end when --outdir='.'
+* work-around for bug in Aragorn reporting 27000bp long tRNAs at contig ends
+* wrote blog post about it at http://thegenomefactory.blogspot.com/
+* announced on Google+, Twitter
+
+v1.1 - 25 Apr 2012
+* fixed accidental forcing lower case for strain instead of species
+* use of genus-specific DBs is now default off, use --usegenus to enable it
+* changed $URL
+* altered COMMENT about prokka in .gbk file
+* features weren't sorted by location before locus tag assignment
+* identified bug in tbl2asn introducing space in /inference="COORDINATES: profile"
+* added support to "un-collide" duplicate /gene names by adding _1 _2 etc
+* added more documentation in doc/prokka-manual.html
+* added --listdb option to show what databases are configured
+* removed .gz versions of raw HMM databases, as not needed
+
+v1.00 - 23 Apr 2012
+* first public version
