@@ -43,11 +43,19 @@ git clone --recursive https://github.com/samtools/htslib.git
 # Build Samtools
 brew install autoconf automake libtool
 cd htslib
-autoheader && autoconf && autoreconf -i && ./configure && make && sudo make install
+autoheader && autoconf && autoreconf -i && ./configure && make && make install
 cd ..
+# Check if samtools directory exists and is not empty
+if [ -d "samtools" ] && [ "$(ls -A samtools)" ]; then
+    echo "samtools directory already exists and is not empty."
+    echo "Removing existing samtools directory..."
+    rm -rf samtools
+fi
+
+
 git clone https://github.com/samtools/samtools.git
 cd samtools
-autoreconf -i && ./configure && make && sudo make install
+autoreconf -i && ./configure && make && make install
 cd ..
 
 # Build Centrifuger
