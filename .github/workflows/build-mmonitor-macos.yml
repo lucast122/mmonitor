@@ -203,7 +203,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          brew install cmake boost autoconf automake libtool
+          brew install --formula cmake boost autoconf automake libtool
           echo "PATH=/usr/local/opt/autoconf/bin:/usr/local/opt/automake/bin:/usr/local/opt/libtool/bin:$PATH" >> $GITHUB_ENV
       
       - name: Build MetaBAT2
@@ -211,6 +211,13 @@ jobs:
           git clone https://bitbucket.org/berkeleylab/metabat.git
           cd metabat
           git checkout v2.15  # Use a specific version known to work
+          # Download config.guess and config.sub
+          curl -O https://git.savannah.gnu.org/cgit/config.git/plain/config.guess
+          curl -O https://git.savannah.gnu.org/cgit/config.git/plain/config.sub
+          chmod +x config.guess config.sub
+          # Copy these files to the htslib directory
+          mkdir -p contrib/htslib
+          cp config.guess config.sub contrib/htslib/
           mkdir build && cd build
           cmake -DCMAKE_CXX_FLAGS="-std=c++14" -DBOOST_ROOT=$(brew --prefix boost) ..
           make VERBOSE=1
