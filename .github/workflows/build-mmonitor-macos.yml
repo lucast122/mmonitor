@@ -30,11 +30,18 @@ jobs:
           cd desktop/lib/Flye
           python3 setup.py build
           python3 setup.py install --user
+      
+      - name: Prepare Flye files
+        run: |
+          source venv/bin/activate
+          mkdir -p flye_files
+          cp ~/.local/bin/flye flye_files/
+
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
           name: flye-binaries
-          path: ~/.local/bin/flye
+          path: flye_files
 
   build-samtools:
     name: Build Samtools from Source on macOS
@@ -205,21 +212,22 @@ jobs:
           LDFLAGS: "-L/usr/local/opt/openssl@3/lib"
           CPPFLAGS: "-I/usr/local/opt/openssl@3/include"
         run: |
+          python3 -m venv medaka-env
+          source medaka-env/bin/activate
           pip install medaka
       
-      - name: Find Medaka files
+      - name: Find and prepare Medaka files
         run: |
-          which medaka
-          ls -l $(which medaka)
-          find /Users/runner/hostedtoolcache/Python -name "medaka*"
+          source medaka-env/bin/activate
+          mkdir -p medaka_files
+          cp $(which medaka) medaka_files/
+          cp $(dirname $(which medaka))/medaka_* medaka_files/
       
       - name: Upload Medaka files
         uses: actions/upload-artifact@v4
         with:
           name: medaka-files
-          path: |
-            $(which medaka)
-            $(dirname $(which medaka))/medaka_*
+          path: medaka_files
 
   build-semibin2:
     name: Build SemiBin2 on macOS
@@ -265,12 +273,10 @@ jobs:
           cp $(which hmmsearch) semibin2_files/bin/
           cp $(which samtools) semibin2_files/bin/
           
-          # Copy necessary Python packages
-          mkdir -p semibin2_files/lib
-          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/SemiBin semibin2_files/lib/
-          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch semibin2_files/lib/
-          
-          # You may need to add more packages depending on SemiBin2's requirements
+          # Copy only essential Python packages
+          mkdir -p semibin2_files/lib/python3.10/site-packages
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/SemiBin semibin2_files/lib/python3.10/site-packages/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch semibin2_files/lib/python3.10/site-packages/
       
       - name: Upload SemiBin2 files
         uses: actions/upload-artifact@v4
