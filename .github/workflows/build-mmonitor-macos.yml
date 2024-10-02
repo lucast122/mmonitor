@@ -110,10 +110,8 @@ jobs:
           toolchain: stable
       
       - name: Build KEGGCharter
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git clone https://${GITHUB_TOKEN}@github.com/telatin/KEGGCharter.git
+          git clone https://github.com/telatin/KEGGCharter.git
           cd KEGGCharter
           cargo build --release
       
@@ -160,10 +158,8 @@ jobs:
           python-version: '3.10'  # Explicitly use Python 3.10
       
       - name: Build EMU
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/EBI-Metagenomics/emu.git
+          git clone https://github.com/EBI-Metagenomics/emu.git
           cd emu
           pip install .
       
@@ -183,13 +179,17 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'  # Use Python 3.10 for compatibility
+          python-version: '3.10'
+      
+      - name: Install OpenSSL
+        run: brew install openssl
       
       - name: Build Medaka
+        env:
+          LDFLAGS: "-L/usr/local/opt/openssl@3/lib"
+          CPPFLAGS: "-I/usr/local/opt/openssl@3/include"
         run: |
-          git clone https://github.com/nanoporetech/medaka.git
-          cd medaka
-          pip install .
+          pip install medaka
       
       - name: Upload Medaka files
         uses: actions/upload-artifact@v4
