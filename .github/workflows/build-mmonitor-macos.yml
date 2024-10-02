@@ -228,51 +228,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          python-version: '3.10'
+          auto-update-conda: true
+          python-version: "3.10"
       
-      - name: Install dependencies
+      - name: Install SemiBin2 and dependencies
+        shell: bash -l {0}
         run: |
-          brew install cmake ninja
-          pip install mkl-static mkl-include
-          brew install pkg-config libuv
-      
-      - name: Clone PyTorch
-        run: |
-          git clone --recursive https://github.com/pytorch/pytorch
-          cd pytorch
-          git submodule sync
-          git submodule update --init --recursive
-      
-      - name: Build PyTorch
-        run: |
-          cd pytorch
-          export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"}
-          python setup.py install
-      
-      - name: Install SemiBin2 dependencies
-        run: |
+          conda create -n SemiBin -y
+          conda activate SemiBin
           conda install -c bioconda bedtools hmmer samtools -y
-      
-      - name: Install SemiBin2
-        run: |
-          git clone https://github.com/BigDataBiology/SemiBin.git
-          cd SemiBin
-          pip install .
+          conda install -c conda-forge -c bioconda semibin -y
+          # Note: PyTorch with CUDA is not installed on macOS
+          conda install -c pytorch pytorch -y
       
       - name: Verify SemiBin2 installation
+        shell: bash -l {0}
         run: |
+          conda activate SemiBin
           SemiBin2 --version
       
-      - name: Upload SemiBin2 files
+      - name: Upload SemiBin2 environment
         uses: actions/upload-artifact@v4
         with:
-          name: semibin2-files
-          path: |
-            /Users/runner/Library/Python/3.10/bin/SemiBin2
-            /Users/runner/Library/Python/3.10/lib/python/site-packages/SemiBin
+          name: semibin2-env
+          path: /Users/runner/miniconda3/envs/SemiBin
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS

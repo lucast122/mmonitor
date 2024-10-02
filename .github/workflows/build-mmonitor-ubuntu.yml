@@ -223,7 +223,8 @@ jobs:
         run: |
           conda create -n SemiBin -y
           conda activate SemiBin
-          conda install -c conda-forge -c bioconda semibin bedtools hmmer samtools -y
+          conda install -c bioconda bedtools hmmer samtools -y
+          conda install -c conda-forge -c bioconda semibin -y
           conda install -c pytorch -c nvidia pytorch pytorch-cuda=11.8 -y
       
       - name: Verify SemiBin2 installation
