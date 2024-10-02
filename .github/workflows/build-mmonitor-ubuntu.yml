@@ -299,7 +299,6 @@ jobs:
       - name: Verify SemiBin2 installation
         shell: bash -l {0}
         run: |
-          conda activate SemiBin
           SemiBin2 --version
       
       - name: Prepare SemiBin2 files for upload
