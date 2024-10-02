@@ -108,8 +108,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python3 -m venv pyinstaller-env
-          source pyinstaller-env/bin/activate
+          source venv/bin/activate
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Install PyInstaller
