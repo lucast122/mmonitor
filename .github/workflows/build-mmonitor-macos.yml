@@ -29,13 +29,14 @@ jobs:
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
           python3 setup.py build
-          python3 setup.py install --user
-      
+          python3 setup.py install
+
       - name: Prepare Flye files
         run: |
           source venv/bin/activate
           mkdir -p flye_files
-          cp ~/.local/bin/flye flye_files/
+          which flye
+          cp $(which flye) flye_files/
 
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4

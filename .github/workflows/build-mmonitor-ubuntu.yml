@@ -188,22 +188,19 @@ jobs:
           python3 -m venv medaka-env
           source medaka-env/bin/activate
           pip install medaka
-          
-        
-          
-          
-          
-          
-          
-
+      
+      - name: Find and prepare Medaka files
+        run: |
+          source medaka-env/bin/activate
+          mkdir -p medaka_files
+          cp $(which medaka) medaka_files/
+          cp $(dirname $(which medaka))/medaka_* medaka_files/
       
       - name: Upload Medaka files
         uses: actions/upload-artifact@v4
         with:
           name: medaka-files
-          path: |
-            ~/.local/bin/medaka
-            ~/.local/bin/medaka_*
+          path: medaka_files
 
   build-semibin2:
     name: Build SemiBin2 on Ubuntu
