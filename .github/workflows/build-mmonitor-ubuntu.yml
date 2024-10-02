@@ -86,18 +86,13 @@ jobs:
           path: centrifuger/centrifuger
 
   build-keggcharter:
-    name: Install KEGGCharter
+    name: Prepare KEGGCharter
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      
-      - name: Install KEGGCharter
+      - name: Clone KEGGCharter
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
       
@@ -221,6 +216,7 @@ jobs:
           name: metabat2-binary
           path: metabat/build/bin/metabat2
 
+
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller
     runs-on: ubuntu-latest
@@ -243,7 +239,7 @@ jobs:
 
       - name: Install PyInstaller
         run: |
-          python3 -m pip install pyinstaller
+          pip install pyinstaller
 
       - name: Prepare binaries and scripts
         run: |
@@ -259,6 +255,7 @@ jobs:
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
+
       - name: List artifacts and copied files
         run: |
           echo "Artifacts:"
@@ -266,18 +263,14 @@ jobs:
           echo "Copied files:"
           ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
 
-      - name: List directory structure
-        run: |
-          ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
-
       - name: Set PYTHONPATH
         run: |
-          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor" >> $GITHUB_ENV
 
       - name: Build MMonitor
         run: |
           cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "keggcharter.py:." --add-data "emu:emu" __main__.py --distpath ../../output
+          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
           ls -lah ../../output
 
       - name: Upload MMonitor binary
