@@ -98,28 +98,30 @@ jobs:
           path: centrifuger/centrifuger
 
   build-keggcharter:
-    name: Build KEGGCharter from Source on macOS
+    name: Install KEGGCharter
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          toolchain: stable
+          python-version: '3.10'
       
-      - name: Build KEGGCharter
+      - name: Install KEGGCharter
         run: |
-          git clone https://github.com/telatin/KEGGCharter.git
+          git clone https://github.com/iquasere/KEGGCharter.git
           cd KEGGCharter
-          cargo build --release
+          pip install .
       
-      - name: Upload KEGGCharter binary
+      - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
-          name: keggcharter-binary
-          path: KEGGCharter/target/release/keggcharter
+          name: keggcharter-files
+          path: |
+            /Users/runner/Library/Python/3.10/bin/keggcharter
+            KEGGCharter/keggcharter.py
 
   build-bakta:
     name: Build Bakta from Source on macOS
@@ -230,10 +232,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'
 
       - name: Create and activate virtual environment
         run: |
@@ -248,6 +255,19 @@ jobs:
       - name: Install PyInstaller
         run: pip install pyinstaller
 
+      - name: Prepare binaries and scripts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
+          cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/keggcharter-files/keggcharter.py $GITHUB_WORKSPACE/desktop/src/mmonitor/
+          cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/emu-files/emu* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
+
       - name: Set PYTHONPATH
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
@@ -255,8 +275,8 @@ jobs:
       - name: Build MMonitor
         run: |
           cd desktop/src/mmonitor
-          pyinstaller --onefile __main__.py --distpath ../../output
-          ls -lah
+          pyinstaller --onefile --add-data "bin:bin" --add-data "keggcharter.py:." __main__.py --distpath ../../output
+          ls -lah ../../output
 
       - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
