@@ -243,6 +243,7 @@ jobs:
         run: |
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
           cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
@@ -252,6 +253,10 @@ jobs:
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
+
+      - name: List directory structure
+        run: |
+          ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
 
       - name: Set PYTHONPATH
         run: |

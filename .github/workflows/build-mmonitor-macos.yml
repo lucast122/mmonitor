@@ -210,9 +210,10 @@ jobs:
         run: |
           git clone https://bitbucket.org/berkeleylab/metabat.git
           cd metabat
+          git checkout v2.15  # Use a specific version known to work
           mkdir build && cd build
-          cmake -DBOOST_ROOT=$(brew --prefix boost) ..
-          make
+          cmake -DCMAKE_CXX_FLAGS="-std=c++14" -DBOOST_ROOT=$(brew --prefix boost) ..
+          make VERBOSE=1
       
       - name: Upload MetaBAT2 binary
         uses: actions/upload-artifact@v4
