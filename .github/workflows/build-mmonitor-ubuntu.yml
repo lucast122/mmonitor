@@ -152,8 +152,9 @@ jobs:
           echo '!emu_database' >> .git/info/sparse-checkout
           echo '!example' >> .git/info/sparse-checkout
           echo '!example_customdb' >> .git/info/sparse-checkout
-          git fetch --depth 1 origin
-          git checkout $(git ls-remote --exit-code --heads origin master || git ls-remote --exit-code --heads origin main || echo "master")
+          git fetch --depth 1 origin --tags
+          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
+          git checkout $latest_tag
       
       - name: Upload EMU files
         uses: actions/upload-artifact@v4
