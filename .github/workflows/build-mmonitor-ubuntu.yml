@@ -350,12 +350,7 @@ jobs:
           python3 -m pip install --upgrade pip
           sed '/^tkinter/d' desktop/requirements.txt > desktop/requirements_modified.txt
           pip install -r desktop/requirements_modified.txt
-          pip install pyinstaller
-
-      - name: Install PyInstaller
-        run: |
-          source pyinstaller-env/bin/activate
-          pip install pyinstaller
+          pip install pyinstaller pysam
 
       - name: Prepare binaries and scripts
         run: |
@@ -363,17 +358,19 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
-          cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/ || true
-          cp -r artifacts/bakta-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
-          cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
-          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu || true
-      
+          cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/flye-binaries/flye_package $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+          cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
+          cp -r artifacts/bakta-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/bakta-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+          cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
+          cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu
+
       - name: List artifacts and copied files
         run: |
           echo "Artifacts:"
@@ -397,25 +394,27 @@ jobs:
         run: |
           source pyinstaller-env/bin/activate
           cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
+          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" \
+            --add-data "lib:lib" \
+            __main__.py --distpath ../../output
           ls -lah ../../output
 
       - name: Test individual binaries
         run: |
           echo "Testing Flye:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/flye --version || true
+          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/flye --version || true
           echo "Testing Samtools:"
           $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/samtools --version || true
           echo "Testing Centrifuger:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/centrifuger --version || true
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/centrifuger -h || true
           echo "Testing KEGGCharter:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/KEGGCharter --help || true
+          python $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/KEGGCharter.py --help || true
           echo "Testing Bakta:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta --version || true
+          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta --version || true
           echo "Testing EMU:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu --version || true
+          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu --version || true
           echo "Testing Medaka:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka --version || true
+          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka --version || true
           echo "Testing SemiBin2:"
           $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2 --version || true
 
@@ -427,7 +426,6 @@ jobs:
           ./__main__ --version || true
           echo "Testing MMonitor help:"
           ./__main__ --help || true
-          # Add more specific MMonitor test commands here if needed
 
       - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
