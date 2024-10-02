@@ -169,9 +169,17 @@ jobs:
       
       - name: Build Medaka
         run: |
-          git clone https://github.com/nanoporetech/medaka.git
-          cd medaka
-          pip install .
+          python3 -m venv medaka-env
+          source medaka-env/bin/activate
+          pip install medaka
+          
+        
+          
+          
+          
+          
+          
+
       
       - name: Upload Medaka files
         uses: actions/upload-artifact@v4
