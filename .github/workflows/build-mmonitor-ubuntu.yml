@@ -133,29 +133,29 @@ jobs:
           name: bakta-files
           path: ~/.local/bin/bakta*
 
- build-emu:
-    name: Build EMU 16S Profiler from Source
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'  # Use Python 3.10 for compatibility
-      
-      - name: Build EMU
-        run: |
-          git clone https://github.com/EBI-Metagenomics/emu.git
-          cd emu
-          pip install .
-      
-      - name: Upload EMU files
-        uses: actions/upload-artifact@v4
-        with:
-          name: emu-files
-          path: ~/.local/bin/emu*
+  build-emu:
+      name: Build EMU 16S Profiler from Source
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+        
+        - name: Set up Python
+          uses: actions/setup-python@v4
+          with:
+            python-version: '3.10'  # Use Python 3.10 for compatibility
+        
+        - name: Build EMU
+          run: |
+            git clone https://github.com/EBI-Metagenomics/emu.git
+            cd emu
+            pip install .
+        
+        - name: Upload EMU files
+          uses: actions/upload-artifact@v4
+          with:
+            name: emu-files
+            path: ~/.local/bin/emu*
 
   build-medaka:
     name: Build Medaka from Source
