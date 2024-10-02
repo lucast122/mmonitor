@@ -221,50 +221,63 @@ jobs:
             $(which medaka)
             $(dirname $(which medaka))/medaka_*
 
-  build-metabat2:
-    name: Build MetaBAT2 from Source on macOS
+  build-semibin2:
+    name: Build SemiBin2 on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
       - name: Install dependencies
         run: |
-          brew install --formula cmake boost llvm libomp
-          brew link libomp
+          brew install cmake ninja
+          pip install mkl-static mkl-include
+          brew install pkg-config libuv
       
-      - name: Set up environment for MetaBAT2 build
+      - name: Clone PyTorch
         run: |
-          echo "CPPFLAGS=-I$(brew --prefix llvm)/include" >> $GITHUB_ENV
-          echo "LDFLAGS=-L$(brew --prefix llvm)/lib" >> $GITHUB_ENV
-          echo "CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
-          echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
-          echo "PATH=$(brew --prefix llvm)/bin:$PATH" >> $GITHUB_ENV
+          git clone --recursive https://github.com/pytorch/pytorch
+          cd pytorch
+          git submodule sync
+          git submodule update --init --recursive
       
-      - name: Build MetaBAT2
+      - name: Build PyTorch
         run: |
-          git clone https://bitbucket.org/berkeleylab/metabat.git
-          cd metabat
-          git checkout v2.15  # Use a specific version known to work
-          mkdir build && cd build
-          cmake -DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang \
-                -DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++ \
-                -DCMAKE_INSTALL_PREFIX=$HOME/metabat \
-                -DCMAKE_CXX_FLAGS="-std=c++14" \
-                -DBOOST_ROOT=$(brew --prefix boost) ..
-          make
-          make install
+          cd pytorch
+          export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"}
+          python setup.py install
       
-      - name: Upload MetaBAT2 binary
+      - name: Install SemiBin2 dependencies
+        run: |
+          conda install -c bioconda bedtools hmmer samtools -y
+      
+      - name: Install SemiBin2
+        run: |
+          git clone https://github.com/BigDataBiology/SemiBin.git
+          cd SemiBin
+          pip install .
+      
+      - name: Verify SemiBin2 installation
+        run: |
+          SemiBin2 --version
+      
+      - name: Upload SemiBin2 files
         uses: actions/upload-artifact@v4
         with:
-          name: metabat2-binary
-          path: ~/metabat/bin/metabat2
+          name: semibin2-files
+          path: |
+            /Users/runner/Library/Python/3.10/bin/SemiBin2
+            /Users/runner/Library/Python/3.10/lib/python/site-packages/SemiBin
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest
-    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-metabat2]
+    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-semibin2]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -304,7 +317,7 @@ jobs:
           cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true  # For macOS
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
         continue-on-error: true
 

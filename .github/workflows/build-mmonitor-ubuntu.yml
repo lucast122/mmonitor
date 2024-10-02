@@ -205,37 +205,43 @@ jobs:
             ~/.local/bin/medaka
             ~/.local/bin/medaka_*
 
-  build-metabat2:
-    name: Build MetaBAT2 from Source
+  build-semibin2:
+    name: Build SemiBin2 on Ubuntu
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake libboost-all-dev
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.10"
       
-      - name: Build MetaBAT2
+      - name: Install SemiBin2 and dependencies
+        shell: bash -l {0}
         run: |
-          git clone https://bitbucket.org/berkeleylab/metabat.git
-          cd metabat
-          mkdir build && cd build
-          cmake ..
-          make
+          conda create -n SemiBin -y
+          conda activate SemiBin
+          conda install -c conda-forge -c bioconda semibin bedtools hmmer samtools -y
+          conda install -c pytorch -c nvidia pytorch pytorch-cuda=11.8 -y
       
-      - name: Upload MetaBAT2 binary
+      - name: Verify SemiBin2 installation
+        shell: bash -l {0}
+        run: |
+          conda activate SemiBin
+          SemiBin2 --version
+      
+      - name: Upload SemiBin2 environment
         uses: actions/upload-artifact@v4
         with:
-          name: metabat2-binary
-          path: metabat/build/bin/metabat2
-
+          name: semibin2-env
+          path: /usr/share/miniconda3/envs/SemiBin
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller
     runs-on: ubuntu-latest
-    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-metabat2]
+    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-semibin2]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -268,7 +274,7 @@ jobs:
           cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/semibin2-env/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true  # For Ubuntu
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
 
       - name: List artifacts and copied files
