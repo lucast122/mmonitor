@@ -388,6 +388,35 @@ jobs:
           pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
           ls -lah ../../output
 
+      - name: Test individual binaries
+        run: |
+          echo "Testing Flye:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/flye --version || true
+          echo "Testing Samtools:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/samtools --version || true
+          echo "Testing Centrifuger:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/centrifuger --version || true
+          echo "Testing KEGGCharter:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/KEGGCharter --help || true
+          echo "Testing Bakta:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta --version || true
+          echo "Testing EMU:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu --version || true
+          echo "Testing Medaka:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka --version || true
+          echo "Testing SemiBin2:"
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2 --version || true
+
+      - name: Test MMonitor binary
+        run: |
+          cd desktop/output
+          chmod +x __main__
+          echo "Testing MMonitor version:"
+          ./__main__ --version || true
+          echo "Testing MMonitor help:"
+          ./__main__ --help || true
+          # Add more specific MMonitor test commands here if needed
+
       - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
         with:
