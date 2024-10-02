@@ -255,11 +255,28 @@ jobs:
           conda activate SemiBin
           SemiBin2 --version
       
-      - name: Upload SemiBin2 environment
+      - name: Prepare SemiBin2 files for upload
+        shell: bash -l {0}
+        run: |
+          conda activate SemiBin
+          mkdir -p semibin2_files/bin
+          cp $(which SemiBin2) semibin2_files/bin/
+          cp $(which bedtools) semibin2_files/bin/
+          cp $(which hmmsearch) semibin2_files/bin/
+          cp $(which samtools) semibin2_files/bin/
+          
+          # Copy necessary Python packages
+          mkdir -p semibin2_files/lib
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/SemiBin semibin2_files/lib/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch semibin2_files/lib/
+          
+          # You may need to add more packages depending on SemiBin2's requirements
+      
+      - name: Upload SemiBin2 files
         uses: actions/upload-artifact@v4
         with:
-          name: semibin2-env
-          path: /Users/runner/miniconda3/envs/SemiBin
+          name: semibin2-files
+          path: semibin2_files
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
