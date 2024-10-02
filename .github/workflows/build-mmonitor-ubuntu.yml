@@ -350,6 +350,7 @@ jobs:
           python3 -m pip install --upgrade pip
           sed '/^tkinter/d' desktop/requirements.txt > desktop/requirements_modified.txt
           pip install -r desktop/requirements_modified.txt
+          pip install pyinstaller
 
       - name: Install PyInstaller
         run: |
@@ -394,6 +395,7 @@ jobs:
       - name: Build MMonitor
         if: steps.cache-pyinstaller.outputs.cache-hit != 'true'
         run: |
+          source pyinstaller-env/bin/activate
           cd desktop/src/mmonitor
           pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
           ls -lah ../../output
