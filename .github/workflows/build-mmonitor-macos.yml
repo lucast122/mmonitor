@@ -1,5 +1,4 @@
-name: MMonitor pipeline complete build macOS
-
+name: M1 MAC MMonitor build
 on:
   push:
     branches:
@@ -10,29 +9,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-flye-arm64:
-    name: Build Flye from Source on macOS (ARM64)
+  build-flye:
+    name: Build Flye from Source on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache Flye build
-        id: cache-flye
-        uses: actions/cache@v3
-        with:
-          path: flye_files_arm64
-          key: ${{ runner.os }}-flye-arm64-${{ hashFiles('desktop/lib/Flye/**') }}
-
       - name: Install Python and create virtual environment
-        if: steps.cache-flye.outputs.cache-hit != 'true'
         run: |
           python3 -m venv venv
           source venv/bin/activate
           python3 -m pip install --upgrade pip setuptools
 
       - name: Build Flye
-        if: steps.cache-flye.outputs.cache-hit != 'true'
         run: |
           source venv/bin/activate
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
@@ -41,62 +31,17 @@ jobs:
           python3 setup.py install
 
       - name: Prepare Flye files
-        if: steps.cache-flye.outputs.cache-hit != 'true'
         run: |
           source venv/bin/activate
-          mkdir -p flye_files_arm64
+          mkdir -p flye_files
           which flye
-          cp $(which flye) flye_files_arm64/
+          cp $(which flye) flye_files/
 
-      - name: Upload Flye binaries (ARM64)
+      - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
-          name: flye-binaries-arm64
-          path: flye_files_arm64
-
-  build-flye-x86_64:
-    name: Build Flye from Source on macOS (x86_64)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Cache Flye build
-        id: cache-flye
-        uses: actions/cache@v3
-        with:
-          path: flye_files_x86_64
-          key: ${{ runner.os }}-flye-x86_64-${{ hashFiles('desktop/lib/Flye/**') }}
-
-      - name: Install Python and create virtual environment
-        if: steps.cache-flye.outputs.cache-hit != 'true'
-        run: |
-          arch -x86_64 python3 -m venv venv
-          source venv/bin/activate
-          python3 -m pip install --upgrade pip setuptools
-
-      - name: Build Flye
-        if: steps.cache-flye.outputs.cache-hit != 'true'
-        run: |
-          source venv/bin/activate
-          git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
-          cd desktop/lib/Flye
-          arch -x86_64 python3 setup.py build
-          arch -x86_64 python3 setup.py install
-
-      - name: Prepare Flye files
-        if: steps.cache-flye.outputs.cache-hit != 'true'
-        run: |
-          source venv/bin/activate
-          mkdir -p flye_files_x86_64
-          which flye
-          cp $(which flye) flye_files_x86_64/
-
-      - name: Upload Flye binaries (x86_64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: flye-binaries-x86_64
-          path: flye_files_x86_64
+          name: flye-binaries
+          path: flye_files
 
   build-samtools:
     name: Build Samtools from Source on macOS
@@ -105,20 +50,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache samtools
-        uses: actions/cache@v3
-        id: cache-samtools
-        with:
-          path: ~/samtools
-          key: ${{ runner.os }}-samtools
-
       - name: Install required tools
-        if: steps.cache-samtools.outputs.cache-hit != 'true'
         run: |
           brew install autoconf automake libtool
 
       - name: Build HTSlib
-        if: steps.cache-samtools.outputs.cache-hit != 'true'
         run: |
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib
@@ -129,9 +65,7 @@ jobs:
           ./configure
           make
           sudo make install
-
       - name: Build Samtools
-        if: steps.cache-samtools.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/samtools/samtools.git
           cd samtools
@@ -139,7 +73,6 @@ jobs:
           ./configure
           make
           sudo make install
-
       - name: Upload Samtools binaries
         uses: actions/upload-artifact@v4
         with:
@@ -152,25 +85,15 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Cache Centrifuger build
-        id: cache-centrifuger
-        uses: actions/cache@v3
-        with:
-          path: centrifuger/centrifuger
-          key: ${{ runner.os }}-centrifuger-${{ hashFiles('**/centrifuger/**') }}
-
+  
       - name: Install dependencies
-        if: steps.cache-centrifuger.outputs.cache-hit != 'true'
         run: |
           brew install gcc
-
+  
       - name: Clone Centrifuger
-        if: steps.cache-centrifuger.outputs.cache-hit != 'true'
         run: git clone https://github.com/mourisl/centrifuger.git
-
+  
       - name: Build Centrifuger
-        if: steps.cache-centrifuger.outputs.cache-hit != 'true'
         run: |
           cd centrifuger
           make
@@ -187,25 +110,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Cache KEGGCharter build
-        id: cache-keggcharter
-        uses: actions/cache@v3
-        with:
-          path: KEGGCharter
-          key: ${{ runner.os }}-keggcharter-${{ hashFiles('**/KEGGCharter/**') }}
-
+      
       - name: Set up Python
-        if: steps.cache-keggcharter.outputs.cache-hit != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
+      
       - name: Install KEGGCharter
-        if: steps.cache-keggcharter.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
-
+          
+          
+      
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
@@ -218,50 +134,31 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Cache Bakta build
-        id: cache-bakta
-        uses: actions/cache@v3
-        with:
-          path: bakta_files
-          key: ${{ runner.os }}-bakta-${{ hashFiles('**/bakta/**') }}
-
+      
       - name: Set up Python
-        if: steps.cache-bakta.outputs.cache-hit != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
+      
       - name: Build Bakta
-        if: steps.cache-bakta.outputs.cache-hit != 'true'
         run: |
-          python3 -m venv bakta-env
-          source bakta-env/bin/activate
           git clone https://github.com/oschwengers/bakta.git
           cd bakta
           pip install .
-
+      
       - name: Find Bakta files
-        if: steps.cache-bakta.outputs.cache-hit != 'true'
         run: |
-          source bakta-env/bin/activate
           which bakta
           ls -l $(which bakta)
-          find bakta-env -name "bakta*"
-
-      - name: Prepare Bakta files for upload
-        if: steps.cache-bakta.outputs.cache-hit != 'true'
-        run: |
-          source bakta-env/bin/activate
-          mkdir -p bakta_files
-          cp $(which bakta) bakta_files/
-          cp $(dirname $(which bakta))/bakta-* bakta_files/ || true
-
+          find /Users/runner/hostedtoolcache/Python -name "bakta*"
+      
       - name: Upload Bakta files
         uses: actions/upload-artifact@v4
         with:
           name: bakta-files
-          path: bakta_files
+          path: |
+            $(which bakta)
+            $(dirname $(which bakta))/bakta-*
 
   build-emu:
     name: Clone EMU 16S Profiler (excluding large files)
@@ -269,16 +166,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Cache EMU build
-        id: cache-emu
-        uses: actions/cache@v3
-        with:
-          path: emu
-          key: ${{ runner.os }}-emu-${{ hashFiles('**/emu/**') }}
-
+      
       - name: Clone EMU (sparse checkout)
-        if: steps.cache-emu.outputs.cache-hit != 'true'
         run: |
           mkdir emu
           cd emu
@@ -292,7 +181,7 @@ jobs:
           git fetch --depth 1 origin --tags
           latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
           git checkout $latest_tag
-
+      
       - name: Upload EMU files
         uses: actions/upload-artifact@v4
         with:
@@ -309,26 +198,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Cache Medaka build
-        id: cache-medaka
-        uses: actions/cache@v3
-        with:
-          path: medaka_files
-          key: ${{ runner.os }}-medaka-${{ hashFiles('**/medaka/**') }}
-
+      
       - name: Set up Python
-        if: steps.cache-medaka.outputs.cache-hit != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
+      
       - name: Install OpenSSL
-        if: steps.cache-medaka.outputs.cache-hit != 'true'
         run: brew install openssl
-
+      
       - name: Build Medaka
-        if: steps.cache-medaka.outputs.cache-hit != 'true'
         env:
           LDFLAGS: "-L/usr/local/opt/openssl@3/lib"
           CPPFLAGS: "-I/usr/local/opt/openssl@3/include"
@@ -336,15 +215,14 @@ jobs:
           python3 -m venv medaka-env
           source medaka-env/bin/activate
           pip install medaka
-
+      
       - name: Find and prepare Medaka files
-        if: steps.cache-medaka.outputs.cache-hit != 'true'
         run: |
           source medaka-env/bin/activate
           mkdir -p medaka_files
           cp $(which medaka) medaka_files/
           cp $(dirname $(which medaka))/medaka_* medaka_files/
-
+      
       - name: Upload Medaka files
         uses: actions/upload-artifact@v4
         with:
@@ -357,23 +235,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Cache SemiBin2 build
-        id: cache-semibin2
-        uses: actions/cache@v3
-        with:
-          path: semibin2_files
-          key: ${{ runner.os }}-semibin2-${{ hashFiles('**/semibin2/**') }}
-
+      
       - name: Set up Conda
-        if: steps.cache-semibin2.outputs.cache-hit != 'true'
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: "3.10"
-
+      
       - name: Install SemiBin2 and dependencies
-        if: steps.cache-semibin2.outputs.cache-hit != 'true'
         shell: bash -l {0}
         run: |
           conda config --add channels defaults
@@ -387,16 +256,14 @@ jobs:
           conda install -c pytorch pytorch -y
         env:
           CONDA_SUBDIR: osx-64
-
+      
       - name: Verify SemiBin2 installation
-        if: steps.cache-semibin2.outputs.cache-hit != 'true'
         shell: bash -l {0}
         run: |
           conda activate SemiBin
           SemiBin2 --version
-
+      
       - name: Prepare SemiBin2 files for upload
-        if: steps.cache-semibin2.outputs.cache-hit != 'true'
         shell: bash -l {0}
         run: |
           conda activate SemiBin
@@ -416,17 +283,17 @@ jobs:
           cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/lib semibin2_files/lib/python3.10/site-packages/torch/
           cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/nn semibin2_files/lib/python3.10/site-packages/torch/
           cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/utils semibin2_files/lib/python3.10/site-packages/torch/
-
+      
       - name: Upload SemiBin2 files
         uses: actions/upload-artifact@v4
         with:
           name: semibin2-files
           path: semibin2_files
 
-  build-mmonitor-pyinstaller-arm64:
-    name: Build MMonitor with PyInstaller on macOS (ARM64)
+  build-mmonitor-pyinstaller:
+    name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest
-    needs: [build-flye-arm64, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-semibin2]
+    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-semibin2]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -459,7 +326,7 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
-          cp artifacts/flye-binaries-arm64/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/ || true
@@ -477,96 +344,15 @@ jobs:
           echo "Copied files:"
           ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
 
-      - name: Cache PyInstaller build
-        id: cache-pyinstaller
-        uses: actions/cache@v3
-        with:
-          path: desktop/output-arm64
-          key: ${{ runner.os }}-mmonitor-arm64-${{ hashFiles('desktop/src/mmonitor/**', 'requirements.txt') }}
 
-      - name: Build MMonitor (ARM64)
-        if: steps.cache-pyinstaller.outputs.cache-hit != 'true'
+      - name: Build MMonitor
         run: |
           cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output-arm64
-          ls -lah ../../output-arm64
+          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
+          ls -lah ../../output
 
-      - name: Upload MMonitor binary (ARM64)
+      - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
         with:
-          name: mmonitor-binary-macos-arm64
-          path: desktop/output-arm64/
-
-  build-mmonitor-pyinstaller-x86_64:
-    name: Build MMonitor with PyInstaller on macOS (x86_64)
-    runs-on: macos-latest
-    needs: [build-flye-x86_64, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-semibin2]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Set up x86_64 environment
-        run: |
-          echo 'ARCHFLAGS="-arch x86_64"' >> $GITHUB_ENV
-          echo 'CONDA_SUBDIR=osx-64' >> $GITHUB_ENV
-
-      - name: Install Python dependencies (x86_64)
-        run: |
-          arch -x86_64 python3 -m venv venv
-          source venv/bin/activate
-          python3 -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install PyInstaller (x86_64)
-        run: |
-          source venv/bin/activate
-          pip install pyinstaller
-
-      - name: Prepare binaries and scripts
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
-          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
-          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
-          cp artifacts/flye-binaries-x86_64/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/ || true
-          cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
-          cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true  # For macOS
-          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
-        continue-on-error: true
-
-      - name: List artifacts and copied files
-        run: |
-          echo "Artifacts:"
-          ls -R artifacts
-          echo "Copied files:"
-          ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
-
-      - name: Cache PyInstaller build
-        id: cache-pyinstaller
-        uses: actions/cache@v3
-        with:
-          path: desktop/output-x86_64
-          key: ${{ runner.os }}-mmonitor-x86_64-${{ hashFiles('desktop/src/mmonitor/**', 'requirements.txt') }}
-
-      - name: Build MMonitor (x86_64)
-        if: steps.cache-pyinstaller.outputs.cache-hit != 'true'
-        run: |
-          source venv/bin/activate
-          cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output-x86_64
-          ls -lah ../../output-x86_64
-
-      - name: Upload MMonitor binary (x86_64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: mmonitor-binary-macos-x86_64
-          path: desktop/output-x86_64/
+          name: mmonitor-binary-macos
+          path: desktop/output/
