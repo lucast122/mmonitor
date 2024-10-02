@@ -215,44 +215,32 @@ jobs:
       
       - name: Install dependencies
         run: |
-          brew install --formula cmake boost autoconf automake libtool
-          echo "PATH=/usr/local/opt/autoconf/bin:/usr/local/opt/automake/bin:/usr/local/opt/libtool/bin:$PATH" >> $GITHUB_ENV
+          brew install --formula cmake boost llvm libomp
+          brew link libomp
       
-          build-metabat2:
-            name: Build MetaBAT2 from Source on macOS
-            runs-on: macos-latest
-            steps:
-              - name: Checkout code
-                uses: actions/checkout@v4
-              
-              - name: Install dependencies
-                run: |
-                  brew install --formula cmake boost llvm libomp
-                  brew link libomp
-              
-              - name: Set up environment for MetaBAT2 build
-                run: |
-                  echo "CPPFLAGS=-I/usr/local/opt/llvm/include" >> $GITHUB_ENV
-                  echo "LDFLAGS=-L/usr/local/opt/llvm/lib" >> $GITHUB_ENV
-                  echo "CC=/usr/local/opt/llvm/bin/clang" >> $GITHUB_ENV
-                  echo "CXX=/usr/local/opt/llvm/bin/clang++" >> $GITHUB_ENV
-              
-              - name: Build MetaBAT2
-                run: |
-                  git clone https://bitbucket.org/berkeleylab/metabat.git
-                  cd metabat
-                  git checkout v2.15  # Use a specific version known to work
-                  mkdir build && cd build
-                  cmake -DCMAKE_INSTALL_PREFIX=$HOME/metabat -DCMAKE_CXX_FLAGS="-std=c++14" -DBOOST_ROOT=$(brew --prefix boost) ..
-                  make
-                  make install
-              
-              - name: Upload MetaBAT2 binary
-                uses: actions/upload-artifact@v4
-                with:
-                  name: metabat2-binary
-                  path: ~/metabat/bin/metabat2
-
+      - name: Set up environment for MetaBAT2 build
+        run: |
+          echo "CPPFLAGS=-I/usr/local/opt/llvm/include" >> $GITHUB_ENV
+          echo "LDFLAGS=-L/usr/local/opt/llvm/lib" >> $GITHUB_ENV
+          echo "CC=/usr/local/opt/llvm/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/local/opt/llvm/bin/clang++" >> $GITHUB_ENV
+      
+      - name: Build MetaBAT2
+        run: |
+          git clone https://bitbucket.org/berkeleylab/metabat.git
+          cd metabat
+          git checkout v2.15  # Use a specific version known to work
+          mkdir build && cd build
+          cmake -DCMAKE_INSTALL_PREFIX=$HOME/metabat -DCMAKE_CXX_FLAGS="-std=c++14" -DBOOST_ROOT=$(brew --prefix boost) ..
+          make
+          make install
+      
+      - name: Upload MetaBAT2 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabat2-binary
+          path: ~/metabat/bin/metabat2
+          
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest
