@@ -36,14 +36,9 @@ jobs:
         run: |
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
-          pip install .
+          make
 
-      - name: Prepare Flye files
-        run: |
-          mkdir -p flye_files
-          cp $(which flye) flye_files/
-          python3 -c "import flye; import os; import shutil; shutil.copytree(os.path.dirname(flye.__file__), 'flye_files/flye_package')"
-
+      
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
