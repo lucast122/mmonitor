@@ -112,14 +112,14 @@ jobs:
       - name: Install KEGGCharter
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
-          cd KEGGCharter
-          pip install .
+          
+          
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
           name: keggcharter-files
-          path: KEGGCharter/keggcharter.py
+          path: KEGGCharter
 
   build-bakta:
     name: Build Bakta from Source on macOS
@@ -258,7 +258,7 @@ jobs:
           cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp artifacts/keggcharter-files/keggcharter.py $GITHUB_WORKSPACE/desktop/src/mmonitor/
+          cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
           cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
