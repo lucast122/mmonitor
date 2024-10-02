@@ -17,7 +17,6 @@ done
 # Create and activate a conda environment
 # conda create -n mmonitor_build python=3.10 -y
 
-
 # Install Python dependencies
 pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
@@ -30,6 +29,7 @@ fi
 cd desktop/lib/Flye
 pip install -e .
 cd ../../..
+
 # Check if htslib directory exists and is not empty
 if [ -d "htslib" ] && [ "$(ls -A htslib)" ]; then
     echo "htslib directory already exists and is not empty."
@@ -43,8 +43,14 @@ git clone --recursive https://github.com/samtools/htslib.git
 # Build Samtools
 brew install autoconf automake libtool
 cd htslib
-autoheader && autoconf && autoreconf -i && ./configure && make && make install
+autoheader && autoconf && autoreconf -i && ./configure
+make
+sudo make install
+sudo chmod 644 /usr/local/lib/pkgconfig/htslib.pc
+sudo install -p annot-tsv bgzip htsfile tabix /usr/local/bin
+sudo install -p -m 644 htslib/*.h /usr/local/include/htslib
 cd ..
+
 # Check if samtools directory exists and is not empty
 if [ -d "samtools" ] && [ "$(ls -A samtools)" ]; then
     echo "samtools directory already exists and is not empty."
@@ -52,10 +58,11 @@ if [ -d "samtools" ] && [ "$(ls -A samtools)" ]; then
     rm -rf samtools
 fi
 
-
 git clone https://github.com/samtools/samtools.git
 cd samtools
-autoreconf -i && ./configure && make && make install
+autoreconf -i && ./configure
+make
+sudo make install
 cd ..
 
 # Build Centrifuger

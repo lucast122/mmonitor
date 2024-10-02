@@ -166,33 +166,25 @@ jobs:
         with:
           python-version: '3.10'
       
-      - name: Cache Bakta build
-        id: cache-bakta
-        uses: actions/cache@v4
-        with:
-          path: /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta*
-          key: ${{ runner.os }}-bakta-${{ hashFiles('**/bakta/**') }}
-      
       - name: Build Bakta
-        if: steps.cache-bakta.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/oschwengers/bakta.git
-          cd bakta
-          pip install .
+          python -m venv bakta-env
+          source bakta-env/bin/activate
+          pip install bakta
       
-      - name: Find Bakta files
+      - name: Prepare Bakta files
         run: |
-          which bakta
-          ls -l $(which bakta)
-          find /opt/hostedtoolcache/Python -name "bakta*"
+          source bakta-env/bin/activate
+          mkdir -p bakta_files/bin
+          mkdir -p bakta_files/lib
+          cp $(which bakta) bakta_files/bin/
+          cp -r bakta-env/lib/python*/site-packages/bakta bakta_files/lib/
       
       - name: Upload Bakta files
         uses: actions/upload-artifact@v4
         with:
           name: bakta-files
-          path: |
-            /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta
-            /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta-*
+          path: bakta_files
 
   build-emu:
     name: Clone EMU 16S Profiler (excluding large files)
@@ -377,13 +369,14 @@ jobs:
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
-          cp -r artifacts/bakta-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/bakta-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp -r artifacts/bakta-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
           cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu
+
 
       - name: List artifacts and copied files
         run: |
