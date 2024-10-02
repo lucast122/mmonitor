@@ -154,21 +154,34 @@ jobs:
             $(dirname $(which bakta))/bakta-*
 
   build-emu:
-    name: Clone EMU 16S Profiler on macOS
+    name: Clone EMU 16S Profiler (excluding large files)
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Clone EMU
+      - name: Clone EMU (sparse checkout)
         run: |
-          git clone https://github.com/treangenlab/emu.git
+          mkdir emu
+          cd emu
+          git init
+          git remote add origin https://github.com/treangenlab/emu.git
+          git config core.sparseCheckout true
+          echo '/*' > .git/info/sparse-checkout
+          echo '!emu_database' >> .git/info/sparse-checkout
+          echo '!example' >> .git/info/sparse-checkout
+          echo '!example_customdb' >> .git/info/sparse-checkout
+          git pull origin main
       
       - name: Upload EMU files
         uses: actions/upload-artifact@v4
         with:
           name: emu-files
-          path: emu
+          path: |
+            emu
+            !emu/emu_database
+            !emu/example
+            !emu/example_customdb
 
   build-medaka:
     name: Build Medaka from Source on macOS
@@ -220,10 +233,11 @@ jobs:
       
       - name: Set up environment for MetaBAT2 build
         run: |
-          echo "CPPFLAGS=-I/usr/local/opt/llvm/include" >> $GITHUB_ENV
-          echo "LDFLAGS=-L/usr/local/opt/llvm/lib" >> $GITHUB_ENV
-          echo "CC=/usr/local/opt/llvm/bin/clang" >> $GITHUB_ENV
-          echo "CXX=/usr/local/opt/llvm/bin/clang++" >> $GITHUB_ENV
+          echo "CPPFLAGS=-I$(brew --prefix llvm)/include" >> $GITHUB_ENV
+          echo "LDFLAGS=-L$(brew --prefix llvm)/lib" >> $GITHUB_ENV
+          echo "CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
+          echo "PATH=$(brew --prefix llvm)/bin:$PATH" >> $GITHUB_ENV
       
       - name: Build MetaBAT2
         run: |
@@ -231,7 +245,11 @@ jobs:
           cd metabat
           git checkout v2.15  # Use a specific version known to work
           mkdir build && cd build
-          cmake -DCMAKE_INSTALL_PREFIX=$HOME/metabat -DCMAKE_CXX_FLAGS="-std=c++14" -DBOOST_ROOT=$(brew --prefix boost) ..
+          cmake -DCMAKE_C_COMPILER=$(brew --prefix llvm)/bin/clang \
+                -DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++ \
+                -DCMAKE_INSTALL_PREFIX=$HOME/metabat \
+                -DCMAKE_CXX_FLAGS="-std=c++14" \
+                -DBOOST_ROOT=$(brew --prefix boost) ..
           make
           make install
       
@@ -240,7 +258,7 @@ jobs:
         with:
           name: metabat2-binary
           path: ~/metabat/bin/metabat2
-          
+
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest

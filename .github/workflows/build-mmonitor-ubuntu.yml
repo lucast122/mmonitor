@@ -135,21 +135,34 @@ jobs:
             /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta-*
 
   build-emu:
-    name: Clone EMU 16S Profiler
+    name: Clone EMU 16S Profiler (excluding large files)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Clone EMU
+      - name: Clone EMU (sparse checkout)
         run: |
-          git clone https://github.com/treangenlab/emu.git
+          mkdir emu
+          cd emu
+          git init
+          git remote add origin https://github.com/treangenlab/emu.git
+          git config core.sparseCheckout true
+          echo '/*' > .git/info/sparse-checkout
+          echo '!emu_database' >> .git/info/sparse-checkout
+          echo '!example' >> .git/info/sparse-checkout
+          echo '!example_customdb' >> .git/info/sparse-checkout
+          git pull origin main
       
       - name: Upload EMU files
         uses: actions/upload-artifact@v4
         with:
           name: emu-files
-          path: emu
+          path: |
+            emu
+            !emu/emu_database
+            !emu/example
+            !emu/example_customdb
 
   build-medaka:
     name: Build Medaka from Source
