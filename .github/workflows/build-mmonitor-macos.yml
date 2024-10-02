@@ -237,12 +237,17 @@ jobs:
       - name: Install SemiBin2 and dependencies
         shell: bash -l {0}
         run: |
-          conda create -n SemiBin -y
+          conda config --add channels defaults
+          conda config --add channels bioconda
+          conda config --add channels conda-forge
+          conda create -n SemiBin python=3.10 -y
           conda activate SemiBin
+          conda update --all -y
           conda install -c bioconda bedtools hmmer samtools -y
           conda install -c conda-forge -c bioconda semibin -y
-          # Note: PyTorch with CUDA is not installed on macOS
           conda install -c pytorch pytorch -y
+        env:
+          CONDA_SUBDIR: osx-64
       
       - name: Verify SemiBin2 installation
         shell: bash -l {0}
