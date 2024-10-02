@@ -353,16 +353,18 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
           cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/ || true
-          cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/bakta-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
-          cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
-          cp -r artifacts/semibin2-env/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true  # For Ubuntu
+          cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
-
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu || true
+      
       - name: List artifacts and copied files
         run: |
           echo "Artifacts:"
