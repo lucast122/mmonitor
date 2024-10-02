@@ -218,6 +218,9 @@ jobs:
           # Copy these files to the htslib directory
           mkdir -p contrib/htslib
           cp config.guess config.sub contrib/htslib/
+          # Also copy to the root directory
+          cp config.guess config.sub ./
+          # Build MetaBAT2
           mkdir build && cd build
           cmake -DCMAKE_CXX_FLAGS="-std=c++14" -DBOOST_ROOT=$(brew --prefix boost) ..
           make VERBOSE=1
@@ -227,7 +230,6 @@ jobs:
         with:
           name: metabat2-binary
           path: metabat/build/bin/metabat2
-
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest

@@ -129,15 +129,15 @@ jobs:
         run: |
           which bakta
           ls -l $(which bakta)
-          find ~/.local/bin -name "bakta*"
+          find /opt/hostedtoolcache/Python -name "bakta*"
       
       - name: Upload Bakta files
         uses: actions/upload-artifact@v4
         with:
           name: bakta-files
           path: |
-            ~/.local/bin/bakta
-            ~/.local/bin/bakta-*
+            /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta
+            /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta-*
 
   build-emu:
     name: Clone EMU 16S Profiler
