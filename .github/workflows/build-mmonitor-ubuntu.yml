@@ -17,11 +17,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Cache Flye build
         id: cache-flye
         uses: actions/cache@v4
         with:
-          path: ~/.local/bin/flye
+          path: |
+            ~/.local/bin/flye
+            flye_files
           key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
 
       - name: Build Flye
@@ -32,11 +39,18 @@ jobs:
           python3 setup.py build
           python3 setup.py install --user
 
+      - name: Prepare Flye files
+        run: |
+          mkdir -p flye_files
+          cp ~/.local/bin/flye flye_files/
+          python3 -c "import flye; import os; os.system('cp -r ' + os.path.dirname(flye.__file__) + ' flye_files/flye_package')"
+
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
           name: flye-binaries
-          path: ~/.local/bin/flye
+          path: flye_files
+
 
   build-samtools:
     name: Build Samtools from Source
