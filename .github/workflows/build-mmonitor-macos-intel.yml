@@ -22,27 +22,33 @@ jobs:
           path: desktop/lib/Flye
           key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
 
-      - name: Install Python and create virtual environment
-        run: |
-          python3 -m venv venv
-          source venv/bin/activate
-          python3 -m pip install --upgrade pip setuptools
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-      - name: Build Flye
+      - name: Install Python dependencies
         run: |
-          source venv/bin/activate
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Clone and build Flye
+        run: |
           if [ ! -d "desktop/lib/Flye" ]; then
             git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           fi
           cd desktop/lib/Flye
-          make
+          python -m pip install -e .
+
+      - name: Verify Flye installation
+        run: |
+          which flye
+          flye --version
 
       - name: Prepare Flye files
         run: |
-          source venv/bin/activate
           mkdir -p flye_files
-          which flye
           cp $(which flye) flye_files/
+          cp -r $(python -c "import flye; print(flye.__path__[0])") flye_files/flye_package
 
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
@@ -132,20 +138,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          auto-update-conda: true
           python-version: '3.10'
       
       - name: Install KEGGCharter
+        shell: bash -l {0}
         run: |
-          git clone https://github.com/iquasere/KEGGCharter.git
+          conda config --add channels defaults
+          conda config --add channels bioconda
+          conda config --add channels conda-forge
+          conda install -y -c conda-forge -c bioconda keggcharter
+      
+      - name: Prepare KEGGCharter files for upload
+        shell: bash -l {0}
+        run: |
+          mkdir -p keggcharter_files
+          conda list -e > keggcharter_files/requirements.txt
+          cp $(which KEGGCharter) keggcharter_files/
+          
+          # Copy KEGGCharter package files
+          mkdir -p keggcharter_files/lib
+          cp -r $CONDA_PREFIX/lib/python*/site-packages/KEGGCharter keggcharter_files/lib/
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
           name: keggcharter-files-intel
-          path: KEGGCharter
+          path: keggcharter_files
 
   build-bakta:
     name: Build Bakta from Source on macOS (Intel)
