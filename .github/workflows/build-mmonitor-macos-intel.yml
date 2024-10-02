@@ -16,6 +16,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache Flye
+        uses: actions/cache@v3
+        with:
+          path: desktop/lib/Flye
+          key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
+
       - name: Install Python and create virtual environment
         run: |
           python3 -m venv venv
@@ -25,10 +31,11 @@ jobs:
       - name: Build Flye
         run: |
           source venv/bin/activate
-          git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
+          if [ ! -d "desktop/lib/Flye" ]; then
+            git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
+          fi
           cd desktop/lib/Flye
-          python3 setup.py build
-          python3 setup.py install
+          make
 
       - name: Prepare Flye files
         run: |
@@ -49,6 +56,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Cache Samtools
+        uses: actions/cache@v3
+        with:
+          path: |
+            htslib
+            samtools
+          key: ${{ runner.os }}-samtools-${{ hashFiles('htslib/**', 'samtools/**') }}
 
       - name: Install required tools
         run: |
@@ -85,6 +100,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+  
+      - name: Cache Centrifuger
+        uses: actions/cache@v3
+        with:
+          path: centrifuger
+          key: ${{ runner.os }}-centrifuger-${{ hashFiles('centrifuger/**') }}
   
       - name: Install dependencies
         run: |
@@ -140,23 +161,31 @@ jobs:
       
       - name: Build Bakta
         run: |
-          git clone https://github.com/oschwengers/bakta.git
-          cd bakta
-          pip install .
+          python -m venv bakta-env
+          source bakta-env/bin/activate
+          pip install bakta
       
       - name: Find Bakta files
         run: |
+          source bakta-env/bin/activate
           which bakta
           ls -l $(which bakta)
-          find /Users/runner/hostedtoolcache/Python -name "bakta*"
+          find bakta-env -name "bakta*"
+      
+      - name: Prepare Bakta files for upload
+        run: |
+          source bakta-env/bin/activate
+          mkdir -p bakta_files/bin
+          mkdir -p bakta_files/lib
+          cp $(which bakta) bakta_files/bin/
+          cp -r bakta-env/lib/python*/site-packages/bakta bakta_files/lib/
+          cp -r bakta-env/lib/python*/site-packages/bakta-* bakta_files/lib/
       
       - name: Upload Bakta files
         uses: actions/upload-artifact@v4
         with:
           name: bakta-files-intel
-          path: |
-            $(which bakta)
-            $(dirname $(which bakta))/bakta-*
+          path: bakta_files
 
   build-emu:
     name: Clone EMU 16S Profiler (excluding large files) (Intel)
@@ -296,6 +325,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -305,6 +342,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
+      - name: Install Tcl/Tk
+        run: |
+          brew install tcl-tk
 
       - name: Create and activate virtual environment
         run: |
@@ -322,13 +363,15 @@ jobs:
       - name: Prepare binaries and scripts
         run: |
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
           cp artifacts/flye-binaries-intel/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/samtools-binaries-intel/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp artifacts/centrifuger-binaries-intel/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/keggcharter-files-intel/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/ || true
-          cp artifacts/bakta-files-intel/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/bakta-files-intel/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/bakta-files-intel/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/ || true
           cp -r artifacts/emu-files-intel/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
           cp artifacts/medaka-files-intel/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
           cp -r artifacts/semibin2-files-intel/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
@@ -345,7 +388,14 @@ jobs:
       - name: Build MMonitor
         run: |
           cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
+          TCL_LIBRARY=$(brew --prefix tcl-tk)/lib/tcl8.6
+          TK_LIBRARY=$(brew --prefix tcl-tk)/lib/tk8.6
+          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" \
+            --add-binary "/usr/local/opt/tcl-tk/lib/libtcl8.6.dylib:." \
+            --add-binary "/usr/local/opt/tcl-tk/lib/libtk8.6.dylib:." \
+            --add-data "$TCL_LIBRARY:tcl" \
+            --add-data "$TK_LIBRARY:tk" \
+            __main__.py --distpath ../../output
           ls -lah ../../output
 
       - name: Upload MMonitor binary
