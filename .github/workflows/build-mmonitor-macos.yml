@@ -277,7 +277,13 @@ jobs:
           # Copy only essential Python packages
           mkdir -p semibin2_files/lib/python3.10/site-packages
           cp -r $CONDA_PREFIX/lib/python3.10/site-packages/SemiBin semibin2_files/lib/python3.10/site-packages/
-          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch semibin2_files/lib/python3.10/site-packages/
+          
+          # Copy only essential PyTorch files
+          mkdir -p semibin2_files/lib/python3.10/site-packages/torch
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/*.py semibin2_files/lib/python3.10/site-packages/torch/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/lib semibin2_files/lib/python3.10/site-packages/torch/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/nn semibin2_files/lib/python3.10/site-packages/torch/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/utils semibin2_files/lib/python3.10/site-packages/torch/
       
       - name: Upload SemiBin2 files
         uses: actions/upload-artifact@v4
