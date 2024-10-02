@@ -100,8 +100,6 @@ jobs:
       - name: Install KEGGCharter
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
-          cd KEGGCharter
-          pip install .
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
@@ -163,6 +161,11 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'  # Use Python 3.10 for compatibility
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev
       
       - name: Build Medaka
         run: |

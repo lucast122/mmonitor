@@ -148,30 +148,21 @@ jobs:
           path: /Users/runner/Library/Python/3.10/bin/bakta*
 
   build-emu:
-    name: Install EMU 16S Profiler on macOS
+    name: Clone EMU 16S Profiler on macOS
     runs-on: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      
-      - name: Install EMU
+      - name: Clone EMU
         run: |
           git clone https://github.com/treangenlab/emu.git
-          cd emu
-          pip install .
       
       - name: Upload EMU files
         uses: actions/upload-artifact@v4
         with:
           name: emu-files
-          path: |
-            /Users/runner/Library/Python/3.10/bin/emu
-            emu/emu
+          path: emu
 
   build-medaka:
     name: Build Medaka from Source on macOS
@@ -210,7 +201,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          brew install cmake boost
+          brew install cmake boost autoconf automake libtool
+          echo "PATH=/usr/local/opt/autoconf/bin:/usr/local/opt/automake/bin:/usr/local/opt/libtool/bin:$PATH" >> $GITHUB_ENV
       
       - name: Build MetaBAT2
         run: |
@@ -260,12 +252,13 @@ jobs:
       - name: Prepare binaries and scripts
         run: |
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/keggcharter-files/keggcharter.py $GITHUB_WORKSPACE/desktop/src/mmonitor/
           cp artifacts/bakta-files/bakta* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp artifacts/emu-files/emu* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
@@ -277,7 +270,7 @@ jobs:
       - name: Build MMonitor
         run: |
           cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "keggcharter.py:." __main__.py --distpath ../../output
+          pyinstaller --onefile --add-data "bin:bin" --add-data "keggcharter.py:." --add-data "emu:emu" __main__.py --distpath ../../output
           ls -lah ../../output
 
       - name: Upload MMonitor binary
