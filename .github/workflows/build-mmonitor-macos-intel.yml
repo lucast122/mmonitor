@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache Flye
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: desktop/lib/Flye
           key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
@@ -64,7 +64,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache Samtools
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             htslib
@@ -108,7 +108,7 @@ jobs:
         uses: actions/checkout@v4
   
       - name: Cache Centrifuger
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: centrifuger
           key: ${{ runner.os }}-centrifuger-${{ hashFiles('centrifuger/**') }}
@@ -348,7 +348,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache Python dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}

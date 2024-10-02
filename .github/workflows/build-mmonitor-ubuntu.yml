@@ -19,7 +19,7 @@ jobs:
 
       - name: Cache Flye build
         id: cache-flye
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.local/bin/flye
           key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
@@ -47,7 +47,7 @@ jobs:
 
       - name: Cache Samtools build
         id: cache-samtools
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /usr/local/bin/samtools
           key: ${{ runner.os }}-samtools-${{ hashFiles('**/samtools/**') }}
@@ -90,7 +90,7 @@ jobs:
   
       - name: Cache Centrifuger build
         id: cache-centrifuger
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: centrifuger/centrifuger
           key: ${{ runner.os }}-centrifuger-${{ hashFiles('**/centrifuger/**') }}
@@ -124,7 +124,7 @@ jobs:
       
       - name: Cache KEGGCharter build
         id: cache-keggcharter
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: KEGGCharter
           key: ${{ runner.os }}-keggcharter-${{ hashFiles('**/KEGGCharter/**') }}
@@ -154,7 +154,7 @@ jobs:
       
       - name: Cache Bakta build
         id: cache-bakta
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta*
           key: ${{ runner.os }}-bakta-${{ hashFiles('**/bakta/**') }}
@@ -189,7 +189,7 @@ jobs:
       
       - name: Cache EMU build
         id: cache-emu
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: emu
           key: ${{ runner.os }}-emu-${{ hashFiles('**/emu/**') }}
@@ -234,7 +234,7 @@ jobs:
       
       - name: Cache Medaka build
         id: cache-medaka
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: medaka_files
           key: ${{ runner.os }}-medaka-${{ hashFiles('**/medaka/**') }}
@@ -281,7 +281,7 @@ jobs:
       
       - name: Cache SemiBin2 build
         id: cache-semibin2
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: semibin2_files
           key: ${{ runner.os }}-semibin2-${{ hashFiles('**/semibin2/**') }}
@@ -295,11 +295,8 @@ jobs:
           conda install -c bioconda bedtools hmmer samtools -y
           conda install -c conda-forge -c bioconda semibin -y
           conda install -c pytorch -c nvidia pytorch pytorch-cuda=11.8 -y
-      
-      - name: Verify SemiBin2 installation
-        shell: bash -l {0}
-        run: |
           SemiBin2 --version
+      
       
       - name: Prepare SemiBin2 files for upload
         shell: bash -l {0}
@@ -377,7 +374,7 @@ jobs:
 
       - name: Cache PyInstaller build
         id: cache-pyinstaller
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: desktop/output
           key: ${{ runner.os }}-mmonitor-${{ hashFiles('desktop/src/mmonitor/**', 'requirements.txt') }}
