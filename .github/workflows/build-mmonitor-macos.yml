@@ -1,4 +1,4 @@
-name: Build Flye, Centrifuger, Samtools, and Main Application on macOS
+name: MMonitor pipeline complete build macOS
 
 on:
   push:

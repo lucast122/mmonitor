@@ -1,4 +1,4 @@
-name: Build Flye, Centrifuger, Samtools, and Main Application
+name: MMonitor pipeline complete build ubuntu
 
 on:
   push:
@@ -98,8 +98,10 @@ jobs:
           toolchain: stable
       
       - name: Build KEGGCharter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git clone https://github.com/telatin/KEGGCharter.git
+          git clone https://${GITHUB_TOKEN}@github.com/telatin/KEGGCharter.git
           cd KEGGCharter
           cargo build --release
       
@@ -119,7 +121,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # Use Python 3.10 for compatibility
       
       - name: Build Bakta
         run: |
@@ -143,11 +145,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # Use Python 3.10 for compatibility
       
       - name: Build EMU
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git clone https://github.com/EBI-Metagenomics/emu.git
+          git clone https://${GITHUB_TOKEN}@github.com/EBI-Metagenomics/emu.git
           cd emu
           pip install .
       
@@ -167,7 +171,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # Use Python 3.10 for compatibility
       
       - name: Build Medaka
         run: |
@@ -189,7 +193,9 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libboost-all-dev
       
       - name: Build MetaBAT2
         run: |
