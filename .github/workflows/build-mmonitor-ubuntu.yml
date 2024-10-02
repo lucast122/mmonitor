@@ -3,10 +3,10 @@ name: Build Flye, Centrifuger, Samtools, and Main Application
 on:
   push:
     branches:
-      - main
+      - workflows
   pull_request:
     branches:
-      - main
+      - workflows
   workflow_dispatch:
 
 jobs:
@@ -95,5 +95,27 @@ jobs:
 
       - name: Install Python dependencies
         run: |
+          python3 -m venv pyinstaller-env
+          source pyinstaller-env/bin/activate
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Install PyInstaller
+        run: |
+          python3 -m pip install pyinstaller
+
+      - name: Set PYTHONPATH
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
+
+      - name: Build MMonitor
+        run: |
+          cd desktop/src/mmonitor
+          pyinstaller --onefile __main__.py --distpath ../../output
+          ls -lah
+
+      - name: Upload MMonitor binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmonitor-binary-ubuntu
+          path: desktop/output/
