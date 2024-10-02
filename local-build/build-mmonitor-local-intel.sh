@@ -13,6 +13,7 @@ rm -rf htslib
 rm -rf samtools
 rm -rf KEGGCharter
 rm -rf emu
+rm -rf centrifuger
 
 # Remove Python virtual environments
 echo "Removing Python virtual environments..."
