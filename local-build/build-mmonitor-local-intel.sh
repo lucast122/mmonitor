@@ -164,7 +164,7 @@ pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" 
   --add-binary "/usr/local/opt/tcl-tk/lib/libtk8.6.dylib:." \
   --add-data "$TCL_LIBRARY:tcl" \
   --add-data "$TK_LIBRARY:tk" \
-  __main__.py --distpath ../../output
+  /Users/timo/PycharmProjects/MMonitor/desktop/src/mmonitor/__main__.py --distpath ../../output
 
 echo "Build complete. The MMonitor binary is in desktop/output/__main__"
 
