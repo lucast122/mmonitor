@@ -36,15 +36,16 @@ jobs:
         run: |
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
-          make
+          python3 setup.py install --user
+          mkdir -p flye_files
+          cp ~/.local/bin/flye flye_files/
+          cp -r ~/.local/lib/python*/site-packages/flye flye_files/
 
-      
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
           name: flye-binaries
           path: flye_files
-
 
   build-samtools:
     name: Build Samtools from Source
@@ -359,7 +360,7 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
           cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r artifacts/flye-binaries/flye_package $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+          cp -r artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
           cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
@@ -367,21 +368,18 @@ jobs:
           cp -r artifacts/bakta-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
           cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/semibin2-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/semibin2-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu
 
-
-      - name: List artifacts and copied files
+      - name: Install additional dependencies
         run: |
-          echo "Artifacts:"
-          ls -R artifacts
-          echo "Copied files:"
-          ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
+          pip install pysam
 
       - name: Set PYTHONPATH
         run: |
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor" >> $GITHUB_ENV
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor:$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages" >> $GITHUB_ENV
 
       - name: Cache PyInstaller build
         id: cache-pyinstaller
@@ -397,6 +395,7 @@ jobs:
           cd desktop/src/mmonitor
           pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" \
             --add-data "lib:lib" \
+            --hidden-import=pysam \
             __main__.py --distpath ../../output
           ls -lah ../../output
 
@@ -407,7 +406,7 @@ jobs:
           echo "Testing Samtools:"
           $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/samtools --version || true
           echo "Testing Centrifuger:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/centrifuger -h || true
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/centrifuger --help || true
           echo "Testing KEGGCharter:"
           python $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/KEGGCharter.py --help || true
           echo "Testing Bakta:"
