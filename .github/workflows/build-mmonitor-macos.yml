@@ -97,33 +97,164 @@ jobs:
           name: centrifuger-binaries
           path: centrifuger/centrifuger
 
+  build-keggcharter:
+    name: Build KEGGCharter from Source on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Build KEGGCharter
+        run: |
+          git clone https://github.com/telatin/KEGGCharter.git
+          cd KEGGCharter
+          cargo build --release
+      
+      - name: Upload KEGGCharter binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: keggcharter-binary
+          path: KEGGCharter/target/release/keggcharter
+
+  build-bakta:
+    name: Build Bakta from Source on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Build Bakta
+        run: |
+          git clone https://github.com/oschwengers/bakta.git
+          cd bakta
+          pip install .
+      
+      - name: Upload Bakta files
+        uses: actions/upload-artifact@v4
+        with:
+          name: bakta-files
+          path: /Users/runner/Library/Python/3.*/bin/bakta*
+
+  build-emu:
+    name: Build EMU 16S Profiler from Source on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Build EMU
+        run: |
+          git clone https://github.com/EBI-Metagenomics/emu.git
+          cd emu
+          pip install .
+      
+      - name: Upload EMU files
+        uses: actions/upload-artifact@v4
+        with:
+          name: emu-files
+          path: /Users/runner/Library/Python/3.*/bin/emu*
+
+  build-medaka:
+    name: Build Medaka from Source on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Build Medaka
+        run: |
+          git clone https://github.com/nanoporetech/medaka.git
+          cd medaka
+          pip install .
+      
+      - name: Upload Medaka files
+        uses: actions/upload-artifact@v4
+        with:
+          name: medaka-files
+          path: /Users/runner/Library/Python/3.*/bin/medaka*
+
+  build-metabat2:
+    name: Build MetaBAT2 from Source on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: brew install cmake
+      
+      - name: Build MetaBAT2
+        run: |
+          git clone https://bitbucket.org/berkeleylab/metabat.git
+          cd metabat
+          mkdir build && cd build
+          cmake ..
+          make
+      
+      - name: Upload MetaBAT2 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabat2-binary
+          path: metabat/build/bin/metabat2
 
   build-mmonitor-pyinstaller:
     name: Build MMonitor with PyInstaller on macOS
     runs-on: macos-latest
-    needs: [build-flye, build-samtools, build-centrifuger]
+    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-metabat2]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Create and activate virtual environment
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+
       - name: Install Python dependencies
         run: |
-          source venv/bin/activate
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
+
       - name: Install PyInstaller
-        run: |
-          python3 -m pip install pyinstaller
+        run: pip install pyinstaller
+
       - name: Set PYTHONPATH
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
+
       - name: Build MMonitor
         run: |
           cd desktop/src/mmonitor
           pyinstaller --onefile __main__.py --distpath ../../output
           ls -lah
+
       - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
         with:
-          name: mmonitor-binary
+          name: mmonitor-binary-macos
           path: desktop/output/
