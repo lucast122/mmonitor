@@ -51,4 +51,3 @@ watchdog==5.0.2
 Werkzeug==3.0.4
 wget==3.2
 zipp==3.20.2
-tkinter
