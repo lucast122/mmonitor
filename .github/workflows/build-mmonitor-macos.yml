@@ -110,8 +110,10 @@ jobs:
           toolchain: stable
       
       - name: Build KEGGCharter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git clone https://github.com/telatin/KEGGCharter.git
+          git clone https://${GITHUB_TOKEN}@github.com/telatin/KEGGCharter.git
           cd KEGGCharter
           cargo build --release
       
@@ -131,7 +133,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # Explicitly use Python 3.10
       
       - name: Build Bakta
         run: |
@@ -143,7 +145,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bakta-files
-          path: /Users/runner/Library/Python/3.*/bin/bakta*
+          path: /Users/runner/Library/Python/3.10/bin/bakta*
 
   build-emu:
     name: Build EMU 16S Profiler from Source on macOS
@@ -155,11 +157,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # Explicitly use Python 3.10
       
       - name: Build EMU
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git clone https://github.com/EBI-Metagenomics/emu.git
+          git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/EBI-Metagenomics/emu.git
           cd emu
           pip install .
       
@@ -167,7 +171,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: emu-files
-          path: /Users/runner/Library/Python/3.*/bin/emu*
+          path: /Users/runner/Library/Python/3.10/bin/emu*
 
   build-medaka:
     name: Build Medaka from Source on macOS
@@ -179,7 +183,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.10'  # Use Python 3.10 for compatibility
       
       - name: Build Medaka
         run: |
@@ -191,7 +195,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: medaka-files
-          path: /Users/runner/Library/Python/3.*/bin/medaka*
+          path: /Users/runner/Library/Python/3.10/bin/medaka*
 
   build-metabat2:
     name: Build MetaBAT2 from Source on macOS
@@ -201,14 +205,15 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Install dependencies
-        run: brew install cmake
+        run: |
+          brew install cmake boost
       
       - name: Build MetaBAT2
         run: |
           git clone https://bitbucket.org/berkeleylab/metabat.git
           cd metabat
           mkdir build && cd build
-          cmake ..
+          cmake -DBOOST_ROOT=$(brew --prefix boost) ..
           make
       
       - name: Upload MetaBAT2 binary
