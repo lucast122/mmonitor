@@ -14,9 +14,9 @@ for cmd in python3 git brew conda; do
     fi
 done
 
-# Create and activate a virtual environment
-python3 -m venv venv
-source venv/bin/activate
+# Create and activate a conda environment
+# conda create -n mmonitor_build python=3.10 -y
+
 
 # Install Python dependencies
 pip install --upgrade pip setuptools wheel
@@ -30,10 +30,18 @@ fi
 cd desktop/lib/Flye
 pip install -e .
 cd ../../..
+# Check if htslib directory exists and is not empty
+if [ -d "htslib" ] && [ "$(ls -A htslib)" ]; then
+    echo "htslib directory already exists and is not empty."
+    echo "Removing existing htslib directory..."
+    rm -rf htslib
+fi
+
+# Now clone htslib
+git clone --recursive https://github.com/samtools/htslib.git
 
 # Build Samtools
 brew install autoconf automake libtool
-git clone --recursive https://github.com/samtools/htslib.git
 cd htslib
 autoheader && autoconf && autoreconf -i && ./configure && make && sudo make install
 cd ..
@@ -50,16 +58,10 @@ make
 cd ..
 
 # Install KEGGCharter
-conda create -n keggcharter python=3.10 -y
-conda activate keggcharter
 conda install -y -c conda-forge -c bioconda keggcharter
-conda deactivate
 
 # Install Bakta
-python3 -m venv bakta-env
-source bakta-env/bin/activate
 pip install bakta
-deactivate
 
 # Clone EMU
 mkdir emu && cd emu
@@ -77,18 +79,12 @@ cd ..
 
 # Build Medaka
 brew install openssl
-python3 -m venv medaka-env
-source medaka-env/bin/activate
 LDFLAGS="-L/usr/local/opt/openssl@3/lib" CPPFLAGS="-I/usr/local/opt/openssl@3/include" pip install medaka
-deactivate
 
 # Install SemiBin2
-conda create -n SemiBin python=3.10 -y
-conda activate SemiBin
 conda install -c bioconda bedtools hmmer samtools -y
 conda install -c conda-forge -c bioconda semibin -y
 conda install -c pytorch pytorch -y
-conda deactivate
 
 # Prepare MMonitor build environment
 mkdir -p desktop/src/mmonitor/bin
@@ -100,11 +96,11 @@ mkdir -p desktop/src/mmonitor/KEGGCharter
 cp $(which flye) desktop/src/mmonitor/bin/
 cp $(which samtools) desktop/src/mmonitor/bin/
 cp centrifuger/centrifuger desktop/src/mmonitor/bin/
-cp $(conda run -n keggcharter which KEGGCharter) desktop/src/mmonitor/bin/
-cp bakta-env/bin/bakta desktop/src/mmonitor/bin/
+cp $(which KEGGCharter) desktop/src/mmonitor/bin/
+cp $(which bakta) desktop/src/mmonitor/bin/
 cp -r emu desktop/src/mmonitor/
-cp medaka-env/bin/medaka* desktop/src/mmonitor/bin/
-cp $(conda run -n SemiBin which SemiBin2) desktop/src/mmonitor/bin/
+cp $(which medaka) desktop/src/mmonitor/bin/
+cp $(which SemiBin2) desktop/src/mmonitor/bin/
 
 # Install Tcl/Tk
 brew install tcl-tk
@@ -121,3 +117,7 @@ pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" 
   __main__.py --distpath ../../output
 
 echo "Build complete. The MMonitor binary is in desktop/output/__main__"
+
+# Deactivate and remove the conda environment
+conda deactivate
+conda env remove -n mmonitor_build -y
