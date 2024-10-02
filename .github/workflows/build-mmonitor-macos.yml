@@ -99,27 +99,28 @@ jobs:
 
   build-keggcharter:
     name: Install KEGGCharter
-    runs-on: ubuntu-latest
+    runs-on: macos-latest  # Change to macOS
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       
       - name: Install KEGGCharter
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
+          cd KEGGCharter
+          pip install .
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
           name: keggcharter-files
-          path: |
-            ~/.local/bin/keggcharter
-            KEGGCharter/keggcharter.py
+          path: KEGGCharter/keggcharter.py
+
   build-bakta:
     name: Build Bakta from Source on macOS
     runs-on: macos-latest
@@ -128,7 +129,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'  # Explicitly use Python 3.10
       
@@ -142,7 +143,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bakta-files
-          path: /Users/runner/Library/Python/3.10/bin/bakta*
+          path: |
+            /Users/runner/Library/Python/3.10/bin/bakta
+            /Users/runner/Library/Python/3.10/bin/bakta-*
 
   build-emu:
     name: Clone EMU 16S Profiler on macOS
@@ -169,7 +172,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       
@@ -187,7 +190,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: medaka-files
-          path: /Users/runner/Library/Python/3.10/bin/medaka*
+          path: |
+            /Users/runner/Library/Python/3.10/bin/medaka
+            /Users/runner/Library/Python/3.10/bin/medaka_*
 
   build-metabat2:
     name: Build MetaBAT2 from Source on macOS
@@ -229,7 +234,7 @@ jobs:
           path: artifacts
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -259,10 +264,11 @@ jobs:
           cp artifacts/medaka-files/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp artifacts/metabat2-binary/metabat2 $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
+        continue-on-error: true
 
-      - name: Set PYTHONPATH
+      - name: List artifacts
         run: |
-          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor
+          ls -R artifacts
 
       - name: Build MMonitor
         run: |
