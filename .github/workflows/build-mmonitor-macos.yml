@@ -99,7 +99,7 @@ jobs:
 
   build-keggcharter:
     name: Install KEGGCharter
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -112,17 +112,14 @@ jobs:
       - name: Install KEGGCharter
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
-          cd KEGGCharter
-          pip install .
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
           name: keggcharter-files
           path: |
-            /Users/runner/Library/Python/3.10/bin/keggcharter
+            ~/.local/bin/keggcharter
             KEGGCharter/keggcharter.py
-
   build-bakta:
     name: Build Bakta from Source on macOS
     runs-on: macos-latest
