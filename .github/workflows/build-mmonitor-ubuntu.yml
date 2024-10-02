@@ -353,54 +353,42 @@ jobs:
           pip install -r desktop/requirements_modified.txt
           pip install pyinstaller pysam numpy
 
-          - name: Prepare binaries and scripts
-          run: |
-            mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
-            mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
-            mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
-            mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
-            cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-            cp -r artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
-            cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-            
-            # Find and copy libhts.so
-            LIBHTS=$(find /usr/local/lib -name "libhts.so*" | head -n 1)
-            if [ -n "$LIBHTS" ]; then
-              cp "$LIBHTS" $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
-            else
-              echo "libhts.so not found. Samtools might not work correctly."
-            fi
-            
-            cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-            cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
-            cp -r artifacts/bakta-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-            cp -r artifacts/bakta-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
-            cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
-            cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-            cp -r artifacts/semibin2-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-            cp -r artifacts/semibin2-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
-            chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
-            chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu
-            sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta
-            sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka
-            sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2
+      - name: Prepare binaries and scripts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
+          cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+          cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          
+          # Find and copy libhts.so
+          LIBHTS=$(find /usr/local/lib -name "libhts.so*" | head -n 1)
+          if [ -n "$LIBHTS" ]; then
+            cp "$LIBHTS" $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
+          else
+            echo "libhts.so not found. Samtools might not work correctly."
+          fi
+          
+          cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
+          cp -r artifacts/bakta-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/bakta-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+          cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
+          cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/semibin2-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/semibin2-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu
+          sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta
+          sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka
+          sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2
 
       - name: Set PYTHONPATH and LD_LIBRARY_PATH
         run: |
           echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor:$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages" >> $GITHUB_ENV
           echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-
-
-
-
-      - name: Install additional dependencies
-        run: |
-          pip install pysam
-
-      - name: Set PYTHONPATH
-        run: |
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor:$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages" >> $GITHUB_ENV
 
       - name: Cache PyInstaller build
         id: cache-pyinstaller
@@ -438,7 +426,6 @@ jobs:
           $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka --version || true
           echo "Testing SemiBin2:"
           $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2 --version || true
-
 
       - name: Test MMonitor binary
         run: |
