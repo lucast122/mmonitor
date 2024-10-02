@@ -17,12 +17,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache Flye build
+        id: cache-flye
+        uses: actions/cache@v3
+        with:
+          path: ~/.local/bin/flye
+          key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
+
       - name: Build Flye
+        if: steps.cache-flye.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
           python3 setup.py build
           python3 setup.py install --user
+
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
@@ -36,7 +45,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Cache Samtools build
+        id: cache-samtools
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/bin/samtools
+          key: ${{ runner.os }}-samtools-${{ hashFiles('**/samtools/**') }}
+
       - name: Build HTSlib
+        if: steps.cache-samtools.outputs.cache-hit != 'true'
         run: |
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib
@@ -47,7 +64,9 @@ jobs:
           ./configure
           make
           sudo make install
+
       - name: Build Samtools
+        if: steps.cache-samtools.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/samtools/samtools.git
           cd samtools
@@ -55,6 +74,7 @@ jobs:
           ./configure
           make
           sudo make install
+
       - name: Upload Samtools binaries
         uses: actions/upload-artifact@v4
         with:
@@ -68,13 +88,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
   
+      - name: Cache Centrifuger build
+        id: cache-centrifuger
+        uses: actions/cache@v3
+        with:
+          path: centrifuger/centrifuger
+          key: ${{ runner.os }}-centrifuger-${{ hashFiles('**/centrifuger/**') }}
+  
       - name: Install dependencies
+        if: steps.cache-centrifuger.outputs.cache-hit != 'true'
         run: sudo apt-get update && sudo apt-get install -y build-essential
   
       - name: Clone Centrifuger
+        if: steps.cache-centrifuger.outputs.cache-hit != 'true'
         run: git clone https://github.com/mourisl/centrifuger.git
   
       - name: Build Centrifuger
+        if: steps.cache-centrifuger.outputs.cache-hit != 'true'
         run: |
           cd centrifuger
           make
@@ -92,7 +122,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Cache KEGGCharter build
+        id: cache-keggcharter
+        uses: actions/cache@v3
+        with:
+          path: KEGGCharter
+          key: ${{ runner.os }}-keggcharter-${{ hashFiles('**/KEGGCharter/**') }}
+      
       - name: Clone KEGGCharter
+        if: steps.cache-keggcharter.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
       
@@ -114,7 +152,15 @@ jobs:
         with:
           python-version: '3.10'
       
+      - name: Cache Bakta build
+        id: cache-bakta
+        uses: actions/cache@v3
+        with:
+          path: /opt/hostedtoolcache/Python/3.10.15/x64/bin/bakta*
+          key: ${{ runner.os }}-bakta-${{ hashFiles('**/bakta/**') }}
+      
       - name: Build Bakta
+        if: steps.cache-bakta.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/oschwengers/bakta.git
           cd bakta
@@ -141,7 +187,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Cache EMU build
+        id: cache-emu
+        uses: actions/cache@v3
+        with:
+          path: emu
+          key: ${{ runner.os }}-emu-${{ hashFiles('**/emu/**') }}
+      
       - name: Clone EMU (sparse checkout)
+        if: steps.cache-emu.outputs.cache-hit != 'true'
         run: |
           mkdir emu
           cd emu
@@ -178,18 +232,28 @@ jobs:
         with:
           python-version: '3.10'  # Use Python 3.10 for compatibility
       
+      - name: Cache Medaka build
+        id: cache-medaka
+        uses: actions/cache@v3
+        with:
+          path: medaka_files
+          key: ${{ runner.os }}-medaka-${{ hashFiles('**/medaka/**') }}
+      
       - name: Install system dependencies
+        if: steps.cache-medaka.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev zlib1g-dev
       
       - name: Build Medaka
+        if: steps.cache-medaka.outputs.cache-hit != 'true'
         run: |
           python3 -m venv medaka-env
           source medaka-env/bin/activate
           pip install medaka
       
       - name: Find and prepare Medaka files
+        if: steps.cache-medaka.outputs.cache-hit != 'true'
         run: |
           source medaka-env/bin/activate
           mkdir -p medaka_files
@@ -215,8 +279,16 @@ jobs:
           auto-update-conda: true
           python-version: "3.10"
       
+      - name: Cache SemiBin2 build
+        id: cache-semibin2
+        uses: actions/cache@v3
+        with:
+          path: semibin2_files
+          key: ${{ runner.os }}-semibin2-${{ hashFiles('**/semibin2/**') }}
+      
       - name: Install SemiBin2 and dependencies
         shell: bash -l {0}
+        if: steps.cache-semibin2.outputs.cache-hit != 'true'
         run: |
           conda create -n SemiBin python=3.10 -y
           conda activate SemiBin
@@ -232,6 +304,7 @@ jobs:
       
       - name: Prepare SemiBin2 files for upload
         shell: bash -l {0}
+        if: steps.cache-semibin2.outputs.cache-hit != 'true'
         run: |
           conda activate SemiBin
           mkdir -p semibin2_files/bin
@@ -301,7 +374,15 @@ jobs:
         run: |
           echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor" >> $GITHUB_ENV
 
+      - name: Cache PyInstaller build
+        id: cache-pyinstaller
+        uses: actions/cache@v3
+        with:
+          path: desktop/output
+          key: ${{ runner.os }}-mmonitor-${{ hashFiles('desktop/src/mmonitor/**', 'requirements.txt') }}
+
       - name: Build MMonitor
+        if: steps.cache-pyinstaller.outputs.cache-hit != 'true'
         run: |
           cd desktop/src/mmonitor
           pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" __main__.py --distpath ../../output
