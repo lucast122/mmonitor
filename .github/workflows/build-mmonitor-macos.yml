@@ -72,30 +72,30 @@ jobs:
           name: samtools-binaries
           path: /usr/local/bin/samtools
 
-build-centrifuger:
-  name: Build Centrifuger from Source on macOS
-  runs-on: macos-latest
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+  build-centrifuger:
+    name: Build Centrifuger from Source on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+  
+      - name: Install dependencies
+        run: |
+          brew install gcc
+  
+      - name: Clone Centrifuger
+        run: git clone https://github.com/mourisl/centrifuger.git
+  
+      - name: Build Centrifuger
+        run: |
+          cd centrifuger
+          make
 
-    - name: Install dependencies
-      run: |
-        brew install gcc
-
-    - name: Clone Centrifuger
-      run: git clone https://github.com/mourisl/centrifuger.git
-
-    - name: Build Centrifuger
-      run: |
-        cd centrifuger
-        make
-
-    - name: Upload Centrifuger binaries
-      uses: actions/upload-artifact@v4
-      with:
-        name: centrifuger-binaries
-        path: centrifuger/centrifuger
+      - name: Upload Centrifuger binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: centrifuger-binaries
+          path: centrifuger/centrifuger
 
 
   build-mmonitor-pyinstaller:
