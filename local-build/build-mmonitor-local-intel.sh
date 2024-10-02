@@ -1,3 +1,37 @@
+# Clean up previous build artifacts
+echo "Cleaning up previous build artifacts..."
+rm -rf desktop/output
+rm -rf desktop/src/mmonitor/bin
+rm -rf desktop/src/mmonitor/emu
+rm -rf desktop/src/mmonitor/KEGGCharter
+rm -rf desktop/src/mmonitor/lib
+
+# Remove previously cloned repositories
+echo "Removing previously cloned repositories..."
+rm -rf desktop/lib/Flye
+rm -rf htslib
+rm -rf samtools
+rm -rf KEGGCharter
+rm -rf emu
+
+# Remove Python virtual environments
+echo "Removing Python virtual environments..."
+rm -rf bakta-env
+rm -rf medaka-env
+rm -rf pyinstaller-env
+
+# Clean conda environment (if using conda)
+if command -v conda >/dev/null 2>&1; then
+    echo "Removing conda environment..."
+    conda remove --name mmonitor_build --all -y
+fi
+
+# Clean pip cache
+echo "Cleaning pip cache..."
+pip cache purge
+
+echo "Cleanup completed. Ready for a fresh build."
+
 #!/bin/bash
 set -e
 
