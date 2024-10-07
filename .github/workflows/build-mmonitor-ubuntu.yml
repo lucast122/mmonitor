@@ -30,21 +30,18 @@ jobs:
             flye_files
           key: ${{ runner.os }}-flye-latest-${{ github.sha }}
 
-      - name: Build Flye
+      - name: Build and test Flye
         if: steps.cache-flye.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/fenderglass/Flye.git
           cd Flye
           make
+          python bin/flye -v
           mkdir -p ../flye_files/bin
           cp bin/flye ../flye_files/bin/
           cp -r lib ../flye_files/
 
-      - name: Test Flye
-        run: |
-          python flye_files/bin/flye --version
-          python flye_files/bin/flye --help
-
+          
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
         with:
@@ -134,6 +131,7 @@ jobs:
 
       - name: Test Centrifuger
         run: |
+          cd centrifuger
           ./centrifuger -v
           
   
@@ -150,35 +148,46 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.10"
+      
       - name: Cache KEGGCharter build
         id: cache-keggcharter
         uses: actions/cache@v4
         with:
-          path: KEGGCharter
-          key: ${{ runner.os }}-keggcharter-${{ hashFiles('**/KEGGCharter/**') }}
+          path: keggcharter-env
+          key: ${{ runner.os }}-keggcharter-${{ hashFiles('**/keggcharter/**') }}
       
-      - name: Clone KEGGCharter
-        
+      - name: Install KEGGCharter
+        shell: bash -l {0}
+        if: steps.cache-keggcharter.outputs.cache-hit != 'true'
         run: |
-          conda create -n keggcharter -y
-          conda activate keggcharter
-          conda install -c conda-forge -c bioconda keggcharter
-          pip3 install colormaps
-          pip3 install tqdm
-          pip3 install reportlab
-
-
+          conda create -n keggcharter-env python=3.10 -y
+          conda activate keggcharter-env
+          conda install -c conda-forge -c bioconda keggcharter -y
 
       - name: Test KEGGCharter
+        shell: bash -l {0}
         run: |
-          python3 KEGGCharter/KEGGCharter.py -v
+          conda activate keggcharter-env
+          python3 -c "import KEGGCharter; print(KEGGCharter.__version__)"
       
+      - name: Prepare KEGGCharter files for upload
+        shell: bash -l {0}
+        run: |
+          conda activate keggcharter-env
+          mkdir -p keggcharter_files
+          cp $(which KEGGCharter) keggcharter_files/
+          conda list --explicit > keggcharter_files/spec-file.txt
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
         with:
           name: keggcharter-files
-          path: KEGGCharter
+          path: keggcharter_files
 
   build-bakta:
     name: Build Bakta from Source
