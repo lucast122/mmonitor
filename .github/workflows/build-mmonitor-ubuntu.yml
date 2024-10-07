@@ -42,9 +42,8 @@ jobs:
 
       - name: Test Flye
         run: |
-          flye_files/bin/flye --version
-          flye_files/bin/flye --help
-          echo "Flye test completed successfully"
+          python flye_files/bin/flye --version
+          python flye_files/bin/flye --help
 
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
@@ -69,6 +68,7 @@ jobs:
           key: ${{ runner.os }}-samtools-htslib-${{ hashFiles('**/samtools/**', '**/htslib/**') }}
 
       - name: Build HTSlib
+        if: steps.cache-samtools-htslib.outputs.cache-hit != 'true'
         run: |
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib
@@ -91,10 +91,10 @@ jobs:
           make
           sudo make install
 
-      - name: Verify installation
+      - name: Test Samtools
         run: |
           samtools --version
-          ls -l /usr/local/lib/libhts*
+          samtools --help
 
       - name: Upload Samtools and HTSlib files
         uses: actions/upload-artifact@v4
@@ -131,6 +131,11 @@ jobs:
         run: |
           cd centrifuger
           make
+
+      - name: Test Centrifuger
+        run: |
+          ./centrifuger/centrifuger --version
+          ./centrifuger/centrifuger --help
   
       - name: Upload Centrifuger binaries
         uses: actions/upload-artifact@v4
@@ -156,6 +161,10 @@ jobs:
         if: steps.cache-keggcharter.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/iquasere/KEGGCharter.git
+
+      - name: Test KEGGCharter
+        run: |
+          python KEGGCharter/KEGGCharter.py --help
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
@@ -180,6 +189,12 @@ jobs:
           python -m venv bakta-env
           source bakta-env/bin/activate
           pip install bakta
+      
+      - name: Test Bakta
+        run: |
+          source bakta-env/bin/activate
+          bakta --version
+          bakta --help
       
       - name: Prepare Bakta files
         run: |
@@ -436,34 +451,12 @@ jobs:
             __main__.py --distpath ../../output
           ls -lah ../../output
 
-      - name: Test individual binaries
-        run: |
-          echo "Testing Flye:"
-          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/flye --version || true
-          echo "Testing Samtools:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/samtools --version || true
-          echo "Testing Centrifuger:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/centrifuger -v || true
-          echo "Testing KEGGCharter:"
-          python $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/KEGGCharter.py --help || true
-          echo "Testing Bakta:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta --version || true
-          echo "Testing EMU:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu --version || true
-          echo "Testing Medaka:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka --version || true
-          echo "Testing SemiBin2:"
-          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2 --version || true
-
       - name: Test MMonitor binary
         run: |
           cd desktop/output
           chmod +x __main__
-          echo "Testing MMonitor version:"
-          ./__main__ --version || true
-          echo "Testing MMonitor help:"
-          ./__main__ --help || true
+          ./__main__ --version
+          ./__main__ --help
 
       - name: Upload MMonitor binary
         uses: actions/upload-artifact@v4
