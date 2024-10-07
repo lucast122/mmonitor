@@ -27,20 +27,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.local/bin/flye
             flye_files
-          key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
+          key: ${{ runner.os }}-flye-latest-${{ github.sha }}
 
       - name: Build Flye
-        
+        if: steps.cache-flye.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
-          cd desktop/lib/Flye
+          git clone https://github.com/fenderglass/Flye.git
+          cd Flye
           make
-          python bin/flye --version
-          mkdir -p flye_files
-          # cp ~/.local/bin/flye flye_files/
-          # cp -r ~/.local/lib/python*/site-packages/flye flye_files/
+          mkdir -p ../flye_files/bin
+          cp bin/flye ../flye_files/bin/
+          cp -r lib ../flye_files/
+
+      - name: Test Flye
+        run: |
+          flye_files/bin/flye --version
+          flye_files/bin/flye --help
+          echo "Flye test completed successfully"
 
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
@@ -49,21 +53,22 @@ jobs:
           path: flye_files
 
   build-samtools:
-    name: Build Samtools from Source
+    name: Build Samtools and HTSlib from Source
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Cache Samtools build
-        id: cache-samtools
+      - name: Cache Samtools and HTSlib build
+        id: cache-samtools-htslib
         uses: actions/cache@v4
         with:
-          path: /usr/local/bin/samtools
-          key: ${{ runner.os }}-samtools-${{ hashFiles('**/samtools/**') }}
+          path: |
+            /usr/local/bin/samtools
+            /usr/local/lib/libhts*
+          key: ${{ runner.os }}-samtools-htslib-${{ hashFiles('**/samtools/**', '**/htslib/**') }}
 
       - name: Build HTSlib
-        if: steps.cache-samtools.outputs.cache-hit != 'true'
         run: |
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib
@@ -74,9 +79,10 @@ jobs:
           ./configure
           make
           sudo make install
+          sudo ldconfig
 
       - name: Build Samtools
-        if: steps.cache-samtools.outputs.cache-hit != 'true'
+        if: steps.cache-samtools-htslib.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/samtools/samtools.git
           cd samtools
@@ -85,11 +91,18 @@ jobs:
           make
           sudo make install
 
-      - name: Upload Samtools binaries
+      - name: Verify installation
+        run: |
+          samtools --version
+          ls -l /usr/local/lib/libhts*
+
+      - name: Upload Samtools and HTSlib files
         uses: actions/upload-artifact@v4
         with:
-          name: samtools-binaries
-          path: /usr/local/bin/samtools
+          name: samtools-htslib-files
+          path: |
+            /usr/local/bin/samtools
+            /usr/local/lib/libhts*
 
   build-centrifuger:
     name: Build Centrifuger from Source on Ubuntu
@@ -365,7 +378,7 @@ jobs:
           cp -r artifacts/flye-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/
 
           # Samtools
-          cp -r artifacts/samtools-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/samtools-htslib-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
           cp -r /usr/local/lib/libhts* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
 
           # Centrifuger
