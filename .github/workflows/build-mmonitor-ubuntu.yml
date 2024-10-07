@@ -49,9 +49,24 @@ jobs:
           path: flye_files
 
   build-samtools:
+    
     name: Build Samtools and HTSlib from Source
     runs-on: ubuntu-latest
     steps:
+      - name: Debug environment
+        run: |
+          echo "Listing /usr/local/lib/"
+          ls -lah /usr/local/lib/
+          echo "Listing /usr/local/bin/"
+          ls -lah /usr/local/bin/
+
+
+    
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libcurl4-openssl-dev libssl-dev zlib1g-dev
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -62,10 +77,11 @@ jobs:
           path: |
             /usr/local/bin/samtools
             /usr/local/lib/libhts*
-          key: ${{ runner.os }}-samtools-htslib-${{ hashFiles('**/samtools/**', '**/htslib/**') }}
+          key: ${{ runner.os }}-samtools-htslib-${{ github.sha }}  # Change to force cache reset
+          
 
       - name: Build HTSlib
-        if: steps.cache-samtools-htslib.outputs.cache-hit != 'true'
+
         run: |
           git clone --recursive https://github.com/samtools/htslib.git
           cd htslib
@@ -77,6 +93,11 @@ jobs:
           make
           sudo make install
           sudo ldconfig
+          echo 'Checking HTSLib files...'
+          ls /usr/local/lib/ | grep 'libhts.so'
+          
+          
+
 
       - name: Build Samtools
         if: steps.cache-samtools-htslib.outputs.cache-hit != 'true'
