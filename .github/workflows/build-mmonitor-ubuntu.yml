@@ -173,7 +173,7 @@ jobs:
         shell: bash -l {0}
         run: |
           conda activate keggcharter-env
-          python3 keggcharter -v
+          keggcharter -v
       - name: Prepare KEGGCharter files for upload
         shell: bash -l {0}
         run: |
