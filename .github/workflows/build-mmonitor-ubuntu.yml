@@ -32,7 +32,7 @@ jobs:
           key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
 
       - name: Build Flye
-        if: steps.cache-flye.outputs.cache-hit != 'true'
+        
         run: |
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
