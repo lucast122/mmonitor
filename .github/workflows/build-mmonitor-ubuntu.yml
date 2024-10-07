@@ -36,10 +36,11 @@ jobs:
         run: |
           git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
           cd desktop/lib/Flye
-          python3 setup.py install --user
+          make
+          python bin/flye --version
           mkdir -p flye_files
-          cp ~/.local/bin/flye flye_files/
-          cp -r ~/.local/lib/python*/site-packages/flye flye_files/
+          # cp ~/.local/bin/flye flye_files/
+          # cp -r ~/.local/lib/python*/site-packages/flye flye_files/
 
       - name: Upload Flye binaries
         uses: actions/upload-artifact@v4
@@ -351,7 +352,7 @@ jobs:
           python3 -m pip install --upgrade pip
           sed '/^tkinter/d' desktop/requirements.txt > desktop/requirements_modified.txt
           pip install -r desktop/requirements_modified.txt
-          pip install pyinstaller pysam numpy
+          pip install pyinstaller pysam numpy biopython medaka SemiBin
 
       - name: Prepare binaries and scripts
         run: |
@@ -359,31 +360,37 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
-          cp artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r artifacts/flye-binaries/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
-          cp artifacts/samtools-binaries/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          
-          # Find and copy libhts.so
-          LIBHTS=$(find /usr/local/lib -name "libhts.so*" | head -n 1)
-          if [ -n "$LIBHTS" ]; then
-            cp "$LIBHTS" $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
-          else
-            echo "libhts.so not found. Samtools might not work correctly."
-          fi
-          
-          cp artifacts/centrifuger-binaries/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+
+          # Flye
+          cp -r artifacts/flye-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/
+
+          # Samtools
+          cp -r artifacts/samtools-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r /usr/local/lib/libhts* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
+
+          # Centrifuger
+          cp -r artifacts/centrifuger-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+
+          # KEGGCharter
           cp -r artifacts/keggcharter-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/
-          cp -r artifacts/bakta-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r artifacts/bakta-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+
+          # Bakta
+          cp -r artifacts/bakta-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/
+
+          # EMU
           cp -r artifacts/emu-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/
-          cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r artifacts/semibin2-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r artifacts/semibin2-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages/
+
+          # Medaka
+          cp -r artifacts/medaka-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/
+
+          # SemiBin2
+          cp -r artifacts/semibin2-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/
+
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/*
           chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/emu
-          sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/bakta
-          sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/medaka
-          sed -i '1s|^#!.*|#!/usr/bin/env python3|' $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/SemiBin2
+
+          # Adjust shebang lines
+          find $GITHUB_WORKSPACE/desktop/src/mmonitor/bin -type f -executable | xargs sed -i '1s|^#!.*python.*|#!/usr/bin/env python3|'
 
       - name: Set PYTHONPATH and LD_LIBRARY_PATH
         run: |
@@ -402,16 +409,25 @@ jobs:
         run: |
           source pyinstaller-env/bin/activate
           cd desktop/src/mmonitor
-          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" \
+          pyinstaller --onefile \
+            --add-data "bin:bin" \
+            --add-data "KEGGCharter:KEGGCharter" \
+            --add-data "emu:emu" \
             --add-data "lib:lib" \
             --hidden-import=pysam \
+            --hidden-import=Bio \
+            --hidden-import=medaka \
+            --hidden-import=SemiBin \
+            --hidden-import=build_mmonitor_pyinstaller \
+            --collect-submodules=mmonitor \
             __main__.py --distpath ../../output
           ls -lah ../../output
 
       - name: Test individual binaries
         run: |
           echo "Testing Flye:"
-          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/flye --version || true
+          PYTHONPATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH
+          $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/flye --version || true
           echo "Testing Samtools:"
           $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/samtools --version || true
           echo "Testing Centrifuger:"
@@ -440,4 +456,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mmonitor-binary-ubuntu
-          path: desktop/output/
+          path: desktop/output/__main__
