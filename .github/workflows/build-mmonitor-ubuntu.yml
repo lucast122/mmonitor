@@ -134,8 +134,8 @@ jobs:
 
       - name: Test Centrifuger
         run: |
-          ./centrifuger/centrifuger --version
-          ./centrifuger/centrifuger --help
+          ./centrifuger -v
+          
   
       - name: Upload Centrifuger binaries
         uses: actions/upload-artifact@v4
@@ -158,13 +158,21 @@ jobs:
           key: ${{ runner.os }}-keggcharter-${{ hashFiles('**/KEGGCharter/**') }}
       
       - name: Clone KEGGCharter
-        if: steps.cache-keggcharter.outputs.cache-hit != 'true'
+        
         run: |
-          git clone https://github.com/iquasere/KEGGCharter.git
+          conda create -n keggcharter -y
+          conda activate keggcharter
+          conda install -c conda-forge -c bioconda keggcharter
+          pip3 install colormaps
+          pip3 install tqdm
+          pip3 install reportlab
+
+
 
       - name: Test KEGGCharter
         run: |
-          python KEGGCharter/KEGGCharter.py --help
+          python3 KEGGCharter/KEGGCharter.py -v
+      
       
       - name: Upload KEGGCharter files
         uses: actions/upload-artifact@v4
