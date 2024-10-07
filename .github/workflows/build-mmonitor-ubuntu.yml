@@ -179,7 +179,7 @@ jobs:
         run: |
           conda activate keggcharter-env
           mkdir -p keggcharter_files
-          cp $(which KEGGCharter) keggcharter_files/
+          cp $(which keggcharter) keggcharter_files/
           conda list --explicit > keggcharter_files/spec-file.txt
       
       - name: Upload KEGGCharter files
