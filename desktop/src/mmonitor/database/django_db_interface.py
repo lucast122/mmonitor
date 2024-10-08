@@ -8,6 +8,8 @@ import pandas as pd
 import requests as pyrequests
 from requests.auth import HTTPBasicAuth
 from Bio import SeqIO
+import keyring
+from keyring.errors import PasswordDeleteError
 
 def _parse_dict(x):
     return pd.Series(loads(x))
@@ -42,19 +44,66 @@ def convert_date_format(date_str):
 
 class DjangoDBInterface:
 
-    def __init__(self, db_config: str):
-        self.port = 443
-        try:
-            with open(db_config, 'r') as file:
-                self._db_config = json.load(file)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"DB config not found: {e}")
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in DB config: {e}")
-        self._connection = None
+    def __init__(self, config_path):
+        self.config_path = config_path
+        self.username = None
+        self.password = None
+        self.host = None
+        self.port = None
+        self.load_config()
+
+    def load_config(self):
+        if os.path.exists(self.config_path):
+            with open(self.config_path, 'r') as file:
+                config = json.load(file)
+                self.username = config.get('user')
+                self.host = config.get('host')
+                self.port = config.get('port', 443)
+                
+                # Try to get password from keyring
+                stored_password = keyring.get_password("MMonitor", self.username)
+                if stored_password:
+                    self.password = stored_password
+                else:
+                    self.password = config.get('password')
+
+    def save_config(self, remember=False):
+        config = {
+            'user': self.username,
+            'host': self.host,
+            'port': self.port
+        }
+        if remember:
+            keyring.set_password("MMonitor", self.username, self.password)
+        else:
+            # If not remembering, try to remove any stored password
+            try:
+                keyring.delete_password("MMonitor", self.username)
+            except PasswordDeleteError:
+                # Password doesn't exist, so we can ignore this error
+                pass
+        
+        with open(self.config_path, 'w') as file:
+            json.dump(config, file)
+
+    def login(self, username, password, host, port, remember=False):
+        self.username = username
+        self.password = password
+        self.host = host
+        self.port = port
+        
+        # Verify credentials
+        if self.verify_credentials():
+            self.save_config(remember)
+            return True
+        return False
+
+    def verify_credentials(self):
+        user_id = self.get_user_id(self.username, self.password)
+        return user_id is not None
 
     def get_user_id(self, username: str, password: str):
-        django_url = f"https://{self._db_config['host']}:{self.port}/users/get_user_id/"
+        django_url = f"https://{self.host}:{self.port}/users/get_user_id/"
         print(f"Attempting to get user ID from URL: {django_url}")
         print(f"Using username: {username}")
         try:

@@ -288,3 +288,11 @@ dmypy.json
 cython_debug/
 desktop/src/resources/pipeline_out/a/a_rel-abundance.tsv
 desktop/src/resources/pipeline_out/a/a_rel-abundance.tsv
+.vscode/settings.json
+.gitignore
+desktop/lib/__pycache__/__init__.cpython-312.pyc
+desktop/lib/__pycache__/__init__.cpython-312.pyc
+desktop/lib/__pycache__/__init__.cpython-312.pyc
+desktop/lib/__pycache__/__init__.cpython-312.pyc
+desktop/lib/__pycache__/__init__.cpython-312.pyc
+.gitignore

@@ -8,9 +8,9 @@ from mmonitor.userside.MMonitorCMD import MMonitorCMD
 
 from build_mmonitor_pyinstaller import ROOT
 
-class PipelinePopup(ctk.CTkToplevel):
+class PipelinePopup(ctk.CTkFrame):
     def __init__(self, parent, gui_ref):
-        super().__init__()
+        super().__init__(parent)
         ctk.set_default_color_theme("blue")
         self.parent = parent
         self.gui = gui_ref
@@ -26,15 +26,22 @@ class PipelinePopup(ctk.CTkToplevel):
         self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db/")
         self.centrifuge_db_path = os.path.join(ROOT, "src", "resources", "centrifuge_db/")
         
-        self.geometry("500x600")
-        self.minsize(500, 600)
-        self.title("Analysis Pipeline Configuration")
-        
         self.create_widgets()
         
     def create_widgets(self):
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        
+        # Title and explanation
+        title_label = ctk.CTkLabel(main_frame, text="Analysis Pipeline", font=("Helvetica", 24, "bold"))
+        title_label.pack(pady=(0, 10))
+        
+        explanation = ("Run one or multiple analysis pipelines on existing files.\n"
+                       "You can select which analysis to run and which databases to use."
+                       "For more database options, go to Manage Databases."
+                       "Please select either 16S-rRNA or whole genome nanopore analysis for taxonomy and"
+                       "a functional analysis pipeline if whole genome sequencing was performed.")
+        ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
         
         # Taxonomy Analysis Section
         tax_frame = self.create_section(main_frame, "Taxonomic Analysis")
@@ -74,22 +81,21 @@ class PipelinePopup(ctk.CTkToplevel):
             self.centrifuge_db_path = db_path
 
     def run_analysis_pipeline(self):
-        if self.assembly.get() or self.functional.get():
-            analysis_type = "assembly" if self.assembly.get() else "functional"
+        if self.assembly.get():
+            analysis_type = "assembly"
             cmd_runner = MMonitorCMD()
             args = cmd_runner.parse_arguments([
                 "-a", analysis_type,
-                "-c", self.parent.db_path,
-                "-i"] + self.parent.sample_files[self.parent.sample_name] + [
-                "-s", self.parent.sample_name,
-                "-d", self.parent.selected_date.strftime("%Y-%m-%d"),
-                "-p", self.parent.project_name,
-                "-u", self.parent.subproject_name,
-                "--overwrite" if self.parent.overwrite else ""
+                "-c", self.gui.db_path,  # Use gui_ref instead of parent
+                "-i"] + self.gui.sample_files.get(self.gui.sample_name, []) + [
+                "-s", self.gui.sample_name,
+                "-d", self.gui.selected_date.strftime("%Y-%m-%d") if hasattr(self.gui, 'selected_date') else datetime.now().strftime("%Y-%m-%d"),
+                "-p", self.gui.project_name if hasattr(self.gui, 'project_name') else "",
+                "-u", self.gui.subproject_name if hasattr(self.gui, 'subproject_name') else "",
+                "--overwrite" if hasattr(self.gui, 'overwrite') and self.gui.overwrite else ""
             ])
             cmd_runner.initialize_from_args(args)
             cmd_runner.run()
         else:
             # Handle other analysis types as before
             pass
-        self.destroy()
