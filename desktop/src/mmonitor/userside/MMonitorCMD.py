@@ -58,6 +58,7 @@ class MMonitorCMD:
         self.args = None
         self.django_db = None
         self.centrifuge_db = None
+        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
 
         # Add minimap2 from lib folder to PATH
         minimap2_path = os.path.join(ROOT, "lib", "minimap2")
@@ -71,9 +72,13 @@ class MMonitorCMD:
         if self.args.emu_db:
             self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
         else:
-            self.emu_runner = EmuRunner()  # Initialize here
+            self.emu_runner = EmuRunner()
         try:
-            self.django_db = DjangoDBInterface(self.args.config)
+            self.django_db = DjangoDBInterface(self.args.config or self.db_path)
+            # Ensure the django_db is logged in
+            if not self.django_db.verify_credentials():
+                print("Error: Not logged in or invalid credentials.")
+                sys.exit(1)
         except (FileNotFoundError, ValueError) as e:
             print(f"Error initializing database interface: {e}")
             sys.exit(1)

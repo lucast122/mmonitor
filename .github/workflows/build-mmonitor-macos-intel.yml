@@ -1,0 +1,427 @@
+name: Intel MAC MMonitor build
+on:
+  push:
+    branches:
+      - workflows
+  pull_request:
+    branches:
+      - workflows
+  workflow_dispatch:
+
+jobs:
+  build-flye:
+    name: Build Flye from Source on macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Flye
+        uses: actions/cache@v4
+        with:
+          path: desktop/lib/Flye
+          key: ${{ runner.os }}-flye-${{ hashFiles('desktop/lib/Flye/**') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Clone and build Flye
+        run: |
+          if [ ! -d "desktop/lib/Flye" ]; then
+            git clone https://github.com/fenderglass/Flye.git desktop/lib/Flye
+          fi
+          cd desktop/lib/Flye
+          python -m pip install -e .
+
+      - name: Verify Flye installation
+        run: |
+          which flye
+          flye --version
+
+      - name: Prepare Flye files
+        run: |
+          mkdir -p flye_files
+          cp $(which flye) flye_files/
+          cp -r $(python -c "import flye; print(flye.__path__[0])") flye_files/flye_package
+
+      - name: Upload Flye binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: flye-binaries-intel
+          path: flye_files
+
+  build-samtools:
+    name: Build Samtools from Source on macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Samtools
+        uses: actions/cache@v4
+        with:
+          path: |
+            htslib
+            samtools
+          key: ${{ runner.os }}-samtools-${{ hashFiles('htslib/**', 'samtools/**') }}
+
+      - name: Install required tools
+        run: |
+          brew install autoconf automake libtool
+
+      - name: Build HTSlib
+        run: |
+          git clone --recursive https://github.com/samtools/htslib.git
+          cd htslib
+          git submodule update --init --recursive
+          autoheader
+          autoconf
+          autoreconf -i
+          ./configure
+          make
+          sudo make install
+      - name: Build Samtools
+        run: |
+          git clone https://github.com/samtools/samtools.git
+          cd samtools
+          autoreconf -i
+          ./configure
+          make
+          sudo make install
+      - name: Upload Samtools binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: samtools-binaries-intel
+          path: /usr/local/bin/samtools
+
+  build-centrifuger:
+    name: Build Centrifuger from Source on macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+  
+      - name: Cache Centrifuger
+        uses: actions/cache@v4
+        with:
+          path: centrifuger
+          key: ${{ runner.os }}-centrifuger-${{ hashFiles('centrifuger/**') }}
+  
+      - name: Install dependencies
+        run: |
+          brew install gcc
+  
+      - name: Clone Centrifuger
+        run: git clone https://github.com/mourisl/centrifuger.git
+  
+      - name: Build Centrifuger
+        run: |
+          cd centrifuger
+          make
+
+      - name: Upload Centrifuger binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: centrifuger-binaries-intel
+          path: centrifuger/centrifuger
+
+  build-keggcharter:
+    name: Install KEGGCharter (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: '3.10'
+      
+      - name: Install KEGGCharter
+        shell: bash -l {0}
+        run: |
+          conda config --add channels defaults
+          conda config --add channels bioconda
+          conda config --add channels conda-forge
+          conda install -y -c conda-forge -c bioconda keggcharter
+      
+      - name: Prepare KEGGCharter files for upload
+        shell: bash -l {0}
+        run: |
+          mkdir -p keggcharter_files
+          conda list -e > keggcharter_files/requirements.txt
+          cp $(which KEGGCharter) keggcharter_files/
+          
+          # Copy KEGGCharter package files
+          mkdir -p keggcharter_files/lib
+          cp -r $CONDA_PREFIX/lib/python*/site-packages/KEGGCharter keggcharter_files/lib/
+      
+      - name: Upload KEGGCharter files
+        uses: actions/upload-artifact@v4
+        with:
+          name: keggcharter-files-intel
+          path: keggcharter_files
+
+  build-bakta:
+    name: Build Bakta from Source on macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Build Bakta
+        run: |
+          python -m venv bakta-env
+          source bakta-env/bin/activate
+          pip install bakta
+      
+      - name: Find Bakta files
+        run: |
+          source bakta-env/bin/activate
+          which bakta
+          ls -l $(which bakta)
+          find bakta-env -name "bakta*"
+      
+      - name: Prepare Bakta files for upload
+        run: |
+          source bakta-env/bin/activate
+          mkdir -p bakta_files/bin
+          mkdir -p bakta_files/lib
+          cp $(which bakta) bakta_files/bin/
+          cp -r bakta-env/lib/python*/site-packages/bakta bakta_files/lib/
+          cp -r bakta-env/lib/python*/site-packages/bakta-* bakta_files/lib/
+      
+      - name: Upload Bakta files
+        uses: actions/upload-artifact@v4
+        with:
+          name: bakta-files-intel
+          path: bakta_files
+
+  build-emu:
+    name: Clone EMU 16S Profiler (excluding large files) (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Clone EMU (sparse checkout)
+        run: |
+          mkdir emu
+          cd emu
+          git init
+          git remote add origin https://github.com/treangenlab/emu.git
+          git config core.sparseCheckout true
+          echo '/*' > .git/info/sparse-checkout
+          echo '!emu_database' >> .git/info/sparse-checkout
+          echo '!example' >> .git/info/sparse-checkout
+          echo '!example_customdb' >> .git/info/sparse-checkout
+          git fetch --depth 1 origin --tags
+          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
+          git checkout $latest_tag
+      
+      - name: Upload EMU files
+        uses: actions/upload-artifact@v4
+        with:
+          name: emu-files-intel
+          path: |
+            emu
+            !emu/emu_database
+            !emu/example
+            !emu/example_customdb
+
+  build-medaka:
+    name: Build Medaka from Source on macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install OpenSSL
+        run: brew install openssl
+      
+      - name: Build Medaka
+        env:
+          LDFLAGS: "-L/usr/local/opt/openssl@3/lib"
+          CPPFLAGS: "-I/usr/local/opt/openssl@3/include"
+        run: |
+          python3 -m venv medaka-env
+          source medaka-env/bin/activate
+          pip install medaka
+      
+      - name: Find and prepare Medaka files
+        run: |
+          source medaka-env/bin/activate
+          mkdir -p medaka_files
+          cp $(which medaka) medaka_files/
+          cp $(dirname $(which medaka))/medaka_* medaka_files/
+      
+      - name: Upload Medaka files
+        uses: actions/upload-artifact@v4
+        with:
+          name: medaka-files-intel
+          path: medaka_files
+
+  build-semibin2:
+    name: Build SemiBin2 on macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.10"
+      
+      - name: Install SemiBin2 and dependencies
+        shell: bash -l {0}
+        run: |
+          conda config --add channels defaults
+          conda config --add channels bioconda
+          conda config --add channels conda-forge
+          conda create -n SemiBin python=3.10 -y
+          conda activate SemiBin
+          conda update --all -y
+          conda install -c bioconda bedtools hmmer samtools -y
+          conda install -c conda-forge -c bioconda semibin -y
+          conda install -c pytorch pytorch -y
+        env:
+          CONDA_SUBDIR: osx-64
+      
+      - name: Verify SemiBin2 installation
+        shell: bash -l {0}
+        run: |
+          conda activate SemiBin
+          SemiBin2 --version
+      
+      - name: Prepare SemiBin2 files for upload
+        shell: bash -l {0}
+        run: |
+          conda activate SemiBin
+          mkdir -p semibin2_files/bin
+          cp $(which SemiBin2) semibin2_files/bin/
+          cp $(which bedtools) semibin2_files/bin/
+          cp $(which hmmsearch) semibin2_files/bin/
+          cp $(which samtools) semibin2_files/bin/
+          
+          # Copy only essential Python packages
+          mkdir -p semibin2_files/lib/python3.10/site-packages
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/SemiBin semibin2_files/lib/python3.10/site-packages/
+          
+          # Copy only essential PyTorch files
+          mkdir -p semibin2_files/lib/python3.10/site-packages/torch
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/*.py semibin2_files/lib/python3.10/site-packages/torch/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/lib semibin2_files/lib/python3.10/site-packages/torch/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/nn semibin2_files/lib/python3.10/site-packages/torch/
+          cp -r $CONDA_PREFIX/lib/python3.10/site-packages/torch/utils semibin2_files/lib/python3.10/site-packages/torch/
+      
+      - name: Upload SemiBin2 files
+        uses: actions/upload-artifact@v4
+        with:
+          name: semibin2-files-intel
+          path: semibin2_files
+
+  build-mmonitor-pyinstaller:
+    name: Build MMonitor with PyInstaller on macOS (Intel)
+    runs-on: macos-13
+    needs: [build-flye, build-samtools, build-centrifuger, build-keggcharter, build-bakta, build-emu, build-medaka, build-semibin2]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Tcl/Tk
+        run: |
+          brew install tcl-tk
+
+      - name: Create and activate virtual environment
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Prepare binaries and scripts
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
+          cp artifacts/flye-binaries-intel/flye $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp artifacts/samtools-binaries-intel/samtools $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp artifacts/centrifuger-binaries-intel/centrifuger $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/keggcharter-files-intel/* $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter/ || true
+          cp -r artifacts/bakta-files-intel/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/bakta-files-intel/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/ || true
+          cp -r artifacts/emu-files-intel/* $GITHUB_WORKSPACE/desktop/src/mmonitor/emu/ || true
+          cp artifacts/medaka-files-intel/medaka* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          cp -r artifacts/semibin2-files-intel/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/ || true
+          chmod +x $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/* || true
+        continue-on-error: true
+
+      - name: List artifacts and copied files
+        run: |
+          echo "Artifacts:"
+          ls -R artifacts
+          echo "Copied files:"
+          ls -R $GITHUB_WORKSPACE/desktop/src/mmonitor
+
+      - name: Build MMonitor
+        run: |
+          cd desktop/src/mmonitor
+          TCL_LIBRARY=$(brew --prefix tcl-tk)/lib/tcl8.6
+          TK_LIBRARY=$(brew --prefix tcl-tk)/lib/tk8.6
+          pyinstaller --onefile --add-data "bin:bin" --add-data "KEGGCharter:KEGGCharter" --add-data "emu:emu" \
+            --add-binary "/usr/local/opt/tcl-tk/lib/libtcl8.6.dylib:." \
+            --add-binary "/usr/local/opt/tcl-tk/lib/libtk8.6.dylib:." \
+            --add-data "$TCL_LIBRARY:tcl" \
+            --add-data "$TK_LIBRARY:tk" \
+            __main__.py --distpath ../../output
+          ls -lah ../../output
+
+      - name: Upload MMonitor binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmonitor-binary-macos-intel
+          path: desktop/output/

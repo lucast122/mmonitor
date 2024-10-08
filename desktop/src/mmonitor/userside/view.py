@@ -1,7 +1,7 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk  # Add ttk import
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 from threading import Thread
 from webbrowser import open_new
 from datetime import datetime
@@ -15,7 +15,7 @@ import threading
 import gzip
 from requests import post
 from tkcalendar import DateEntry
-import datetime  # Make sure this import is at the top of your file
+import datetime
 import queue
 from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
 from build_mmonitor_pyinstaller import ROOT, IMAGES_PATH
@@ -31,9 +31,10 @@ from mmonitor.userside.PipelineWindow import PipelinePopup
 from mmonitor.userside.FunctionalRunner import FunctionalRunner
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from mmonitor.userside.DatabaseWindow import DatabaseWindow
+from mmonitor.userside.LoginWindow import LoginWindow
 
-VERSION = "v1.0.0"
-MAIN_WINDOW_X, MAIN_WINDOW_Y = 260, 400
+VERSION = "v1.1.0"
+MAIN_WINDOW_X, MAIN_WINDOW_Y = 900, 900
 CONSOLE_WIDTH = 300
 
 class TeeOutput(io.StringIO):
@@ -85,7 +86,7 @@ class GUI(ctk.CTk):
         print("Initializing GUI...")
         super().__init__()
         self.title(f"MMonitor {VERSION}")
-        self.geometry(f"{MAIN_WINDOW_X + CONSOLE_WIDTH}x{MAIN_WINDOW_Y}")
+        self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}")
         self.resizable(False, False)
 
         self.console_expanded = False
@@ -93,9 +94,16 @@ class GUI(ctk.CTk):
         self.folder_monitor = None
         self.folder_watcher_window = None
         self.database_window = None
+        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.logged_in = False
+        self.current_user = None
+        self.current_window = None
         self.setup_variables()
         self.setup_runners()
         self.init_layout()
+
+        # Create console before redirecting stdout and stderr
+        self.create_console()
 
         # Redirect stdout and stderr
         sys.stdout = TeeOutput(sys.stdout, self)
@@ -103,6 +111,8 @@ class GUI(ctk.CTk):
 
         print("GUI initialization complete.")
         print("Starting MMonitor application...")
+
+        self.show_home()
 
     def setup_variables(self):
         print("Setting up variables...")
@@ -112,7 +122,6 @@ class GUI(ctk.CTk):
         self.pipeline_popup = None
         self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
         self.db = None
-        self.db_path = None
         self.dashapp = None
         self.monitor_thread = None
         print("Variables setup complete.")
@@ -129,94 +138,86 @@ class GUI(ctk.CTk):
         print("Initializing layout...")
         ctk.set_default_color_theme("blue")
         
-        # Create a PanedWindow
-        self.paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        self.paned_window.pack(fill=tk.BOTH, expand=True)
+        # Create main content area
+        self.content_frame = ctk.CTkFrame(self)
+        self.content_frame.pack(side="right", fill="both", expand=True)
 
-        # Create main frame
-        self.main_frame = ctk.CTkFrame(self.paned_window, width=MAIN_WINDOW_X)
-        self.paned_window.add(self.main_frame)
+        # Create sidebar
+        self.sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
 
-        # Create console frame
-        self.console_frame = ctk.CTkFrame(self.paned_window, width=CONSOLE_WIDTH)
-        self.paned_window.add(self.console_frame)
+        # Add logo or app name to sidebar
+        logo_label = ctk.CTkLabel(self.sidebar, text="MMonitor", font=("Helvetica", 20, "bold"))
+        logo_label.pack(pady=20)
 
-        self.create_header()
-        self.create_buttons()
-        self.create_console()
-        
-        # Set initial position of sash
-        self.paned_window.sashpos(0, MAIN_WINDOW_X)
+        self.create_sidebar_buttons()
+
+        # Add Toggle Console button
+        self.toggle_console_button = ctk.CTkButton(self.sidebar, text="Toggle Console", command=self.toggle_console)
+        self.toggle_console_button.pack(side="bottom", pady=10, padx=10, fill="x")
+
+        # Add Toggle Dark Mode button below Toggle Console
+        self.toggle_dark_mode_button = ctk.CTkButton(self.sidebar, text="Toggle Dark Mode", command=self.toggle_dark_mode)
+        self.toggle_dark_mode_button.pack(side="bottom", pady=10, padx=10, fill="x")
 
         print("Layout initialization complete.")
 
-    def create_header(self):
-        header_label = ctk.CTkLabel(self.main_frame, text=f"Metagenome Monitor {VERSION}", font=("Helvetica", 18))
-        header_label.pack(pady=10)
-
-    def create_buttons(self):
+    def create_sidebar_buttons(self):
         buttons = [
-            ("Select User", self.open_db_config_form, "mmonitor_button4_authenticate.png"),
-            ("Run Analysis", self.checkbox_popup, "button_add_data2.png"),
-            ("Watch Folder", self.open_folder_watcher, "mmonitor-folder-watcher.png"),
-            ("Toggle Console", self.toggle_console, "mmonitor_button_console.png"),
-            ("Manage Databases", self.open_database_window, "mmonitor_button_database.png"),
-            ("Quit", self.stop_app, "mmonitor_button_quit.png")
+            ("Home", self.show_home, "home_icon.png"),
+            ("Analysis", self.show_analysis, "analysis_icon.png"),
+            ("Watch Folder", self.show_folder_watcher, "folder_icon.png"),
+            ("Manage Databases", self.show_database_management, "database_icon.png"),
         ]
 
         for text, command, icon_name in buttons:
-            icon = self.load_icon(icon_name)
-            btn = ctk.CTkButton(self.main_frame, text=text, command=command, image=icon, width=210, height=40)
-            btn.pack(pady=5)
+            icon = self.load_icon(icon_name, size=(20, 20))
+            btn = ctk.CTkButton(self.sidebar, text=text, command=command, image=icon,
+                                compound="left", anchor="w", height=40,
+                                fg_color="transparent", hover_color=("gray70", "gray30"))
+            btn.pack(pady=5, padx=10, fill="x")
+
+        # Add login/logout button at the top
+        self.login_button = ctk.CTkButton(self.sidebar, text="Login", command=self.handle_login_logout,
+                                          compound="left", anchor="w", height=40,
+                                          fg_color="#1f538d", hover_color=("#14375e", "#14375e"))
+        self.login_button.pack(pady=10, padx=10, fill="x", side="top")
+
+    def create_header(self):
+        header_label = ctk.CTkLabel(self.content_frame, text=f"Metagenome Monitor {VERSION}", font=("Helvetica", 18))
+        header_label.pack(pady=10)
 
     def create_console(self):
-        self.console_text = ctk.CTkTextbox(self.console_frame, wrap=tk.WORD, state="disabled")
-        self.console_text.pack(expand=True, fill='both')
+        self.console_frame = ctk.CTkFrame(self)
+        self.console_frame.pack(side="right", fill="y", expand=False)
+        self.console_frame.pack_forget()  # Initially hide the console
 
-    def load_icon(self, icon_name):
+        self.console_text = ctk.CTkTextbox(self.console_frame, wrap="word", width=300)
+        self.console_text.pack(fill="both", expand=True)
+
+    def load_icon(self, icon_name, size=(20, 20)):
         icon_path = os.path.join(IMAGES_PATH, icon_name)
         if os.path.exists(icon_path):
-            icon = Image.open(icon_path)
-            return ctk.CTkImage(icon, size=(35, 35))
+            return ctk.CTkImage(Image.open(icon_path), size=size)
         else:
-            print(f"Warning: Icon {icon_name} not found. Using default icon.")
-            return None  # Or return a default icon if you have one
+            print(f"Warning: Icon {icon_name} not found.")
+            return None
 
     def toggle_console(self):
         if self.console_expanded:
-            self.collapse_console()
+            self.console_frame.pack_forget()
+            self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}")
         else:
-            self.expand_console()
-
-    def expand_console(self):
-        self.console_expanded = True
-        self.animate_console(MAIN_WINDOW_X, MAIN_WINDOW_X + CONSOLE_WIDTH)
-
-    def collapse_console(self):
-        self.console_expanded = False
-        self.animate_console(MAIN_WINDOW_X + CONSOLE_WIDTH, MAIN_WINDOW_X)
-
-    def animate_console(self, start, end):
-        steps = 10
-        step_size = (end - start) / steps
-        
-        def animate_step(current_step):
-            if current_step <= steps:
-                new_pos = int(start + (step_size * current_step))
-                self.paned_window.sashpos(0, new_pos)
-                self.after(20, animate_step, current_step + 1)
-
-        animate_step(0)
+            self.console_frame.pack(side="right", fill="y", expand=False)
+            self.geometry(f"{MAIN_WINDOW_X + CONSOLE_WIDTH}x{MAIN_WINDOW_Y}")
+        self.console_expanded = not self.console_expanded
 
     def update_console(self, text):
-        self.console_text.configure(state="normal")
-        self.console_text.insert(tk.END, text)
-        self.console_text.see(tk.END)
-        self.console_text.configure(state="disabled")
-
-        if not self.console_auto_opened and "Starting MMonitor application..." in text:
+        self.console_text.insert("end", text)
+        self.console_text.see("end")
+        if not self.console_expanded and not self.console_auto_opened:
+            self.toggle_console()
             self.console_auto_opened = True
-            self.after(100, self.expand_console)
 
     def open_db_config_form(self):
         print("Opening database configuration form...")
@@ -377,19 +378,6 @@ class GUI(ctk.CTk):
         print("Application shutdown complete.")
         self.destroy()
 
-    # def start_monitoring(self):
-    #     try:
-    #         self.dashapp = Index(self.db)
-    #         self.monitor_thread = Thread(target=self.dashapp.run_server, args=(False,))
-    #         self.monitor_thread.start()
-    #     except IndexError:
-    #         self.show_info(
-    #             "No data found in database. Please first run analysis pipeline to fill DB with data.")
-    #         return
-
-    #     # sleep(1)
-    #     open_new('http://localhost:8050')
-
     def check_and_start_analysis(self, sample_name):
         # Example condition: if the sample has accumulated 10 files
         if len(self.sample_files[sample_name]) >= 10:
@@ -509,10 +497,14 @@ class GUI(ctk.CTk):
         self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
 
     def open_folder_watcher(self):
-        if self.folder_watcher_window is None or not self.folder_watcher_window.winfo_exists():
-            self.folder_watcher_window = FolderWatcherWindow(self)
-        else:
-            self.folder_watcher_window.lift()
+        print("Showing Folder Watcher")
+        self.clear_content_frame()
+        print("Content frame cleared")
+        self.folder_watcher_window = FolderWatcherWindow(self.content_frame)
+        print("FolderWatcherWindow created")
+        self.folder_watcher_window.pack(fill="both", expand=True)
+        print("FolderWatcherWindow packed")
+        self.update()  # Force update of the GUI
 
     def select_database(self):
         database_path = filedialog.askdirectory(title="Select Database Directory")
@@ -521,10 +513,122 @@ class GUI(ctk.CTk):
             messagebox.showinfo("Database Selected", f"Database directory set to: {database_path}")
 
     def open_database_window(self):
-        if self.database_window is None or not self.database_window.winfo_exists():
-            self.database_window = DatabaseWindow(self)
-        self.database_window.lift()
-        self.database_window.focus_force()
+        self.clear_content_frame()
+        self.database_window = DatabaseWindow(self.content_frame)
+        self.database_window.pack(fill="both", expand=True)
+        self.update()  # Force update of the GUI
+
+    def handle_login_logout(self):
+        if not self.logged_in:
+            self.open_login_window()
+        else:
+            self.logout()
+
+    def open_login_window(self):
+        if not self.logged_in:
+            login_window = LoginWindow(self, self.db_path)
+            self.wait_window(login_window)
+            if login_window.logged_in:
+                self.logged_in = True
+                self.current_user = login_window.username_var.get()
+                self.update_login_status()
+
+    def logout(self):
+        confirm = messagebox.askyesno("Logout", "Are you sure you want to log out?")
+        if confirm:
+            self.logged_in = False
+            self.current_user = None
+            self.update_login_status()
+
+    def update_login_status(self):
+        if self.logged_in:
+            self.login_button.configure(text=f"Logged in as {self.current_user}")
+            # Enable other functionalities that require login
+            print(f"Successfully logged in as {self.current_user}")
+        else:
+            self.login_button.configure(text="Login")
+            # Disable functionalities that require login
+            print("Logged out")
+
+    def toggle_dark_mode(self):
+        if self.cget("fg_color") == "white":
+            ctk.set_appearance_mode("dark")
+        else:
+            ctk.set_appearance_mode("light")
+
+    def show_home(self):
+        self.clear_content_frame()
+        
+        content_scroll = ctk.CTkScrollableFrame(self.content_frame)
+        content_scroll.pack(fill="both", expand=True)
+        
+        ctk.CTkLabel(content_scroll, text="Metagenome Monitor", font=("Helvetica", 24, "bold")).pack(pady=20)
+        
+        explanation = ("MMonitor-desktop is a tool for monitoring microbiomes. \n"
+                       "Use the sidebar to navigate between different functionalities."
+                       "After login, you can start by adding a new analysis or setting up a folder watcher.")
+        ctk.CTkLabel(content_scroll, text=explanation, wraplength=500).pack(pady=(0, 20))
+
+        actions = [
+            ("Start New Analysis", self.show_analysis, "Run analysis pipeline on existing files."),
+            ("View Recent Results", self.view_results, "Open the mmonitor web interface and login to view recent results."),
+            ("Manage Databases", self.open_database_window, "Select a custom database for taxonomic analysis or build new database automatically from scratch."),
+            ("Watch Folder", self.open_folder_watcher, "Track the output directory of your sequencing run to configure a folder watcher that automatically runs analysis on new files."),
+        ]
+
+        for title, command, description in actions:
+            card = ctk.CTkFrame(content_scroll)
+            card.pack(fill="x", padx=10, pady=10)
+            
+            ctk.CTkLabel(card, text=title, font=("Helvetica", 18, "bold")).pack(pady=5)
+            ctk.CTkLabel(card, text=description, wraplength=300).pack(pady=5)
+            ctk.CTkButton(card, text="Go", command=command, width=100).pack(pady=10)
+
+    def view_results(self):
+        if self.logged_in:
+            # Construct the URL with login credentials
+            base_url = f"https://{self.django_db.host}:{self.django_db.port}"
+            results_url = f"{base_url}/results/"  # Adjust this URL as needed
+            
+            # Open the results page in the default browser
+            import webbrowser
+            webbrowser.open(results_url)
+            
+            print(f"Opened results page: {results_url}")
+        else:
+            print("Please log in first to view results.")
+            self.open_login_window()
+
+    def show_analysis(self):
+        self.clear_content_frame()
+        self.pipeline_popup = PipelinePopup(self.content_frame, self)
+        self.pipeline_popup.pack(fill="both", expand=True)
+
+    def show_folder_watcher(self):
+        print("Showing Folder Watcher")
+        self.clear_content_frame()
+        print("Content frame cleared")
+        self.folder_watcher_window = FolderWatcherWindow(self.content_frame)
+        print("FolderWatcherWindow created")
+        self.folder_watcher_window.pack(fill="both", expand=True)
+        print("FolderWatcherWindow packed")
+        self.update()  # Force update of the GUI
+
+    def show_database_management(self):
+        print("Showing Database Management")
+        self.clear_content_frame()
+        print("Content frame cleared")
+        self.database_window = DatabaseWindow(self.content_frame)
+        print("DatabaseWindow created")
+        self.database_window.pack(fill="both", expand=True)
+        print("DatabaseWindow packed")
+        self.update()  # Force update of the GUI
+
+    def clear_content_frame(self):
+        print("Clearing content frame")
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        print("Content frame cleared")
 
 class ToolTip:
     def __init__(self, widget, tip_text):

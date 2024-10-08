@@ -13,12 +13,11 @@ import threading  # Make sure this is imported as well
 from build_mmonitor_pyinstaller import ROOT
 from tkcalendar import Calendar
 
-class FolderWatcherWindow(ctk.CTkToplevel):
+class FolderWatcherWindow(ctk.CTkFrame):
     def __init__(self, parent):
+        print("Initializing FolderWatcherWindow")
         super().__init__(parent)
         self.parent = parent
-        self.title("Folder Watcher")
-        self.geometry("800x700")
         self.samples = {}
         self.watching = False
         self.selected_date = datetime.date.today()
@@ -28,90 +27,89 @@ class FolderWatcherWindow(ctk.CTkToplevel):
         
         self.queue = queue.Queue()
         self.after(100, self.process_queue)
+        print("FolderWatcherWindow initialized")
 
     def create_widgets(self):
-        self.folder_frame = ctk.CTkFrame(self)
-        self.folder_frame.pack(pady=10, padx=10, fill="x")
+        print("Creating FolderWatcherWindow widgets")
+        
+        # Main frame
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        self.folder_label = ctk.CTkLabel(self.folder_frame, text="Folder to watch:")
-        self.folder_label.pack(side="left", padx=5)
+        # Title and explanation
+        title_label = ctk.CTkLabel(main_frame, text="Folder Watcher", font=("Helvetica", 24, "bold"))
+        title_label.pack(pady=(0, 10))
+        
+        explanation = ("This tool allows you to monitor a folder for new sequencing files.\n"
+                       "You can set up automatic analysis for new samples as they arrive.")
+        ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
 
-        self.folder_entry = ctk.CTkEntry(self.folder_frame, width=400)
-        self.folder_entry.pack(side="left", padx=5)
+        # Folder selection frame
+        folder_frame = ctk.CTkFrame(main_frame)
+        folder_frame.pack(fill="x", pady=(0, 10))
 
-        self.browse_button = ctk.CTkButton(self.folder_frame, text="Browse", command=self.browse_folder)
-        self.browse_button.pack(side="left", padx=5)
-
-        self.watch_button = ctk.CTkButton(self.folder_frame, text="Start Watching", command=self.toggle_watching)
+        ctk.CTkLabel(folder_frame, text="Folder to watch:").pack(side="left", padx=5)
+        self.folder_entry = ctk.CTkEntry(folder_frame, width=300)
+        self.folder_entry.pack(side="left", padx=5, expand=True, fill="x")
+        ctk.CTkButton(folder_frame, text="Browse", command=self.browse_folder).pack(side="left", padx=5)
+        self.watch_button = ctk.CTkButton(folder_frame, text="Start Watching", command=self.toggle_watching)
         self.watch_button.pack(side="left", padx=5)
 
         # Sample information frame
-        self.info_frame = ctk.CTkFrame(self)
-        self.info_frame.pack(pady=10, padx=10, fill="x")
+        info_frame = ctk.CTkFrame(main_frame)
+        info_frame.pack(fill="x", pady=10)
 
-        # Modify the sample name entry section
-        self.sample_name_frame = ctk.CTkFrame(self.info_frame)
-        self.sample_name_frame.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
-
-        self.sample_name_label = ctk.CTkLabel(self.sample_name_frame, text="Sample Name:")
-        self.sample_name_label.pack(side="left", padx=5)
-
-        self.sample_name_entry = ctk.CTkEntry(self.sample_name_frame, width=200)
+        # Sample name
+        sample_name_frame = ctk.CTkFrame(info_frame)
+        sample_name_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(sample_name_frame, text="Sample Name:").pack(side="left", padx=5)
+        self.sample_name_entry = ctk.CTkEntry(sample_name_frame, width=200)
         self.sample_name_entry.pack(side="left", padx=5)
+        ctk.CTkCheckBox(sample_name_frame, text="Use suggested name", variable=self.use_suggested_name_var, 
+                        command=self.toggle_sample_name_entry).pack(side="left", padx=5)
 
-        self.use_suggested_name_check = ctk.CTkCheckBox(self.sample_name_frame, text="Use suggested name", 
-                                                        variable=self.use_suggested_name_var, 
-                                                        command=self.toggle_sample_name_entry)
-        self.use_suggested_name_check.pack(side="left", padx=5)
+        # Project and subproject
+        for label, attr in [("Project Name:", "project_entry"), ("Subproject Name:", "subproject_entry")]:
+            frame = ctk.CTkFrame(info_frame)
+            frame.pack(fill="x", pady=5)
+            ctk.CTkLabel(frame, text=label).pack(side="left", padx=5)
+            setattr(self, attr, ctk.CTkEntry(frame, width=200))
+            getattr(self, attr).pack(side="left", padx=5)
 
-        self.project_label = ctk.CTkLabel(self.info_frame, text="Project Name:")
-        self.project_label.grid(row=1, column=0, padx=5, pady=5)
-        self.project_entry = ctk.CTkEntry(self.info_frame, width=200)
-        self.project_entry.grid(row=1, column=1, padx=5, pady=5)
-
-        self.subproject_label = ctk.CTkLabel(self.info_frame, text="Subproject Name:")
-        self.subproject_label.grid(row=2, column=0, padx=5, pady=5)
-        self.subproject_entry = ctk.CTkEntry(self.info_frame, width=200)
-        self.subproject_entry.grid(row=2, column=1, padx=5, pady=5)
-
-        self.date_label = ctk.CTkLabel(self.info_frame, text="Date:")
-        self.date_label.grid(row=3, column=0, padx=5, pady=5)
-        self.date_btn = ctk.CTkButton(self.info_frame, text="Select Date", command=self.open_calendar)
-        self.date_btn.grid(row=3, column=1, padx=5, pady=5)
-
-        self.use_file_date = ctk.CTkCheckBox(self.info_frame, text="Use file creation date")
-        self.use_file_date.grid(row=3, column=2, padx=5, pady=5)
+        # Date selection
+        date_frame = ctk.CTkFrame(info_frame)
+        date_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(date_frame, text="Date:").pack(side="left", padx=5)
+        self.date_btn = ctk.CTkButton(date_frame, text="Select Date", command=self.open_calendar)
+        self.date_btn.pack(side="left", padx=5)
+        ctk.CTkCheckBox(date_frame, text="Use file creation date").pack(side="left", padx=5)
 
         # Analysis type selection
-        self.analysis_frame = ctk.CTkFrame(self)
-        self.analysis_frame.pack(pady=10, padx=10, fill="x")
-
+        analysis_frame = ctk.CTkFrame(main_frame)
+        analysis_frame.pack(fill="x", pady=10)
         self.analysis_var = tk.StringVar(value="taxonomy-wgs")
-        ctk.CTkRadioButton(self.analysis_frame, text="WGS Analysis", variable=self.analysis_var, value="taxonomy-wgs").pack(side="left", padx=10)
-        ctk.CTkRadioButton(self.analysis_frame, text="16S Analysis", variable=self.analysis_var, value="taxonomy-16s").pack(side="left", padx=10)
+        ctk.CTkRadioButton(analysis_frame, text="WGS Analysis", variable=self.analysis_var, value="taxonomy-wgs").pack(side="left", padx=10)
+        ctk.CTkRadioButton(analysis_frame, text="16S Analysis", variable=self.analysis_var, value="taxonomy-16s").pack(side="left", padx=10)
 
-        # Create a frame for the Treeview
-        tree_frame = ttk.Frame(self)
-        tree_frame.pack(pady=10, padx=10, fill="both", expand=True)
-
-        # Create the Treeview widget
+        # Treeview
+        tree_frame = ttk.Frame(main_frame)
+        tree_frame.pack(fill="both", expand=True, pady=10)
         self.tree = ttk.Treeview(tree_frame, columns=("status",))
         self.tree.heading("#0", text="Sample/File")
         self.tree.heading("status", text="Status")
         self.tree.pack(side="left", fill="both", expand=True)
-
-        # Add a scrollbar
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
         scrollbar.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=scrollbar.set)
 
-        # Manual start analysis button
-        self.start_analysis_button = ctk.CTkButton(self, text="Start Analysis", command=self.start_analysis)
-        self.start_analysis_button.pack(pady=10)
+        # Control buttons
+        control_frame = ctk.CTkFrame(main_frame)
+        control_frame.pack(fill="x", pady=10)
+        self.start_analysis_button = ctk.CTkButton(control_frame, text="Start Analysis", command=self.start_analysis)
+        self.start_analysis_button.pack(side="left", padx=5)
+        ctk.CTkCheckBox(control_frame, text="Auto-analyze new samples", variable=self.auto_analyze_var).pack(side="left", padx=5)
 
-        # Add auto-analyze checkbox
-        self.auto_analyze_check = ctk.CTkCheckBox(self, text="Auto-analyze new samples", variable=self.auto_analyze_var)
-        self.auto_analyze_check.pack(pady=10)
+        print("FolderWatcherWindow widgets created")
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -136,8 +134,8 @@ class FolderWatcherWindow(ctk.CTkToplevel):
 
         threading.Thread(target=self.scan_existing_files, args=(folder,), daemon=True).start()
 
-        self.parent.folder_monitor = FolderMonitor([folder], self)
-        self.parent.folder_monitor.start()
+        self.folder_monitor = FolderMonitor([folder], self)  # Changed from self.gui.folder_monitor
+        self.folder_monitor.start()
         self.watching = True
         self.watch_button.configure(text="Stop Watching")
 
@@ -206,8 +204,8 @@ class FolderWatcherWindow(ctk.CTkToplevel):
             threading.Thread(target=self.start_analysis_for_sample, args=(suggested_sample_name,), daemon=True).start()
 
     def stop_watching(self):
-        if self.parent.folder_monitor:
-            self.parent.folder_monitor.stop()
+        if hasattr(self, 'folder_monitor'):  # Changed from self.gui.folder_monitor
+            self.folder_monitor.stop()
         self.watching = False
         self.watch_button.configure(text="Start Watching")
 
@@ -235,7 +233,7 @@ class FolderWatcherWindow(ctk.CTkToplevel):
             sys.executable,
             "-m", "mmonitor.userside.MMonitorCMD",
             "-a", analysis_type,
-            "-c", self.parent.db_path or os.path.join(ROOT, "src", "resources", "db_config.json"),
+            "-c", self.gui.db_path or os.path.join(ROOT, "src", "resources", "db_config.json"),
             "-s", sample_name,
             "-d", sample_date,
             "-p", self.project_entry.get(),

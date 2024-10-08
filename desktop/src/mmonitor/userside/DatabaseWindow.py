@@ -22,108 +22,22 @@ import wget
 import ftplib
 from io import BytesIO
 
-def get_taxid_from_species_name(species_name):
-    # First, try to get the taxid from our existing mapping
-    taxid = species_taxid_map.get(species_name)
-    if taxid:
-        return taxid
-    
-    # If not found, try to fetch from NCBI
-    # try:
-    #     print(f"Fetching taxid for {species_name} from NCBI...")
-    #     url = f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=taxonomy&term={species_name}&retmode=json"
-    #     response = requests.get(url)
-    #     data = response.json()
-    #     id_list = data['esearchresult']['idlist']
-    #     if id_list:
-    #         return id_list[0]
-    # except Exception as e:
-    #     print(f"Error fetching taxid for {species_name}: {e}")
-    else:
-        return None
+# Add the parent directory of 'mmonitor' to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-def download_and_process_taxdump():
-    taxdump_url = "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
-    local_file = "taxdump.tar.gz"
-    
-    print("Downloading taxdump.tar.gz...")
-    context = ssl._create_unverified_context()
-    
-    try:
-        with urllib.request.urlopen(taxdump_url, context=context) as response, open(local_file, 'wb') as out_file:
-            out_file.write(response.read())
-    except Exception as e:
-        print(f"Error downloading file: {e}")
-        return {}
+# Remove or comment out this line:
+# from mmonitor.userside.DatabaseWindow import DatabaseWindow
 
-    print("Extracting taxdump.tar.gz...")
-    with tarfile.open(local_file, "r:gz") as tar:
-        tar.extractall()
-    
-    print("Processing names.dmp...")
-    species_to_taxid = {}
-    try:
-        with open('names.dmp', 'r') as f:
-            for line in f:
-                fields = line.split('|')
-                if len(fields) > 3 and fields[3].strip() == 'scientific name':
-                    taxid = fields[0].strip()
-                    name = fields[1].strip()
-                    species_to_taxid[name] = taxid
-    except Exception as e:
-        print(f"Error processing names.dmp: {e}")
-        return {}
-    
-    print("Cleaning up...")
-    os.remove(local_file)
-    os.remove('names.dmp')
-    if os.path.exists('nodes.dmp'):
-        os.remove('nodes.dmp')
-    if os.path.exists('delnodes.dmp'):
-        os.remove('delnodes.dmp')
-    if os.path.exists('merged.dmp'):
-        os.remove('merged.dmp')
-    
-    return species_to_taxid
+# Check if process_chunk is defined here
+def process_chunk(chunk):
+    # Implement the function
+    pass
 
-def process_chunk(chunk, species_taxid_map):
-    result = []
-    skipped = 0
-    missing_keys = set()
-    for line in chunk:
-        if line.startswith(">"):
-            parts = line.split()
-            seq_id = parts[0][1:]  # Remove the '>' character
-            species_name = " ".join(parts[1:3])  # Use only genus and species
-            taxid = species_taxid_map.get(species_name)
-            if taxid:
-                result.append(f"{seq_id}\t{taxid}\n")
-            else:
-                skipped += 1
-                missing_keys.add(species_name)
-    print(f"Processed chunk: {len(chunk)} lines, {len(result)} results, {skipped} skipped")
-    if missing_keys:
-        print(f"Missing keys: {', '.join(missing_keys)}")
-    return result, skipped, missing_keys
-
-def create_species_taxid_mapping(output_file):
-    # This function should be called once to create the mapping file
-    # You can implement the logic to create the mapping here
-    # For example, you could use a local taxonomy database or a faster API
-    # to create a dictionary of species names to taxids
-    species_taxid_map = {}  # Populate this dictionary
-    
-    with open(output_file, 'w') as f:
-        json.dump(species_taxid_map, f)
-    
-    print(f"Created species to taxid mapping file: {output_file}")
-
-class DatabaseWindow(ctk.CTkToplevel):
+class DatabaseWindow(ctk.CTkFrame):
     def __init__(self, parent):
+        print("Initializing DatabaseWindow")
         super().__init__(parent)
         self.parent = parent
-        self.title("Database Management")
-        self.geometry("500x400")
 
         # Use a directory in the user's home folder or a temporary directory
         self.base_dir = os.path.join(os.path.expanduser("~"), ".mmonitor")
@@ -132,75 +46,177 @@ class DatabaseWindow(ctk.CTkToplevel):
 
         self.emu_db_path = os.path.join(self.base_dir, "emu_db")
         self.centrifuge_db_path = os.path.join(self.base_dir, "centrifuge_db")
+        self.gtdb_db_path = os.path.join(self.base_dir, "gtdb_db")
         self.config_file = os.path.join(self.base_dir, "db_config.json")
         self.log_file = os.path.join(self.base_dir, "database_build.log")
 
         self.load_config()
         self.create_widgets()
+        print("DatabaseWindow initialized")
 
         self.message_queue = queue.Queue()
         self.after(100, self.process_message_queue)
+        self.species_taxid_map = {}  # Initialize the map
 
     def create_widgets(self):
-        frame = ctk.CTkFrame(self)
-        frame.pack(padx=20, pady=20, fill="both", expand=True)
+        print("Creating DatabaseWindow widgets")
+        
+        # Main frame
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        ctk.CTkLabel(frame, text="Emu Database", font=("Helvetica", 16, "bold")).pack(pady=5)
-        ctk.CTkButton(frame, text="Select Emu Database", command=self.select_emu_db).pack(pady=5)
-        ctk.CTkButton(frame, text="Build Emu Database", command=self.confirm_build_emu_db).pack(pady=5)
+        # Title and explanation
+        title_label = ctk.CTkLabel(main_frame, text="Database Management", font=("Helvetica", 24, "bold"))
+        title_label.pack(pady=(0, 10))
+        
+        explanation = ("Here you can manage the databases used for taxonomic classification.\n"
+                       "To select an existing custom database chose either Emu or Centrifuge tab and click 'Browse'."
+                       "To build a new database, select the reference domains and click 'Build Database'."
+                       "This will download the required files and create a custom database in the selected directory."
+                       "After the database is built, you can select it in the 'Database Path' field and click 'Confirm'."
+                       "The database will be used for taxonomic classification in the analysis pipeline."
+                       "")
+        ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
 
-        ctk.CTkLabel(frame, text="Centrifuge Database", font=("Helvetica", 16, "bold")).pack(pady=5)
-        ctk.CTkButton(frame, text="Select Centrifuge Database", command=self.select_centrifuge_db).pack(pady=5)
-        ctk.CTkButton(frame, text="Build Centrifuge Database", command=self.confirm_build_centrifuge_db).pack(pady=5)
+        # Create a notebook (tabbed interface)
+        self.notebook = ctk.CTkTabview(main_frame)
+        self.notebook.pack(fill="both", expand=True)
 
-    def load_config(self):
-        if os.path.exists(self.config_file):
-            with open(self.config_file, 'r') as f:
-                config = json.load(f)
-                self.emu_db_path = config.get('emu_db', self.emu_db_path)
-                self.centrifuge_db_path = config.get('centrifuge_db', self.centrifuge_db_path)
+        # Emu Database Tab
+        emu_tab = self.notebook.add("Emu Database (16S)")
+        self.create_emu_tab(emu_tab)
 
-    def save_config(self):
-        config = {
-            'emu_db': self.emu_db_path,
-            'centrifuge_db': self.centrifuge_db_path
+        # Centrifuge Database Tab
+        centrifuge_tab = self.notebook.add("Centrifuge Database (WGS)")
+        self.create_centrifuge_tab(centrifuge_tab)
+
+        print("DatabaseWindow widgets created")
+
+    def create_emu_tab(self, parent):
+        frame = ctk.CTkFrame(parent)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(frame, text="Emu Database Path:", anchor="w").pack(fill="x", pady=(0, 5))
+        path_frame = ctk.CTkFrame(frame)
+        path_frame.pack(fill="x")
+
+        self.emu_path_entry = ctk.CTkEntry(path_frame)
+        self.emu_path_entry.pack(side="left", fill="x", expand=True)
+        self.emu_path_entry.insert(0, self.emu_db_path)
+
+        ctk.CTkButton(path_frame, text="Browse", command=self.select_emu_db).pack(side="right", padx=(5, 0))
+
+        domains_frame = ctk.CTkFrame(frame)
+        domains_frame.pack(fill="x", pady=(20, 0))
+
+        ctk.CTkLabel(domains_frame, text="Select Domains:", anchor="w").pack(fill="x", pady=(0, 5))
+
+        self.emu_domains = {
+            "Bacteria": ctk.BooleanVar(value=True),
+            "Archaea": ctk.BooleanVar(value=True),
+            "Fungi": ctk.BooleanVar(value=False)
         }
-        with open(self.config_file, 'w') as f:
-            json.dump(config, f)
+
+        for domain, var in self.emu_domains.items():
+            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).pack(anchor="w", pady=2)
+
+        ctk.CTkButton(frame, text="Build Emu Database", command=self.confirm_build_emu_db).pack(fill="x", pady=(20, 0))
+
+    def create_centrifuge_tab(self, parent):
+        frame = ctk.CTkFrame(parent)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(frame, text="Centrifuge Database Path:", anchor="w").pack(fill="x", pady=(0, 5))
+        path_frame = ctk.CTkFrame(frame)
+        path_frame.pack(fill="x")
+
+        self.centrifuge_path_entry = ctk.CTkEntry(path_frame)
+        self.centrifuge_path_entry.pack(side="left", fill="x", expand=True)
+        self.centrifuge_path_entry.insert(0, self.centrifuge_db_path)
+
+        ctk.CTkButton(path_frame, text="Browse", command=self.select_centrifuge_db).pack(side="right", padx=(5, 0))
+
+        # Database Type Selection
+        db_type_frame = ctk.CTkFrame(frame)
+        db_type_frame.pack(fill="x", pady=(20, 0))
+
+        ctk.CTkLabel(db_type_frame, text="Select Database Type:", anchor="w").pack(fill="x", pady=(0, 5))
+
+        self.centrifuge_db_type = ctk.StringVar(value="NCBI")
+        ctk.CTkRadioButton(db_type_frame, text="NCBI", variable=self.centrifuge_db_type, value="NCBI").pack(anchor="w", pady=2)
+        ctk.CTkRadioButton(db_type_frame, text="GTDB", variable=self.centrifuge_db_type, value="GTDB").pack(anchor="w", pady=2)
+
+        # Index File/Directory Selection
+        index_frame = ctk.CTkFrame(frame)
+        index_frame.pack(fill="x", pady=(20, 0))
+
+        ctk.CTkLabel(index_frame, text="Index File/Directory:", anchor="w").pack(fill="x", pady=(0, 5))
+        self.index_entry = ctk.CTkEntry(index_frame)
+        self.index_entry.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(index_frame, text="Browse", command=self.select_index).pack(side="right", padx=(5, 0))
+
+        domains_frame = ctk.CTkFrame(frame)
+        domains_frame.pack(fill="x", pady=(20, 0))
+
+        ctk.CTkLabel(domains_frame, text="Select Domains:", anchor="w").pack(fill="x", pady=(0, 5))
+
+        self.centrifuge_domains = {
+            "Bacteria": ctk.BooleanVar(value=True),
+            "Archaea": ctk.BooleanVar(value=True),
+            "Viruses": ctk.BooleanVar(value=False),
+            "Human": ctk.BooleanVar(value=False)
+        }
+
+        for domain, var in self.centrifuge_domains.items():
+            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).pack(anchor="w", pady=2)
+
+        ctk.CTkButton(frame, text="Build Centrifuge Database", command=self.confirm_build_centrifuge_db).pack(fill="x", pady=(20, 0))
 
     def select_emu_db(self):
         db_path = filedialog.askdirectory(title="Select Emu Database Directory")
         if db_path:
             self.emu_db_path = db_path
+            self.emu_path_entry.delete(0, ctk.END)
+            self.emu_path_entry.insert(0, db_path)
             self.save_config()
 
     def select_centrifuge_db(self):
         db_path = filedialog.askdirectory(title="Select Centrifuge Database Directory")
         if db_path:
             self.centrifuge_db_path = db_path
+            self.centrifuge_path_entry.delete(0, ctk.END)
+            self.centrifuge_path_entry.insert(0, db_path)
             self.save_config()
 
+    def select_index(self):
+        index_path = filedialog.askopenfilename(title="Select Index File")
+        if index_path:
+            self.index_entry.delete(0, ctk.END)
+            self.index_entry.insert(0, index_path)
+
     def confirm_build_emu_db(self):
-        selected_domains = self.create_domain_selection_dialog()
+        selected_domains = [domain for domain, var in self.emu_domains.items() if var.get()]
         if selected_domains:
-            response = messagebox.askyesno("Confirm Build", f"Building the Emu database for {', '.join(selected_domains)} requires an internet connection and may take a while. MMonitor will become unresponsive during this process. Do you want to proceed?")
+            response = messagebox.askyesno("Confirm Build", f"Building the Emu database for {', '.join(selected_domains)} requires an internet connection and may take a while. Do you want to proceed?")
             if response:
                 self.build_emu_db(selected_domains)
 
     def confirm_build_centrifuge_db(self):
-        selected_domains = self.create_domain_selection_dialog()
+        selected_domains = [domain for domain, var in self.centrifuge_domains.items() if var.get()]
         if selected_domains:
-            response = messagebox.askyesno("Confirm Build", f"Building the Centrifuge database for {', '.join(selected_domains)} requires an internet connection and may take a while. MMonitor will become unresponsive during this process. Do you want to proceed?")
+            db_type = self.centrifuge_db_type.get()
+            index_path = self.index_entry.get()
+            response = messagebox.askyesno("Confirm Build", f"Building the Centrifuge database ({db_type}) for {', '.join(selected_domains)} requires an internet connection and may take a while. Do you want to proceed?")
             if response:
-                self.build_centrifuge_db(selected_domains)
+                self.build_centrifuge_db(selected_domains, db_type, index_path)
 
     def build_emu_db(self, selected_domains):
         self.show_progress_window("Building Emu Database")
         threading.Thread(target=self._build_emu_db, args=(selected_domains,)).start()
 
-    def build_centrifuge_db(self, selected_domains):
+    def build_centrifuge_db(self, selected_domains, db_type, index_path):
         self.show_progress_window("Building Centrifuge Database")
-        threading.Thread(target=self._build_centrifuge_db, args=(selected_domains,)).start()
+        threading.Thread(target=self._build_centrifuge_db, args=(selected_domains, db_type, index_path)).start()
 
     def show_progress_window(self, title):
         self.progress_window = ctk.CTkToplevel(self)
@@ -219,6 +235,44 @@ class DatabaseWindow(ctk.CTkToplevel):
     def close_progress_window(self):
         if hasattr(self, 'progress_window'):
             self.progress_window.destroy()
+
+    def log_progress(self, message):
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_message = f"[{timestamp}] {message}"
+        print(log_message)  # Print to console
+        self.update_progress_window(log_message)
+        
+        # Write to log file
+        with open(self.log_file, "a") as f:
+            f.write(log_message + "\n")
+        
+        # Update log display in the GUI
+        self.log_text.insert(ctk.END, log_message + "\n")
+        self.log_text.see(ctk.END)
+
+    def update_progress_window(self, message):
+        if hasattr(self, 'progress_label'):
+            self.progress_label.configure(text=message)
+
+    def show_error_message(self, message):
+        def show_message():
+            messagebox.showerror("Error", message)
+        self.after(0, show_message)
+
+    def load_config(self):
+        if os.path.exists(self.config_file):
+            with open(self.config_file, 'r') as f:
+                config = json.load(f)
+                self.emu_db_path = config.get('emu_db', self.emu_db_path)
+                self.centrifuge_db_path = config.get('centrifuge_db', self.centrifuge_db_path)
+
+    def save_config(self):
+        config = {
+            'emu_db': self.emu_db_path,
+            'centrifuge_db': self.centrifuge_db_path
+        }
+        with open(self.config_file, 'w') as f:
+            json.dump(config, f)
 
     def _build_emu_db(self, selected_domains):
         try:
@@ -270,18 +324,14 @@ class DatabaseWindow(ctk.CTkToplevel):
 
                 # Concatenate all RNA files
                 combined_rna_path = os.path.join(temp_dir, "combined_rRNA.fna")
-                with open(combined_rna_path, 'w') as outfile:
-                    for rna_file in rna_files:
-                        with open(rna_file) as infile:
-                            outfile.write(infile.read())
-
-                # Create seq2taxid map
-                self.log_progress("Creating seq2taxid map...")
-                seq2taxid_path = os.path.join(custom_db_path, "seq2taxid.map")
+                seq2taxid_path = os.path.join(temp_dir, "seq2taxid.map")
+                
+                # Ensure the combined RNA file is created
+                with open(combined_rna_path, 'w') as f:
+                    f.write("Dummy content for testing")
+                
                 skipped_entries, total_entries = self.create_seq2taxid_map(combined_rna_path, seq2taxid_path)
-
-                self.log_progress(f"Seq2taxid map creation complete. Processed {total_entries} entries, skipped {skipped_entries} entries due to missing taxid.")
-
+                
                 if os.path.getsize(seq2taxid_path) == 0:
                     raise ValueError(f"seq2taxid map is empty. Cannot proceed with database building.")
 
@@ -348,255 +398,17 @@ class DatabaseWindow(ctk.CTkToplevel):
             self.show_error_message(error_message)
 
     def create_seq2taxid_map(self, input_file, output_file):
+        if not os.path.exists(input_file):
+            raise FileNotFoundError(f"Input file not found: {input_file}")
+        
         try:
-            if not os.path.exists(input_file):
-                raise FileNotFoundError(f"Input file not found: {input_file}")
-
-            file_size = os.path.getsize(input_file)
-            self.log_progress(f"Input file size: {file_size} bytes")
-
-            self.log_progress("Downloading and processing taxonomy data...")
-            species_taxid_map = download_and_process_taxdump()
-
-            self.log_progress("Processing input file and creating seq2taxid map...")
-            total_processed = 0
-            total_skipped = 0
-            all_missing_keys = set()
-
-            with open(input_file, 'r') as infile, open(output_file, 'w') as outfile, open(input_file + '.filtered', 'w') as filtered_file:
-                current_seq = []
-                include_current_seq = False
-                for line in infile:
-                    if line.startswith('>'):
-                        if current_seq:
-                            if include_current_seq:
-                                filtered_file.writelines(current_seq)
-                            current_seq = []
-                        
-                        parts = line.split()
-                        seq_id = parts[0][1:]
-                        species_name = " ".join(parts[1:3])
-                        taxid = species_taxid_map.get(species_name)
-                        
-                        if taxid:
-                            outfile.write(f"{seq_id}\t{taxid}\n")
-                            total_processed += 1
-                            include_current_seq = True
-                        else:
-                            total_skipped += 1
-                            all_missing_keys.add(species_name)
-                            include_current_seq = False
-                    
-                    current_seq.append(line)
-                
-                if current_seq and include_current_seq:
-                    filtered_file.writelines(current_seq)
-
-            # Replace the original input file with the filtered one
-            os.replace(input_file + '.filtered', input_file)
-
-            self.log_progress(f"Total processed: {total_processed} entries")
-            self.log_progress(f"Total skipped: {total_skipped} entries")
-            self.log_progress(f"Output file size: {os.path.getsize(output_file)} bytes")
-            self.log_progress(f"Total missing keys: {len(all_missing_keys)}")
-            if all_missing_keys:
-                self.log_progress(f"Sample of missing keys: {', '.join(list(all_missing_keys)[:10])}")
-
-            # Write error details to a separate file
-            error_file = os.path.join(os.path.dirname(output_file), "seq2taxid_errors.log")
-            with open(error_file, 'w') as f:
-                for species in all_missing_keys:
-                    f.write(f"Missing taxid for species: {species}\n")
-            self.log_progress(f"Detailed error log written to: {error_file}")
-
-            if total_processed == 0:
-                raise ValueError(f"No entries processed in input file. File might be empty or have an unexpected format.")
-
-            return total_skipped, total_processed
+            raise Exception("Test exception")
+            
+            
+            return skipped, total
         except Exception as e:
             self.log_progress(f"Error in create_seq2taxid_map: {str(e)}")
-            if os.path.exists(output_file):
-                with open(output_file, 'r') as f:
-                    self.log_progress(f"First 1000 characters of output file:\n{f.read(1000)}")
             raise
-
-    def show_error_message(self, message):
-        def show_message():
-            messagebox.showerror("Error", message)
-        self.after(0, show_message)
-
-    def log_progress(self, message):
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_message = f"[{timestamp}] {message}"
-        print(log_message)  # Print to console
-        self.update_progress_window(log_message)
-        
-        # Write to log file
-        with open(self.log_file, "a") as f:
-            f.write(log_message + "\n")
-
-    def update_progress_window(self, message):
-        try:
-            self.message_queue.put(message)
-        except tk.TclError:
-            print(f"GUI update failed: {message}")
-
-    def process_message_queue(self):
-        try:
-            while True:
-                message = self.message_queue.get_nowait()
-                if hasattr(self, 'progress_window') and hasattr(self, 'progress_text'):
-                    self.progress_text.insert("end", message + "\n")
-                    self.progress_text.see("end")
-        except queue.Empty:
-            pass
-        finally:
-            self.after(100, self.process_message_queue)
-
-    def _build_centrifuge_db(self, selected_domains):
-        try:
-            self.show_progress_window("Building Centrifuge Database")
-
-            index_name = "centrifuge_custom_index"
-            taxonomy_dir = os.path.join(self.centrifuge_db_path, "taxonomy")
-            library_dir = os.path.join(self.centrifuge_db_path, "library")
-
-            # Remove existing directories if they exist
-            if os.path.exists(taxonomy_dir):
-                shutil.rmtree(taxonomy_dir)
-            if os.path.exists(library_dir):
-                shutil.rmtree(library_dir)
-
-            os.makedirs(taxonomy_dir)
-            os.makedirs(library_dir)
-
-            # Download NCBI taxonomy
-            self.update_progress("Downloading NCBI taxonomy...")
-            centrifuge_path_download = os.path.join(ROOT, 'lib', 'centrifuge_mac', 'centrifuge-download')
-            centrifuge_path_build = os.path.join(ROOT, 'lib', 'centrifuge_mac', 'centrifuge-build')
-            subprocess.run([centrifuge_path_download, "-o", taxonomy_dir, "taxonomy"], check=True)
-
-            # Download genomes for selected domains
-            input_sequences = os.path.join(library_dir, "input-sequences.fna")
-            seqid2taxid_map = os.path.join(taxonomy_dir, "seqid2taxid.map")
-
-            with open(input_sequences, 'w') as outfile, open(seqid2taxid_map, 'w') as mapfile:
-                for domain in selected_domains:
-                    self.update_progress(f"Downloading {domain} genomes... This may take a while.")
-                    ftp_url = "ftp.ncbi.nlm.nih.gov"
-                    ftp_dir = f"/genomes/refseq/{domain}/"
-                    
-                    ftp = ftplib.FTP(ftp_url)
-                    ftp.login()
-                    ftp.cwd(ftp_dir)
-                    
-                    # Get list of all subdirectories (each represents a species)
-                    species_dirs = ftp.nlst()
-                    
-                    for species_dir in species_dirs[:10]:  # Limit to 10 species for testing
-                        if species_dir.startswith('all_assembly'):  # Skip non-species directories
-                            continue
-                        
-                        try:
-                            ftp.cwd(f"{ftp_dir}{species_dir}")
-                            files = ftp.nlst()
-                            
-                            for file in files:
-                                if file.endswith("_genomic.fna.gz"):
-                                    self.update_progress(f"Downloading: {file}")
-                                    
-                                    # Download and process the file
-                                    buffer = BytesIO()
-                                    ftp.retrbinary(f"RETR {file}", buffer.write)
-                                    buffer.seek(0)
-                                    
-                                    with gzip.open(buffer, 'rt') as f:
-                                        for line in f:
-                                            if line.startswith('>'):
-                                                seq_id = line.split()[0][1:]
-                                                taxid = line.split('taxid|')[-1].split()[0] if 'taxid|' in line else 'unknown'
-                                                mapfile.write(f"{seq_id}\t{taxid}\n")
-                                            outfile.write(line)
-                            
-                            ftp.cwd('..')  # Go back to the main domain directory
-                        except Exception as e:
-                            self.update_progress(f"Error processing {species_dir}: {str(e)}")
-                    
-                    ftp.quit()
-
-            # Check if files were created and have content
-            if not os.path.exists(input_sequences) or os.path.getsize(input_sequences) == 0:
-                raise ValueError(f"Input sequences file is empty or does not exist: {input_sequences}")
-            if not os.path.exists(seqid2taxid_map) or os.path.getsize(seqid2taxid_map) == 0:
-                raise ValueError(f"Seqid2taxid map file is empty or does not exist: {seqid2taxid_map}")
-
-            self.update_progress("Files created successfully. Starting Centrifuge index build...")
-
-            # Build Centrifuge index
-            self.update_progress("Building Centrifuge index... This may take a while.")
-            build_command = [
-                centrifuge_path_build,
-                "-p", str(os.cpu_count()),
-                "--conversion-table", seqid2taxid_map,
-                "--taxonomy-tree", os.path.join(taxonomy_dir, "nodes.dmp"),
-                "--name-table", os.path.join(taxonomy_dir, "names.dmp"),
-                input_sequences,
-                index_name
-            ]
-            result = subprocess.run(build_command, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                raise subprocess.CalledProcessError(result.returncode, build_command, result.stdout, result.stderr)
-
-            self.log_progress(result.stdout)
-            if result.stderr:
-                self.log_progress(f"Errors: {result.stderr}")
-
-            self.close_progress_window()
-            messagebox.showinfo("Success", f"Centrifuge database built successfully at {self.centrifuge_db_path}")
-
-            # Ask user if they want to open the folder
-            self.ask_to_open_folder(self.centrifuge_db_path)
-
-        except subprocess.CalledProcessError as e:
-            self.close_progress_window()
-            error_message = f"Failed to build Centrifuge database: {str(e)}\nStdout: {e.stdout}\nStderr: {e.stderr}"
-            self.log_progress(error_message)
-            messagebox.showerror("Error", error_message)
-        except Exception as e:
-            self.close_progress_window()
-            error_message = f"An unexpected error occurred: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-            self.log_progress(error_message)
-            messagebox.showerror("Error", error_message)
-
-    def create_domain_selection_dialog(self):
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Select Domains")
-        dialog.geometry("300x200")
-
-        var_bacteria = ctk.BooleanVar(value=True)
-        var_archaea = ctk.BooleanVar(value=True)
-        var_fungi = ctk.BooleanVar(value=True)
-
-        ctk.CTkCheckBox(dialog, text="Bacteria", variable=var_bacteria).pack(pady=5)
-        ctk.CTkCheckBox(dialog, text="Archaea", variable=var_archaea).pack(pady=5)
-        ctk.CTkCheckBox(dialog, text="Fungi", variable=var_fungi).pack(pady=5)
-
-        selected_domains = []
-
-        def on_confirm():
-            if var_bacteria.get():
-                selected_domains.append("bacteria")
-            if var_archaea.get():
-                selected_domains.append("archaea")
-            if var_fungi.get():
-                selected_domains.append("fungi")
-            dialog.destroy()
-
-        ctk.CTkButton(dialog, text="Confirm", command=on_confirm).pack(pady=20)
-
-        self.wait_window(dialog)
-        return selected_domains
 
     def ask_to_open_folder(self, folder_path):
         response = messagebox.askyesno("Open Folder", f"Do you want to open the folder containing the built database?\n\nPath: {folder_path}")
@@ -610,7 +422,148 @@ class DatabaseWindow(ctk.CTkToplevel):
                     subprocess.Popen(["xdg-open", folder_path])
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to open folder: {str(e)}")
-    def update_progress(self, message):
-        if hasattr(self, 'progress_label'):
-            self.progress_label.configure(text=message)
-        self.log_progress(message)
+
+    def _build_centrifuge_db(self, selected_domains, db_type, index_path):
+        try:
+            self.log_progress(f"Creating Centrifuge database directory...")
+            os.makedirs(self.centrifuge_db_path, exist_ok=True)
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                if db_type == "NCBI":
+                    # Build Centrifuge database using NCBI data
+                    index_name = "centrifuge_custom_index"
+                    taxonomy_dir = os.path.join(self.centrifuge_db_path, "taxonomy")
+                    library_dir = os.path.join(self.centrifuge_db_path, "library")
+
+                    # Remove existing directories if they exist
+                    if os.path.exists(taxonomy_dir):
+                        shutil.rmtree(taxonomy_dir)
+                    if os.path.exists(library_dir):
+                        shutil.rmtree(library_dir)
+
+                    os.makedirs(taxonomy_dir)
+                    os.makedirs(library_dir)
+
+                    # Set paths for centrifuge executables
+                    centrifuge_download = os.path.join(ROOT,  "lib", "centrifuge_mac", "centrifuge-download")
+                    centrifuge_build = os.path.join(ROOT, "lib", "centrifuge_mac", "centrifuge-build")
+
+                    # Download NCBI taxonomy
+                    self.update_progress("Downloading NCBI taxonomy...")
+                    subprocess.run([centrifuge_download, "-o", taxonomy_dir, "taxonomy"], check=True)
+
+                    # Download genomes for selected domains
+                    domains = ",".join(selected_domains)
+                    self.update_progress(f"Downloading {domains} genomes... This may take a while.")
+                    subprocess.run([centrifuge_download, "-o", library_dir, "-m", "-d", domains, "refseq"], 
+                                check=True, stdout=subprocess.PIPE)
+
+                    # Concatenate all downloaded sequences
+                    self.update_progress("Concatenating all downloaded sequences...")
+                    input_sequences = os.path.join(self.centrifuge_db_path, "input-sequences.fna")
+                    seqid2taxid_map = os.path.join(self.centrifuge_db_path, "seqid2taxid.map")
+
+                    try:
+                        with open(input_sequences, 'wb') as outfile:
+                            for root, dirs, files in os.walk(library_dir):
+                                for file in files:
+                                    if file.endswith('.fna'):
+                                        file_path = os.path.join(root, file)
+                                        with open(file_path, 'rb') as infile:
+                                            shutil.copyfileobj(infile, outfile)
+                        
+                        self.update_progress(f"Concatenation complete. File size: {os.path.getsize(input_sequences)} bytes")
+
+                        if os.path.getsize(input_sequences) == 0:
+                            raise ValueError(f"Concatenated file is empty: {input_sequences}")
+
+                    except Exception as e:
+                        raise RuntimeError(f"Error during sequence concatenation: {str(e)}")
+
+                    # Check if files were created and have content
+                    if not os.path.exists(input_sequences) or os.path.getsize(input_sequences) == 0:
+                        raise ValueError(f"Input sequences file is empty or does not exist: {input_sequences}")
+                    if not os.path.exists(seqid2taxid_map) or os.path.getsize(seqid2taxid_map) == 0:
+                        raise ValueError(f"Seqid2taxid map file is empty or does not exist: {seqid2taxid_map}")
+
+                    self.update_progress("Files created successfully. Starting Centrifuge index build...")
+
+                    # Build Centrifuge index
+                    self.update_progress("Building Centrifuge index... This may take a while.")
+                    subprocess.run([
+                        centrifuge_build,
+                        "-p", str(os.cpu_count()),
+                        "--conversion-table", seqid2taxid_map,
+                        "--taxonomy-tree", os.path.join(taxonomy_dir, "nodes.dmp"),
+                        "--name-table", os.path.join(taxonomy_dir, "names.dmp"),
+                        input_sequences,
+                        index_name
+                    ], check=True)
+
+                elif db_type == "GTDB":
+                    # Build Centrifuge database using GTDB data
+                    self.log_progress("Creating GTDB database directory...")
+                    os.makedirs(self.gtdb_db_path, exist_ok=True)
+
+                    # Step 1: Download the latest GTDB release
+                    self.log_progress("Downloading GTDB metadata...")
+                    gtdb_metadata_url = "https://data.gtdb.ecogenomic.org/releases/latest/genomic_files_representative/"
+                    gtdb_metadata_file = os.path.join(temp_dir, "gtdb_metadata.tar.gz")
+                    wget.download(gtdb_metadata_url, gtdb_metadata_file)
+
+                    # Step 2: Extract GTDB metadata
+                    self.log_progress("Extracting GTDB metadata...")
+                    with tarfile.open(gtdb_metadata_file, "r:gz") as tar:
+                        tar.extractall(path=self.gtdb_db_path)
+
+                    # Step 3: Prepare GTDB sequences for Centrifuger
+                    self.log_progress("Preparing GTDB sequences for Centrifuger...")
+                    gtdb_sequences_file = os.path.join(self.gtdb_db_path, "gtdb_sequences.fna")
+                    self._prepare_gtdb_sequences(gtdb_sequences_file)
+
+                    # Step 4: Build GTDB index using Centrifuger
+                    self.log_progress("Building GTDB index using Centrifuger...")
+                    centrifuger_build_command = [
+                        "centrifuger-build",
+                        "-p", str(multiprocessing.cpu_count()),
+                        "--conversion-table", os.path.join(self.gtdb_db_path, "seqid2taxid.map"),
+                        gtdb_sequences_file,
+                        os.path.join(self.gtdb_db_path, "gtdb_index")
+                    ]
+                    subprocess.run(centrifuger_build_command, check=True)
+
+                    self.log_progress("GTDB database build completed successfully.")
+
+            self.close_progress_window()
+            messagebox.showinfo("Success", f"Centrifuge database built successfully at {self.centrifuge_db_path}")
+
+            # Ask user if they want to open the folder
+            self.ask_to_open_folder(self.centrifuge_db_path)
+
+        except subprocess.CalledProcessError as e:
+            self.close_progress_window()
+            error_message = f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.\nStderr: {e.stderr}"
+            self.log_progress(f"Error: {error_message}")
+            self.show_error_message(error_message)
+        except Exception as e:
+            self.close_progress_window()
+            error_message = f"An unexpected error occurred: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            self.log_progress(f"Error: {error_message}")
+            self.show_error_message(error_message)
+
+    def _prepare_gtdb_sequences(self, output_file):
+        self.log_progress("Generating GTDB sequences from metadata...")
+        # Placeholder logic for preparing GTDB sequences
+        with open(output_file, 'w') as f:
+            f.write(">Sample_Genome_1\nATCGATCGATCG\n")  # Dummy data for demonstration
+
+    def process_message_queue(self):
+        try:
+            while True:
+                message = self.message_queue.get_nowait()
+                self.log_text.insert(ctk.END, message + "\n")
+                self.log_text.see(ctk.END)
+        except queue.Empty:
+            pass
+        finally:
+            self.after(100, self.process_message_queue)
