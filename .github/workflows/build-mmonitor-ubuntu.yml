@@ -75,10 +75,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            /usr/local/bin/samtools
-            /usr/local/lib/libhts*
+            samtools-htslib-files
           key: ${{ runner.os }}-samtools-htslib-${{ github.sha }}  # Change to force cache reset
           
+
 
       - name: Build HTSlib
 
@@ -89,15 +89,9 @@ jobs:
           autoheader
           autoconf
           autoreconf -i
-          ./configure
+          ./configure --prefix=$PWD/../samtools-htslib-files
           make
-          sudo make install
-          sudo ldconfig
-          echo 'Checking HTSLib files...'
-          ls /usr/local/lib/ | grep 'libhts.so'
-          
-          
-
+          make install
 
       - name: Build Samtools
         if: steps.cache-samtools-htslib.outputs.cache-hit != 'true'
@@ -105,12 +99,14 @@ jobs:
           git clone https://github.com/samtools/samtools.git
           cd samtools
           autoreconf -i
-          ./configure
+          ./configure --prefix=$PWD/../samtools-htslib-files --with-htslib=$PWD/../samtools-htslib-files
           make
-          sudo make install
+          make install
 
       - name: Test Samtools
         run: |
+          export PATH=$PWD/samtools-htslib-files/bin:$PATH
+          export LD_LIBRARY_PATH=$PWD/samtools-htslib-files/lib:$LD_LIBRARY_PATH
           samtools --version
           samtools --help
 
@@ -118,9 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: samtools-htslib-files
-          path: |
-            /usr/local/bin/samtools
-            /usr/local/lib/libhts*
+          path: samtools-htslib-files
 
   build-centrifuger:
     name: Build Centrifuger from Source on Ubuntu
