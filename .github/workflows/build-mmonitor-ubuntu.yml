@@ -418,14 +418,14 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/bin
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/emu
           mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/KEGGCharter
-          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages
+          mkdir -p $GITHUB_WORKSPACE/desktop/src/mmonitor/lib
 
           # Flye
           cp -r artifacts/flye-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/
 
-          # Samtools
-          cp -r artifacts/samtools-htslib-files/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
-          cp -r /usr/local/lib/libhts* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
+          # Samtools and HTSlib
+          cp -r artifacts/samtools-htslib-files/bin/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
+          cp -r artifacts/samtools-htslib-files/lib/* $GITHUB_WORKSPACE/desktop/src/mmonitor/lib/
 
           # Centrifuger
           cp -r artifacts/centrifuger-binaries/* $GITHUB_WORKSPACE/desktop/src/mmonitor/bin/
