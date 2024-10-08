@@ -33,12 +33,11 @@ def process_chunk(chunk):
     # Implement the function
     pass
 
-class DatabaseWindow(ctk.CTkToplevel):
+class DatabaseWindow(ctk.CTkFrame):
     def __init__(self, parent):
+        print("Initializing DatabaseWindow")
         super().__init__(parent)
         self.parent = parent
-        self.title("Database Management")
-        self.geometry("800x800")
 
         # Use a directory in the user's home folder or a temporary directory
         self.base_dir = os.path.join(os.path.expanduser("~"), ".mmonitor")
@@ -53,68 +52,64 @@ class DatabaseWindow(ctk.CTkToplevel):
 
         self.load_config()
         self.create_widgets()
+        print("DatabaseWindow initialized")
 
         self.message_queue = queue.Queue()
         self.after(100, self.process_message_queue)
         self.species_taxid_map = {}  # Initialize the map
 
     def create_widgets(self):
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
-
+        print("Creating DatabaseWindow widgets")
+        
+        # Main frame
         main_frame = ctk.CTkFrame(self)
-        main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_rowconfigure(1, weight=1)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Title
+        # Title and explanation
         title_label = ctk.CTkLabel(main_frame, text="Database Management", font=("Helvetica", 24, "bold"))
-        title_label.grid(row=0, column=0, pady=(0, 20), sticky="nw")
+        title_label.pack(pady=(0, 10))
+        
+        explanation = ("Here you can manage the databases used for taxonomic classification.\n"
+                       "To select an existing custom database chose either Emu or Centrifuge tab and click 'Browse'."
+                       "To build a new database, select the reference domains and click 'Build Database'."
+                       "This will download the required files and create a custom database in the selected directory."
+                       "After the database is built, you can select it in the 'Database Path' field and click 'Confirm'."
+                       "The database will be used for taxonomic classification in the analysis pipeline."
+                       "")
+        ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
 
         # Create a notebook (tabbed interface)
         self.notebook = ctk.CTkTabview(main_frame)
-        self.notebook.grid(row=1, column=0, sticky="nsew")
+        self.notebook.pack(fill="both", expand=True)
 
         # Emu Database Tab
-        emu_tab = self.notebook.add("Emu Database (taxonomy 16S)")
+        emu_tab = self.notebook.add("Emu Database (16S)")
         self.create_emu_tab(emu_tab)
 
         # Centrifuge Database Tab
-        centrifuge_tab = self.notebook.add("Centrifuge Database (taxonomy WGS)")
+        centrifuge_tab = self.notebook.add("Centrifuge Database (WGS)")
         self.create_centrifuge_tab(centrifuge_tab)
 
-        # Log Display
-        log_frame = ctk.CTkFrame(main_frame)
-        log_frame.grid(row=2, column=0, sticky="nsew", pady=(20, 0))
-        log_frame.grid_columnconfigure(0, weight=1)
-        log_frame.grid_rowconfigure(1, weight=1)
-
-        log_label = ctk.CTkLabel(log_frame, text="Log", font=("Helvetica", 16, "bold"))
-        log_label.grid(row=0, column=0, sticky="nw", pady=(0, 10))
-
-        self.log_text = ctk.CTkTextbox(log_frame, height=150, wrap="word")
-        self.log_text.grid(row=1, column=0, sticky="nsew")
+        print("DatabaseWindow widgets created")
 
     def create_emu_tab(self, parent):
-        parent.grid_columnconfigure(0, weight=1)
-        parent.grid_rowconfigure(1, weight=1)
+        frame = ctk.CTkFrame(parent)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        ctk.CTkLabel(parent, text="Emu Database Path:", anchor="w").grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        path_frame = ctk.CTkFrame(parent)
-        path_frame.grid(row=1, column=0, sticky="ew")
-        path_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(frame, text="Emu Database Path:", anchor="w").pack(fill="x", pady=(0, 5))
+        path_frame = ctk.CTkFrame(frame)
+        path_frame.pack(fill="x")
 
         self.emu_path_entry = ctk.CTkEntry(path_frame)
-        self.emu_path_entry.grid(row=0, column=0, sticky="ew")
+        self.emu_path_entry.pack(side="left", fill="x", expand=True)
         self.emu_path_entry.insert(0, self.emu_db_path)
 
-        ctk.CTkButton(path_frame, text="Browse", command=self.select_emu_db).grid(row=0, column=1, padx=(5, 0))
+        ctk.CTkButton(path_frame, text="Browse", command=self.select_emu_db).pack(side="right", padx=(5, 0))
 
-        domains_frame = ctk.CTkFrame(parent)
-        domains_frame.grid(row=2, column=0, sticky="ew", pady=(20, 0))
-        domains_frame.grid_columnconfigure(0, weight=1)
+        domains_frame = ctk.CTkFrame(frame)
+        domains_frame.pack(fill="x", pady=(20, 0))
 
-        ctk.CTkLabel(domains_frame, text="Select Domains:", anchor="w").grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        ctk.CTkLabel(domains_frame, text="Select Domains:", anchor="w").pack(fill="x", pady=(0, 5))
 
         self.emu_domains = {
             "Bacteria": ctk.BooleanVar(value=True),
@@ -122,52 +117,48 @@ class DatabaseWindow(ctk.CTkToplevel):
             "Fungi": ctk.BooleanVar(value=False)
         }
 
-        for i, (domain, var) in enumerate(self.emu_domains.items()):
-            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).grid(row=i+1, column=0, sticky="w", pady=2)
+        for domain, var in self.emu_domains.items():
+            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).pack(anchor="w", pady=2)
 
-        ctk.CTkButton(parent, text="Build Emu Database", command=self.confirm_build_emu_db).grid(row=3, column=0, sticky="ew", pady=(20, 0))
+        ctk.CTkButton(frame, text="Build Emu Database", command=self.confirm_build_emu_db).pack(fill="x", pady=(20, 0))
 
     def create_centrifuge_tab(self, parent):
-        parent.grid_columnconfigure(0, weight=1)
-        parent.grid_rowconfigure(1, weight=1)
+        frame = ctk.CTkFrame(parent)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        ctk.CTkLabel(parent, text="Centrifuge Database Path:", anchor="w").grid(row=0, column=0, sticky="ew", pady=(0, 5))
-        path_frame = ctk.CTkFrame(parent)
-        path_frame.grid(row=1, column=0, sticky="ew")
-        path_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(frame, text="Centrifuge Database Path:", anchor="w").pack(fill="x", pady=(0, 5))
+        path_frame = ctk.CTkFrame(frame)
+        path_frame.pack(fill="x")
 
         self.centrifuge_path_entry = ctk.CTkEntry(path_frame)
-        self.centrifuge_path_entry.grid(row=0, column=0, sticky="ew")
+        self.centrifuge_path_entry.pack(side="left", fill="x", expand=True)
         self.centrifuge_path_entry.insert(0, self.centrifuge_db_path)
 
-        ctk.CTkButton(path_frame, text="Browse", command=self.select_centrifuge_db).grid(row=0, column=1, padx=(5, 0))
+        ctk.CTkButton(path_frame, text="Browse", command=self.select_centrifuge_db).pack(side="right", padx=(5, 0))
 
         # Database Type Selection
-        db_type_frame = ctk.CTkFrame(parent)
-        db_type_frame.grid(row=2, column=0, sticky="ew", pady=(20, 0))
-        db_type_frame.grid_columnconfigure(0, weight=1)
+        db_type_frame = ctk.CTkFrame(frame)
+        db_type_frame.pack(fill="x", pady=(20, 0))
 
-        ctk.CTkLabel(db_type_frame, text="Select Database Type:", anchor="w").grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        ctk.CTkLabel(db_type_frame, text="Select Database Type:", anchor="w").pack(fill="x", pady=(0, 5))
 
         self.centrifuge_db_type = ctk.StringVar(value="NCBI")
-        ctk.CTkRadioButton(db_type_frame, text="NCBI", variable=self.centrifuge_db_type, value="NCBI").grid(row=1, column=0, sticky="w", pady=2)
-        ctk.CTkRadioButton(db_type_frame, text="GTDB", variable=self.centrifuge_db_type, value="GTDB").grid(row=2, column=0, sticky="w", pady=2)
+        ctk.CTkRadioButton(db_type_frame, text="NCBI", variable=self.centrifuge_db_type, value="NCBI").pack(anchor="w", pady=2)
+        ctk.CTkRadioButton(db_type_frame, text="GTDB", variable=self.centrifuge_db_type, value="GTDB").pack(anchor="w", pady=2)
 
         # Index File/Directory Selection
-        index_frame = ctk.CTkFrame(parent)
-        index_frame.grid(row=3, column=0, sticky="ew", pady=(20, 0))
-        index_frame.grid_columnconfigure(0, weight=1)
+        index_frame = ctk.CTkFrame(frame)
+        index_frame.pack(fill="x", pady=(20, 0))
 
-        ctk.CTkLabel(index_frame, text="Index File/Directory:", anchor="w").grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        ctk.CTkLabel(index_frame, text="Index File/Directory:", anchor="w").pack(fill="x", pady=(0, 5))
         self.index_entry = ctk.CTkEntry(index_frame)
-        self.index_entry.grid(row=1, column=0, sticky="ew")
-        ctk.CTkButton(index_frame, text="Browse", command=self.select_index).grid(row=1, column=1, padx=(5, 0))
+        self.index_entry.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(index_frame, text="Browse", command=self.select_index).pack(side="right", padx=(5, 0))
 
-        domains_frame = ctk.CTkFrame(parent)
-        domains_frame.grid(row=4, column=0, sticky="ew", pady=(20, 0))
-        domains_frame.grid_columnconfigure(0, weight=1)
+        domains_frame = ctk.CTkFrame(frame)
+        domains_frame.pack(fill="x", pady=(20, 0))
 
-        ctk.CTkLabel(domains_frame, text="Select Domains:", anchor="w").grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        ctk.CTkLabel(domains_frame, text="Select Domains:", anchor="w").pack(fill="x", pady=(0, 5))
 
         self.centrifuge_domains = {
             "Bacteria": ctk.BooleanVar(value=True),
@@ -176,10 +167,10 @@ class DatabaseWindow(ctk.CTkToplevel):
             "Human": ctk.BooleanVar(value=False)
         }
 
-        for i, (domain, var) in enumerate(self.centrifuge_domains.items()):
-            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).grid(row=i+1, column=0, sticky="w", pady=2)
+        for domain, var in self.centrifuge_domains.items():
+            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).pack(anchor="w", pady=2)
 
-        ctk.CTkButton(parent, text="Build Centrifuge Database", command=self.confirm_build_centrifuge_db).grid(row=5, column=0, sticky="ew", pady=(20, 0))
+        ctk.CTkButton(frame, text="Build Centrifuge Database", command=self.confirm_build_centrifuge_db).pack(fill="x", pady=(20, 0))
 
     def select_emu_db(self):
         db_path = filedialog.askdirectory(title="Select Emu Database Directory")
@@ -411,8 +402,8 @@ class DatabaseWindow(ctk.CTkToplevel):
             raise FileNotFoundError(f"Input file not found: {input_file}")
         
         try:
-            # Your existing code for creating seq2taxid map
-            # ...
+            raise Exception("Test exception")
+            
             
             return skipped, total
         except Exception as e:
