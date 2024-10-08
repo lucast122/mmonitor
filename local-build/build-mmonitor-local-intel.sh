@@ -28,16 +28,15 @@ mkdir -p desktop/src/mmonitor/emu
 mkdir -p desktop/src/mmonitor/KEGGCharter
 mkdir -p desktop/src/mmonitor/lib/python3.10/site-packages
 
-# Copy binaries and libraries
-cp $(which flye) desktop/src/mmonitor/bin/
-cp -r $(python3 -c "import flye; print(flye.__path__[0])") desktop/src/mmonitor/lib/python3.10/site-packages/
-cp $(which samtools) desktop/src/mmonitor/bin/
-cp $(which centrifuger) desktop/src/mmonitor/bin/
-cp $(which KEGGCharter) desktop/src/mmonitor/bin/
-cp $(which bakta) desktop/src/mmonitor/bin/
-cp -r emu desktop/src/mmonitor/
-cp $(which medaka) desktop/src/mmonitor/bin/
-cp $(which SemiBin2) desktop/src/mmonitor/bin/
+# Clone and build Flye 2.9.5-b1801
+git clone https://github.com/fenderglass/Flye.git
+cd Flye
+git checkout 2.9.5-b1801
+make
+cd ..
+
+# Copy the built Flye to the appropriate directory
+cp Flye/bin/flye desktop/src/mmonitor/bin/
 
 # Find and copy libhts.so (for Linux) or libhts.dylib (for macOS)
 LIBHTS=$(find /usr/local/lib -name "libhts.*" | head -n 1)
@@ -77,7 +76,13 @@ echo "Build complete. The MMonitor binary is in desktop/output/__main__"
 
 # Test individual binaries
 echo "Testing Flye:"
-PYTHONPATH=$PWD/desktop/src/mmonitor/lib/python3.10/site-packages:$PYTHONPATH $PWD/desktop/src/mmonitor/bin/flye --version || true
+FLYE_VERSION=$($PWD/desktop/src/mmonitor/bin/flye --version)
+if [[ "$FLYE_VERSION" == *"2.9.5-b1801"* ]]; then
+    echo "Flye version is correct: $FLYE_VERSION"
+else
+    echo "Error: Flye version is incorrect. Expected 2.9.5-b1801, got $FLYE_VERSION"
+    exit 1
+fi
 echo "Testing Samtools:"
 $PWD/desktop/src/mmonitor/bin/samtools --version || true
 echo "Testing Centrifuger:"
