@@ -1,0 +1,74 @@
+name: MMonitor pipeline complete build CentOS
+
+on:
+  push:
+    branches:
+      - workflows
+  pull_request:
+    branches:
+      - workflows
+  workflow_dispatch:
+
+jobs:
+  build-mmonitor:
+    name: Build MMonitor on CentOS
+    runs-on: ubuntu-latest
+    container: centos:7
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          yum update -y
+          yum groupinstall -y "Development Tools"
+          yum install -y epel-release
+          yum install -y python3 python3-devel python3-pip zlib-devel bzip2-devel openssl-devel ncurses-devel sqlite-devel readline-devel tk-devel gdbm-devel db4-devel libpcap-devel xz-devel expat-devel wget curl
+
+      - name: Set up Python
+        run: |
+          python3 -m venv pyenv
+          source pyenv/bin/activate
+          python3 -m pip install --upgrade pip
+
+      - name: Install Python dependencies
+        run: |
+          source pyenv/bin/activate
+          sed '/^tkinter/d' desktop/requirements.txt > desktop/requirements_modified.txt
+          pip install -r desktop/requirements_modified.txt
+          pip install pyinstaller pysam numpy biopython medaka SemiBin torch
+
+      # Add steps to build and install each tool (Flye, Samtools, Centrifuger, etc.)
+      # Similar to your Ubuntu workflow, but using CentOS-specific commands where necessary
+
+      - name: Build MMonitor
+        run: |
+          source pyenv/bin/activate
+          cd desktop/src/mmonitor
+          pyinstaller --onefile \
+            --add-data "bin:bin" \
+            --add-data "KEGGCharter:KEGGCharter" \
+            --add-data "emu:emu" \
+            --add-data "lib:lib" \
+            --hidden-import=pysam \
+            --hidden-import=Bio \
+            --hidden-import=medaka \
+            --hidden-import=SemiBin \
+            --hidden-import=build_mmonitor_pyinstaller \
+            --collect-submodules=mmonitor \
+            __main__.py --distpath ../../output
+          ls -lah ../../output
+
+      - name: Test MMonitor binary
+        run: |
+          cd desktop/output
+          chmod +x __main__
+          ./__main__ --version || true
+          ./__main__ --help || true
+
+      - name: Upload MMonitor binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmonitor-binary-centos
+          path: desktop/output/__main__
