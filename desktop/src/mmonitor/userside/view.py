@@ -31,6 +31,11 @@ from mmonitor.userside.PipelineWindow import PipelinePopup
 from mmonitor.userside.FunctionalRunner import FunctionalRunner
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from mmonitor.userside.DatabaseWindow import DatabaseWindow
+import json
+from mmonitor.userside.LoginWindow import LoginWindow
+from mmonitor.userside.LoginFrame import LoginFrame
+from mmonitor.userside.DatabaseFrame import DatabaseFrame
+from mmonitor.userside.AnalysisFrame import AnalysisFrame
 
 VERSION = "v1.0.0"
 MAIN_WINDOW_X, MAIN_WINDOW_Y = 260, 400
@@ -85,8 +90,20 @@ class GUI(ctk.CTk):
         print("Initializing GUI...")
         super().__init__()
         self.title(f"MMonitor {VERSION}")
-        self.geometry(f"{MAIN_WINDOW_X + CONSOLE_WIDTH}x{MAIN_WINDOW_Y}")
-        self.resizable(False, False)
+        self.geometry("800x600")
+
+        self.container = ctk.CTkFrame(self)
+        self.container.pack(side="top", fill="both", expand=True)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
+
+        self.frames = {}
+        for F in (LoginFrame, DatabaseFrame, AnalysisFrame):
+            frame = F(self.container, self)
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+        self.show_frame(LoginFrame)
 
         self.console_expanded = False
         self.console_auto_opened = False
@@ -156,7 +173,7 @@ class GUI(ctk.CTk):
 
     def create_buttons(self):
         buttons = [
-            ("Select User", self.open_db_config_form, "mmonitor_button4_authenticate.png"),
+            ("Login", self.open_login_window, "mmonitor_button4_authenticate.png"),
             ("Run Analysis", self.checkbox_popup, "button_add_data2.png"),
             ("Watch Folder", self.open_folder_watcher, "mmonitor-folder-watcher.png"),
             ("Toggle Console", self.toggle_console, "mmonitor_button_console.png"),
@@ -525,6 +542,27 @@ class GUI(ctk.CTk):
             self.database_window = DatabaseWindow(self)
         self.database_window.lift()
         self.database_window.focus_force()
+
+    def open_login_window(self):
+        login_window = LoginWindow(self)
+        self.wait_window(login_window)
+        if login_window.logged_in:
+            self.update_db_config(login_window.username, login_window.password, login_window.server_ip, login_window.port)
+
+    def update_db_config(self, username, password, server_ip, port):
+        config = {
+            "user": username,
+            "password": password,
+            "host": server_ip,
+            "port": port
+        }
+        with open(f"{ROOT}/src/resources/db_config.json", 'w') as f:
+            json.dump(config, f)
+        self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
+
+    def show_frame(self, cont):
+        frame = self.frames[cont]
+        frame.tkraise()
 
 class ToolTip:
     def __init__(self, widget, tip_text):

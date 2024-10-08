@@ -2,7 +2,15 @@ import unittest
 import os
 import shutil
 from datetime import date
-from mmonitor.userside.EmuRunner import EmuRunner
+import sys
+from pathlib import Path
+
+# Add the root directory to sys.path
+sys.path.append(str(Path(__file__).resolve().parents[3]))
+project_root = Path(__file__).resolve().parents[2]
+sys.path.append(str(project_root))
+
+from mmonitor.userside.emu_runner import EmuRunner
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from build_mmonitor_pyinstaller import ROOT
 

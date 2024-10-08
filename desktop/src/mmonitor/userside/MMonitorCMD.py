@@ -71,7 +71,7 @@ class MMonitorCMD:
         if self.args.emu_db:
             self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
         else:
-            self.emu_runner = EmuRunner()  # Initialize here
+            self.emu_runner = EmuRunner()
         try:
             self.django_db = DjangoDBInterface(self.args.config)
         except (FileNotFoundError, ValueError) as e:

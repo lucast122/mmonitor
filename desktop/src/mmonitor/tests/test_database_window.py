@@ -5,7 +5,7 @@ from unittest import mock
 from unittest.mock import patch, MagicMock, call
 import multiprocessing
 import subprocess
-from mmonitor.userside.DatabaseWindow import process_chunk, DatabaseWindow
+from mmonitor.userside.DatabaseWindow import DatabaseWindow  # Remove process_chunk from this import
 
 class TestDatabaseWindow(unittest.TestCase):
     def setUp(self):
@@ -140,7 +140,7 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
     def test_emu_build_command(self, mock_cpu_count, mock_popen, mock_run):
         mock_db_window = MagicMock()
         mock_db_window.base_dir = "/path/to/base"
-        mock_db_window.emu_db_path = "/path/to/emu_db"
+        mock_db_window.emu_db_path = "src/resources/emu_db"
         mock_db_window.create_seq2taxid_map.return_value = (0, 100)  # 0 skipped, 100 processed
         mock_cpu_count.return_value = 4
 
@@ -149,7 +149,7 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
         mock_process.poll.return_value = 0
         mock_popen.return_value = mock_process
 
-        DatabaseWindow._build_emu_db(mock_db_window)
+        DatabaseWindow._build_emu_db(mock_db_window, ['bacteria'])
 
         # Check if the emu build-database command was called with the correct parameters
         expected_command = [
@@ -158,7 +158,7 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
             "--seq2tax", mock.ANY,
             "--ncbi-taxonomy", mock.ANY,
             "--output", mock.ANY,
-            "--threads", "4"
+            "--threads", "12"
         ]
         mock_popen.assert_called_with(expected_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
