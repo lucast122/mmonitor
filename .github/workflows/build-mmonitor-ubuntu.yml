@@ -402,7 +402,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk
+          sudo apt-get install -y libhts-dev libtinfo-dev libtorch-dev
 
       - name: Install Python dependencies
         run: |
@@ -411,7 +411,7 @@ jobs:
           python3 -m pip install --upgrade pip
           sed '/^tkinter/d' desktop/requirements.txt > desktop/requirements_modified.txt
           pip install -r desktop/requirements_modified.txt
-          pip install pyinstaller pysam numpy biopython medaka SemiBin
+          pip install pyinstaller pysam numpy biopython medaka SemiBin torch
 
       - name: Prepare binaries and scripts
         run: |
@@ -451,10 +451,14 @@ jobs:
           # Adjust shebang lines
           find $GITHUB_WORKSPACE/desktop/src/mmonitor/bin -type f -executable | xargs sed -i '1s|^#!.*python.*|#!/usr/bin/env python3|'
 
+          # Ensure libhts.so is in the correct location
+          sudo ln -s /usr/lib/x86_64-linux-gnu/libhts.so.3 /usr/lib/libhts.so.3
+          sudo ldconfig
+
       - name: Set PYTHONPATH and LD_LIBRARY_PATH
         run: |
           echo "PYTHONPATH=$GITHUB_WORKSPACE/desktop:$GITHUB_WORKSPACE/desktop/src:$GITHUB_WORKSPACE/desktop/src/mmonitor:$GITHUB_WORKSPACE/desktop/src/mmonitor/lib/python3.10/site-packages" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/desktop/src/mmonitor/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Cache PyInstaller build
         id: cache-pyinstaller
