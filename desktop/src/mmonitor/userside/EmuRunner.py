@@ -20,6 +20,7 @@ class EmuRunner:
         self.emu_path = os.path.join(ROOT, "lib", "emu.py")
         self.check_emu()
         self.emu_out = ""
+        self.custom_db_path = custom_db_path or os.environ.get('EMU_DATABASE_DIR')
 
     @staticmethod
     def unpack_fastq_list(ls):
@@ -39,72 +40,31 @@ class EmuRunner:
                 print("Emu is installed and accessible.")
             else:
                 print("Unexpected output from Emu. Please check your installation.")
-                print(f"Output: {output}")
-        except subprocess.CalledProcessError as e:
-            print(f"Error running Emu: {e}")
-            print(f"Error output: {e.stderr}")
+        except subprocess.CalledProcessError:
+            print("Error running Emu. Please check your installation.")
         except FileNotFoundError:
-            print("Emu not found. Please make sure Emu is installed and accessible.")
+            print(f"Emu script not found at {self.emu_path}")
 
-    def run_emu(self, sequence_list, sample_name, min_abundance):
-        print(f"Running emu with min abundance of {min_abundance}")
-        self.emu_out = f"{ROOT}/src/resources/pipeline_out/{sample_name}/"
-
-        if not sequence_list:
-            print(f"Error: No input files provided for sample {sample_name}")
-            return False
-
-        #remove concatenated files from sequence list to avoid concatenating twice
-        sequence_list = [s for s in sequence_list if "concatenated" not in s]
-        print(f"Input files: {sequence_list}")
-        
-        if not sequence_list:
-            print(f"Error: No valid input files found for sample {sample_name}")
-            return False
-
-        concat_file_name = f"{os.path.dirname(sequence_list[0])}/{sample_name}_concatenated.fastq.gz"
-        self.concat_file_name = concat_file_name
-        print(f"concat_file_name: {concat_file_name}")
-        if not os.path.exists(concat_file_name):
-            self.concatenate_fastq_files(sequence_list, concat_file_name)
-
-        if not os.path.exists(concat_file_name):
-            print(f"Error: Failed to create concatenated file {concat_file_name}")
-            return False
-
-        emu_db = f"{ROOT}/src/resources/emu_db/"
-        if not os.path.exists(emu_db):
-            print(f"Error: Emu database not found at {emu_db}")
-            return False
-
-        try:
-            df_taxonomy = pd.read_csv(os.path.join(emu_db, "taxonomy.tsv"), sep='\t',
-                                      index_col='tax_id', dtype=str)
-        except Exception as e:
-            print(f"Error reading taxonomy file: {e}")
-            return False
-
-        db_species_tids = df_taxonomy.index
-        print(f"Emu out: {self.emu_out}")
-        if not os.path.exists(self.emu_out):
-            os.makedirs(self.emu_out)
-
-        out_file_base = self.emu_out
-        sam_out = f"{out_file_base}/emu_alignments.sam"
-        tsv_out = f"{out_file_base}/{sample_name}_rel-abundance"
-        print(f"min abundance: {min_abundance}")
-
+    def run_emu(self, input_file, output_dir, db_dir, threads, N=50, K="500M", minimap_type="map-ont"):
+        self.emu_out = output_dir
         cmd = [
             sys.executable,
             self.emu_path,
             "abundance",
-            "-i", concat_file_name,
-            "-d", emu_db,
-            "-o", self.emu_out,
-            "--min-abundance", str(min_abundance)
+            "--db", str(db_dir),
+            "--threads", str(threads),
+            "--output-dir", str(output_dir),
+            "--type", minimap_type,
+            "--min-abundance", "0.0001",
+            "--keep-files",
+            "--N", str(N),
+            "--K", str(K),
+            str(input_file)
         ]
 
         try:
+            print(f"Running emu with {threads} threads")
+            print("Full Emu command:", ' '.join(cmd))
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
             print(result.stdout)
             print("Emu analysis completed successfully")
@@ -123,10 +83,8 @@ class EmuRunner:
         found = False
         try:
             for file in os.listdir(folder_path):
-                # print(file)
-                if file.endswith(".fastq") or file.endswith(".fq") or file.endswith(".fasta") or file.endswith(
-                        ".fastq.gz"):
-                    files.append(f"{folder_path}/{file}")
+                if file.endswith((".fastq", ".fq", ".fasta", ".fastq.gz")):
+                    files.append(os.path.join(folder_path, file))
                     found = True
             if not found:
                 self.logger.error(f"No sequencing files (.fastq, .fq found at {folder_path}")

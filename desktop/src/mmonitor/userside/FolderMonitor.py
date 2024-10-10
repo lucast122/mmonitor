@@ -18,25 +18,28 @@ class SequencerFileHandler(FileSystemEventHandler):
             self.folder_monitor.add_new_file(event.src_path)
 
 class FolderMonitor:
-     def __init__(self, folders, watcher_window):
+    def __init__(self, folders, watcher_window):
         self.folders = folders
         self.watcher_window = watcher_window
         self.observer = Observer()
-        self.running = False
+        self.handler = FileHandler(self)
 
-     def start(self):
-        self.running = True
+    def start(self):
         for folder in self.folders:
-            event_handler = SequencerFileHandler(self)
-            self.observer.schedule(event_handler, folder, recursive=True)
-        self.observer_thread = threading.Thread(target=self.observer.start, daemon=True)
-        self.observer_thread.start()
+            self.observer.schedule(self.handler, folder, recursive=False)
+        self.observer.start()
 
-     def stop(self):
-        self.running = False
+    def stop(self):
         self.observer.stop()
-        self.observer_thread.join()
+        self.observer.join()
 
-     def add_new_file(self, file_path):
-        if self.running:
-            self.watcher_window.add_new_file(file_path)
+    def add_new_file(self, file_path):
+        self.watcher_window.add_new_file(file_path)
+
+class FileHandler(FileSystemEventHandler):
+    def __init__(self, folder_monitor):
+        self.folder_monitor = folder_monitor
+
+    def on_created(self, event):
+        if not event.is_directory and (event.src_path.endswith('.fastq') or event.src_path.endswith('.fastq.gz')):
+            self.folder_monitor.add_new_file(event.src_path)

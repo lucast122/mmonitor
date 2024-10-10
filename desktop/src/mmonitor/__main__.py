@@ -14,19 +14,15 @@ from mmonitor.userside.view import GUI
 # Now we can import from mmonitor
 
 
+import tkinter as tk
+from mmonitor.userside.view import GUI
+
 def main():
-    print("Starting MMonitor application...")
-    try:
-        app = GUI()
-        app.start_app()
-        print("Application closed successfully.")
-    except Exception as e:
-        print(f"Error in main function: {e}")
-        traceback.print_exc()
+    app = GUI()  # No need to pass root
+    app.mainloop()
 
 if __name__ == "__main__":
     main()
-
 def exception_handler(exception_type, exception, traceback):
     print(f"{exception_type.__name__}: {exception}")
 

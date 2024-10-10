@@ -21,6 +21,7 @@ import requests
 import wget
 import ftplib
 from io import BytesIO
+from mmonitor.userside.utils import create_tooltip
 
 # Add the parent directory of 'mmonitor' to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -70,12 +71,7 @@ class DatabaseWindow(ctk.CTkFrame):
         title_label.pack(pady=(0, 10))
         
         explanation = ("Here you can manage the databases used for taxonomic classification.\n"
-                       "To select an existing custom database chose either Emu or Centrifuge tab and click 'Browse'."
-                       "To build a new database, select the reference domains and click 'Build Database'."
-                       "This will download the required files and create a custom database in the selected directory."
-                       "After the database is built, you can select it in the 'Database Path' field and click 'Confirm'."
-                       "The database will be used for taxonomic classification in the analysis pipeline."
-                       "")
+                       "You can build and update both Emu (16S) and Centrifuge (WGS) databases.")
         ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
 
         # Create a notebook (tabbed interface)
@@ -103,8 +99,11 @@ class DatabaseWindow(ctk.CTkFrame):
         self.emu_path_entry = ctk.CTkEntry(path_frame)
         self.emu_path_entry.pack(side="left", fill="x", expand=True)
         self.emu_path_entry.insert(0, self.emu_db_path)
+        create_tooltip(self.emu_path_entry, "Path to the Emu database directory")
 
-        ctk.CTkButton(path_frame, text="Browse", command=self.select_emu_db).pack(side="right", padx=(5, 0))
+        browse_button = ctk.CTkButton(path_frame, text="Browse", command=self.select_emu_db)
+        browse_button.pack(side="right", padx=(5, 0))
+        create_tooltip(browse_button, "Select the Emu database directory")
 
         domains_frame = ctk.CTkFrame(frame)
         domains_frame.pack(fill="x", pady=(20, 0))
@@ -133,8 +132,11 @@ class DatabaseWindow(ctk.CTkFrame):
         self.centrifuge_path_entry = ctk.CTkEntry(path_frame)
         self.centrifuge_path_entry.pack(side="left", fill="x", expand=True)
         self.centrifuge_path_entry.insert(0, self.centrifuge_db_path)
+        create_tooltip(self.centrifuge_path_entry, "Path to the Centrifuge database directory")
 
-        ctk.CTkButton(path_frame, text="Browse", command=self.select_centrifuge_db).pack(side="right", padx=(5, 0))
+        browse_button = ctk.CTkButton(path_frame, text="Browse", command=self.select_centrifuge_db)
+        browse_button.pack(side="right", padx=(5, 0))
+        create_tooltip(browse_button, "Select the Centrifuge database directory")
 
         # Database Type Selection
         db_type_frame = ctk.CTkFrame(frame)

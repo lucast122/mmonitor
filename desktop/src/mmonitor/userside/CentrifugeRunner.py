@@ -29,6 +29,7 @@ def process_file(file, temp_dir):
 class CentrifugeRunner:
 
     def __init__(self):
+        self.centrifuge_path = "centrifuge"  # Assuming centrifuge is in the system PATH
         self.logger = logging.getLogger('timestamp')
         self.cent_out = ""
         self.concat_file_name = ""
@@ -187,3 +188,23 @@ class CentrifugeRunner:
             if file.endswith((".fastq", ".fq", ".fasta", ".fastq.gz")):
                 files.append(os.path.join(folder_path, file))
         return files
+
+    def run(self, input_file, output_dir, db_path, threads=1):
+        output_file = os.path.join(output_dir, "centrifuge_output.tsv")
+        report_file = os.path.join(output_dir, "centrifuge_report.tsv")
+
+        cmd = [
+            self.centrifuge_path,
+            "-x", db_path,
+            "-U", input_file,
+            "--threads", str(threads),
+            "-S", output_file,
+            "--report-file", report_file
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+            print(f"Centrifuge analysis completed successfully. Results saved in {output_dir}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Centrifuge: {e}")
+            raise
