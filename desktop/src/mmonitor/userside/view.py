@@ -32,9 +32,12 @@ from mmonitor.userside.FunctionalRunner import FunctionalRunner
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from mmonitor.userside.DatabaseWindow import DatabaseWindow
 from mmonitor.userside.LoginWindow import LoginWindow
+import multiprocessing
+from mmonitor.userside.utils import create_tooltip
+import json
 
 VERSION = "v1.1.0"
-MAIN_WINDOW_X, MAIN_WINDOW_Y = 900, 900
+MAIN_WINDOW_X, MAIN_WINDOW_Y = 1100, 950
 CONSOLE_WIDTH = 300
 
 class TeeOutput(io.StringIO):
@@ -87,7 +90,15 @@ class GUI(ctk.CTk):
         super().__init__()
         self.title(f"MMonitor {VERSION}")
         self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}")
+        self.minsize(MAIN_WINDOW_X, MAIN_WINDOW_Y)  # Set minimum window size
         self.resizable(False, False)
+
+        # Define FRAME_PADDING here
+        self.FRAME_PADDING = 20
+
+        # Set initial appearance mode
+        self.appearance_mode = "light"
+        ctk.set_appearance_mode(self.appearance_mode)
 
         self.console_expanded = False
         self.console_auto_opened = False
@@ -96,6 +107,7 @@ class GUI(ctk.CTk):
         self.database_window = None
         self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
         self.logged_in = False
+        self.offline_mode = False
         self.current_user = None
         self.current_window = None
         self.setup_variables()
@@ -112,7 +124,7 @@ class GUI(ctk.CTk):
         print("GUI initialization complete.")
         print("Starting MMonitor application...")
 
-        self.show_home()
+        self.show_login()  # Show login screen by default
 
     def setup_variables(self):
         print("Setting up variables...")
@@ -171,29 +183,20 @@ class GUI(ctk.CTk):
         ]
 
         for text, command, icon_name in buttons:
-            icon = self.load_icon(icon_name, size=(20, 20))
-            btn = ctk.CTkButton(self.sidebar, text=text, command=command, image=icon,
-                                compound="left", anchor="w", height=40,
-                                fg_color="transparent", hover_color=("gray70", "gray30"))
+            icon = self.load_icon(icon_name, size=(24, 24))  # Slightly larger icons
+            btn = ctk.CTkButton(self.sidebar, text=text, command=lambda cmd=command: self.check_login_and_execute(cmd), 
+                                image=icon, compound="left", anchor="w", height=40,
+                                fg_color="transparent", hover_color=("gray80", "gray30"),
+                                font=("Helvetica", 12))
             btn.pack(pady=5, padx=10, fill="x")
+            create_tooltip(btn, f"Click to {text.lower()}")
 
-        # Add login/logout button at the top
-        self.login_button = ctk.CTkButton(self.sidebar, text="Login", command=self.handle_login_logout,
-                                          compound="left", anchor="w", height=40,
-                                          fg_color="#1f538d", hover_color=("#14375e", "#14375e"))
-        self.login_button.pack(pady=10, padx=10, fill="x", side="top")
+        # Add login status at the top
+        self.login_status_label = ctk.CTkLabel(self.sidebar, text="Not logged in", anchor="w", height=40)
+        self.login_status_label.pack(pady=10, padx=10, fill="x", side="top")
 
-    def create_header(self):
-        header_label = ctk.CTkLabel(self.content_frame, text=f"Metagenome Monitor {VERSION}", font=("Helvetica", 18))
-        header_label.pack(pady=10)
-
-    def create_console(self):
-        self.console_frame = ctk.CTkFrame(self)
-        self.console_frame.pack(side="right", fill="y", expand=False)
-        self.console_frame.pack_forget()  # Initially hide the console
-
-        self.console_text = ctk.CTkTextbox(self.console_frame, wrap="word", width=300)
-        self.console_text.pack(fill="both", expand=True)
+        # Update appearance for initial mode
+        self.update_appearance()
 
     def load_icon(self, icon_name, size=(20, 20)):
         icon_path = os.path.join(IMAGES_PATH, icon_name)
@@ -497,14 +500,44 @@ class GUI(ctk.CTk):
         self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
 
     def open_folder_watcher(self):
-        print("Showing Folder Watcher")
-        self.clear_content_frame()
-        print("Content frame cleared")
-        self.folder_watcher_window = FolderWatcherWindow(self.content_frame)
-        print("FolderWatcherWindow created")
-        self.folder_watcher_window.pack(fill="both", expand=True)
-        print("FolderWatcherWindow packed")
-        self.update()  # Force update of the GUI
+        if self.check_valid_config():
+            self.clear_content_frame()
+            self.folder_watcher_window = FolderWatcherWindow(self.content_frame, self)
+            self.folder_watcher_window.pack(fill="both", expand=True)
+        else:
+            messagebox.showwarning("Invalid Configuration", "Please set up analysis parameters in the Analysis tab first.")
+            self.show_analysis()
+
+    def check_valid_config(self):
+        config_file = os.path.join(os.path.expanduser("~"), ".mmonitor_config.json")
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+            # Check for essential parameters
+            essential_params = ['analysis_type', 'threads', 'min_length', 'min_quality', 'emu_db', 'centrifuge_db', 'min_abundance']
+            missing_params = [param for param in essential_params if param not in config or not config[param]]
+            if missing_params:
+                messagebox.showwarning("Invalid Configuration", f"The following parameters are missing or empty in the configuration:\n{', '.join(missing_params)}\n\nPlease set these parameters in the Analysis tab.")
+                return False
+            return True
+        else:
+            # If in offline mode and config doesn't exist, create a default one
+            if self.offline_mode:
+                default_config = {
+                    'analysis_type': 'taxonomy-wgs',
+                    'threads': str(multiprocessing.cpu_count()),
+                    'min_length': '1000',
+                    'min_quality': '10',
+                    'emu_db': os.path.join(ROOT, "src", "resources", "emu_db"),
+                    'centrifuge_db': os.path.join(ROOT, "src", "resources", "centrifuge_db"),
+                    'min_abundance': '0.01'
+                }
+                with open(config_file, 'w') as f:
+                    json.dump(default_config, f, indent=4)
+                return True
+            else:
+                messagebox.showwarning("Configuration Missing", "Configuration file not found. Please set up analysis parameters in the Analysis tab first.")
+                return False
 
     def select_database(self):
         database_path = filedialog.askdirectory(title="Select Database Directory")
@@ -518,71 +551,158 @@ class GUI(ctk.CTk):
         self.database_window.pack(fill="both", expand=True)
         self.update()  # Force update of the GUI
 
-    def handle_login_logout(self):
-        if not self.logged_in:
-            self.open_login_window()
+    def show_login(self):
+        self.clear_content_frame()
+        
+        login_frame = ctk.CTkFrame(self.content_frame)
+        login_frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        ctk.CTkLabel(login_frame, text="Login to MMonitor", font=("Helvetica", 24, "bold")).pack(pady=(0, 20))
+
+        # Server address
+        server_frame = ctk.CTkFrame(login_frame)
+        server_frame.pack(fill="x", pady=10)
+        ctk.CTkLabel(server_frame, text="Server:", width=100).pack(side="left", padx=(0, 10))
+        self.server_entry = ctk.CTkEntry(server_frame)
+        self.server_entry.pack(side="left", expand=True, fill="x")
+        self.server_entry.insert(0, "mmonitor.org")
+
+        # Port (disabled by default)
+        port_frame = ctk.CTkFrame(login_frame)
+        port_frame.pack(fill="x", pady=10)
+        ctk.CTkLabel(port_frame, text="Port:", width=100).pack(side="left", padx=(0, 10))
+        self.port_entry = ctk.CTkEntry(port_frame, state="disabled")
+        self.port_entry.pack(side="left", expand=True, fill="x")
+        self.port_entry.insert(0, "443")  # Default HTTPS port
+        self.port_checkbox = ctk.CTkCheckBox(port_frame, text="Custom Port", command=self.toggle_port_entry)
+        self.port_checkbox.pack(side="left", padx=(10, 0))
+
+        # Username
+        username_frame = ctk.CTkFrame(login_frame)
+        username_frame.pack(fill="x", pady=10)
+        ctk.CTkLabel(username_frame, text="Username:", width=100).pack(side="left", padx=(0, 10))
+        self.username_entry = ctk.CTkEntry(username_frame)
+        self.username_entry.pack(side="left", expand=True, fill="x")
+
+        # Password
+        password_frame = ctk.CTkFrame(login_frame)
+        password_frame.pack(fill="x", pady=10)
+        ctk.CTkLabel(password_frame, text="Password:", width=100).pack(side="left", padx=(0, 10))
+        self.password_entry = ctk.CTkEntry(password_frame, show="*")
+        self.password_entry.pack(side="left", expand=True, fill="x")
+
+        # Buttons
+        button_frame = ctk.CTkFrame(login_frame)
+        button_frame.pack(fill="x", pady=(20, 0))
+        ctk.CTkButton(button_frame, text="Login", command=self.perform_login).pack(side="left", padx=5, expand=True, fill="x")
+        ctk.CTkButton(button_frame, text="Offline Mode", command=self.enter_offline_mode).pack(side="right", padx=5, expand=True, fill="x")
+
+    def toggle_port_entry(self):
+        if self.port_checkbox.get():
+            self.port_entry.configure(state="normal")
+            if not self.port_entry.get():
+                self.port_entry.insert(0, "443")  # Default HTTPS port
         else:
-            self.logout()
+            self.port_entry.configure(state="disabled")
 
-    def open_login_window(self):
-        if not self.logged_in:
-            login_window = LoginWindow(self, self.db_path)
-            self.wait_window(login_window)
-            if login_window.logged_in:
-                self.logged_in = True
-                self.current_user = login_window.username_var.get()
-                self.update_login_status()
-
-    def logout(self):
-        confirm = messagebox.askyesno("Logout", "Are you sure you want to log out?")
-        if confirm:
-            self.logged_in = False
-            self.current_user = None
+    def perform_login(self):
+        server = self.server_entry.get()
+        port = self.port_entry.get() if self.port_checkbox.get() else "443"
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+        
+        # Here you would typically validate the credentials against your backend
+        # For this example, we'll just check if both fields are non-empty
+        if server and username and password:
+            self.logged_in = True
+            self.current_user = username
+            self.offline_mode = False
             self.update_login_status()
+            self.show_home()
+        else:
+            messagebox.showerror("Login Failed", "Invalid server, username or password")
+
+    def enter_offline_mode(self):
+        self.offline_mode = True
+        self.update_login_status()
+        self.show_home()
 
     def update_login_status(self):
         if self.logged_in:
-            self.login_button.configure(text=f"Logged in as {self.current_user}")
-            # Enable other functionalities that require login
-            print(f"Successfully logged in as {self.current_user}")
+            self.login_status_label.configure(text=f"Logged in as {self.current_user}")
+        elif self.offline_mode:
+            self.login_status_label.configure(text="Offline Mode")
         else:
-            self.login_button.configure(text="Login")
-            # Disable functionalities that require login
-            print("Logged out")
+            self.login_status_label.configure(text="Not logged in")
+
+    def logout(self):
+        self.logged_in = False
+        self.current_user = None
+        self.offline_mode = False
+        self.update_login_status()
+        self.show_login()
 
     def toggle_dark_mode(self):
-        if self.cget("fg_color") == "white":
+        if self.appearance_mode == "light":
+            self.appearance_mode = "dark"
             ctk.set_appearance_mode("dark")
         else:
+            self.appearance_mode = "light"
             ctk.set_appearance_mode("light")
+        
+        self.update_appearance()
+        if self.folder_watcher_window:
+            self.folder_watcher_window.update_appearance()
+
+    def update_appearance(self):
+        if self.appearance_mode == "light":
+            self.configure(fg_color="white")
+            for widget in self.sidebar.winfo_children():
+                if isinstance(widget, ctk.CTkButton):
+                    widget.configure(fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC")
+                elif isinstance(widget, ctk.CTkLabel):
+                    widget.configure(text_color="black")
+        else:
+            self.configure(fg_color="gray10")
+            for widget in self.sidebar.winfo_children():
+                if isinstance(widget, ctk.CTkButton):
+                    widget.configure(fg_color="gray20", text_color="white", hover_color="gray30")
+                elif isinstance(widget, ctk.CTkLabel):
+                    widget.configure(text_color="white")
 
     def show_home(self):
         self.clear_content_frame()
         
         content_scroll = ctk.CTkScrollableFrame(self.content_frame)
-        content_scroll.pack(fill="both", expand=True)
+        content_scroll.pack(fill="both", expand=True, padx=self.FRAME_PADDING, pady=self.FRAME_PADDING)
         
-        ctk.CTkLabel(content_scroll, text="Metagenome Monitor", font=("Helvetica", 24, "bold")).pack(pady=20)
+        ctk.CTkLabel(content_scroll, text="Welcome to MMonitor", font=("Helvetica", 24, "bold")).pack(pady=20)
         
-        explanation = ("MMonitor-desktop is a tool for monitoring microbiomes. \n"
-                       "Use the sidebar to navigate between different functionalities."
-                       "After login, you can start by adding a new analysis or setting up a folder watcher.")
-        ctk.CTkLabel(content_scroll, text=explanation, wraplength=500).pack(pady=(0, 20))
+        if self.logged_in or self.offline_mode:
+            explanation = ("MMonitor is a comprehensive tool for metagenomic analysis.\n"
+                           "Use the sidebar to navigate between different functionalities.")
+            ctk.CTkLabel(content_scroll, text=explanation, wraplength=500).pack(pady=(0, 20))
 
-        actions = [
-            ("Start New Analysis", self.show_analysis, "Run analysis pipeline on existing files."),
-            ("View Recent Results", self.view_results, "Open the mmonitor web interface and login to view recent results."),
-            ("Manage Databases", self.open_database_window, "Select a custom database for taxonomic analysis or build new database automatically from scratch."),
-            ("Watch Folder", self.open_folder_watcher, "Track the output directory of your sequencing run to configure a folder watcher that automatically runs analysis on new files."),
-        ]
+            actions = [
+                ("Start New Analysis", self.show_analysis, "Configure and run a new analysis pipeline"),
+                ("View Recent Results", self.view_results, "Check your latest analysis results"),
+                ("Manage Databases", self.open_database_window, "Update or configure your databases"),
+                ("Watch Folder", self.open_folder_watcher, "Set up automatic analysis for new files"),
+            ]
 
-        for title, command, description in actions:
-            card = ctk.CTkFrame(content_scroll)
-            card.pack(fill="x", padx=10, pady=10)
-            
-            ctk.CTkLabel(card, text=title, font=("Helvetica", 18, "bold")).pack(pady=5)
-            ctk.CTkLabel(card, text=description, wraplength=300).pack(pady=5)
-            ctk.CTkButton(card, text="Go", command=command, width=100).pack(pady=10)
+            for title, command, description in actions:
+                card = ctk.CTkFrame(content_scroll)
+                card.pack(fill="x", padx=10, pady=10)
+                
+                ctk.CTkLabel(card, text=title, font=("Helvetica", 18, "bold")).pack(pady=5)
+                ctk.CTkLabel(card, text=description, wraplength=300).pack(pady=5)
+                ctk.CTkButton(card, text="Go", command=command, width=100).pack(pady=10)
+
+            # Add logout button
+            ctk.CTkButton(content_scroll, text="Logout", command=self.logout).pack(pady=20)
+        else:
+            ctk.CTkLabel(content_scroll, text="Please log in to access MMonitor features.").pack(pady=20)
+            ctk.CTkButton(content_scroll, text="Go to Login", command=self.show_login).pack(pady=10)
 
     def view_results(self):
         if self.logged_in:
@@ -605,14 +725,13 @@ class GUI(ctk.CTk):
         self.pipeline_popup.pack(fill="both", expand=True)
 
     def show_folder_watcher(self):
-        print("Showing Folder Watcher")
-        self.clear_content_frame()
-        print("Content frame cleared")
-        self.folder_watcher_window = FolderWatcherWindow(self.content_frame)
-        print("FolderWatcherWindow created")
-        self.folder_watcher_window.pack(fill="both", expand=True)
-        print("FolderWatcherWindow packed")
-        self.update()  # Force update of the GUI
+        if self.check_valid_config():
+            self.clear_content_frame()
+            self.folder_watcher_window = FolderWatcherWindow(self.content_frame, self)
+            self.folder_watcher_window.pack(fill="both", expand=True)
+        else:
+            messagebox.showwarning("Invalid Configuration", "Please set up analysis parameters in the Analysis tab first.")
+            self.show_analysis()
 
     def show_database_management(self):
         print("Showing Database Management")
@@ -625,34 +744,36 @@ class GUI(ctk.CTk):
         self.update()  # Force update of the GUI
 
     def clear_content_frame(self):
-        print("Clearing content frame")
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-        print("Content frame cleared")
+        if self.content_frame.winfo_children():
+            print("Clearing content frame")
+            for widget in self.content_frame.winfo_children():
+                widget.destroy()
+            print("Content frame cleared")
+        else:
+            print("Content frame is already empty")
 
-class ToolTip:
-    def __init__(self, widget, tip_text):
-        self.widget = widget
-        self.tip_text = tip_text
-        self.tip_window = None
+    def create_console(self):
+        self.console_frame = ctk.CTkFrame(self)
+        self.console_frame.pack(side="right", fill="y", expand=False)
+        self.console_frame.pack_forget()  # Initially hide the console
 
-    def show_tip(self, event=None):
-        x, y, _, _ = self.widget.bbox("insert")
-        x += self.widget.winfo_rootx() + 25
-        y += self.widget.winfo_rooty() + 25
+        self.console_text = ctk.CTkTextbox(self.console_frame, wrap="word", width=300)
+        self.console_text.pack(fill="both", expand=True)
 
-        self.tip_window = tk.Toplevel(self.widget)
-        self.tip_window.wm_overrideredirect(True)
-        self.tip_window.wm_geometry(f"+{x}+{y}")
+    def check_login_and_execute(self, command):
+        if self.logged_in or self.offline_mode:
+            command()
+        else:
+            messagebox.showinfo("Login Required", "Please log in or select offline mode to access this feature.")
+            self.show_login()
 
-        label = tk.Label(self.tip_window, text=self.tip_text, foreground="black", background="white", relief="solid", borderwidth=1,
-                         font=("Helvetica", "14", "normal"))
-        label.pack(ipadx=1)
-
-    def hide_tip(self, event=None):
-        if self.tip_window:
-            self.tip_window.destroy()
-            self.tip_window = None
+    def run_pipeline(self, analysis_type, params):
+        if self.check_valid_config():
+            # Existing pipeline execution code
+            pass
+        else:
+            messagebox.showwarning("Invalid Configuration", "Please set up analysis parameters in the Analysis tab first.")
+            self.show_analysis()
 
 class CustomDatePicker(ctk.CTkToplevel):
     def __init__(self, parent, callback):
