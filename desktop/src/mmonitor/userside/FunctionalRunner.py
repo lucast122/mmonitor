@@ -212,25 +212,6 @@ class FunctionalRunner:
         except subprocess.CalledProcessError as e:
             print("Error executing Metabat2 command:", e.stderr)
 
-    def run_racon(self, read_file_path, sample_name):
-        overlaps = f"{self.assembly_out}{sample_name}/{sample_name}_overlaps.paf"
-        assembly = f"{self.assembly_out}{sample_name}/assembly.fasta"
-        racon_out = f"{assembly.removesuffix('.fasta')}_racon.fasta"
-        cmd = f"minimap -t {self.cpus} -x ava-ont {assembly} {read_file_path} > {overlaps}"
-        print(cmd)
-        os.system(cmd)
-        cmd = f"racon -x -6 -g -8 -w 500 -t {self.cpus} {read_file_path} {overlaps} {assembly} > {racon_out}"
-        print(cmd)
-        os.system(cmd)
-
-        for i in range(3):
-            cmd = f"minimap -t {self.cpus} -x ava-ont {racon_out} {read_file_path} > {overlaps}"
-            os.system(cmd)
-            cmd = f"racon -x -6 -g -8 -w 500 -t {self.cpus} {read_file_path} {overlaps} {racon_out} > {assembly.removesuffix('.fasta')}_racon_{i}.fasta"
-            racon_out = f"{assembly.removesuffix('.fasta')}_racon_{i}.fasta"
-            print(cmd)
-            os.system(cmd)
-
     def run_medaka_consensus(self, assembly_file, read_file, dir_path, model="r941_min_high_g303"):
         output_dir = os.path.join(dir_path, "medaka_corrected")
 
@@ -257,59 +238,58 @@ class FunctionalRunner:
         except subprocess.CalledProcessError as e:
             print("Error executing Medaka consensus command:", e.stderr)
 
-    def run_binning(self, sample_name):
-        try:
-            os.system("diamond help")
-        except FileNotFoundError:
-            print("Did not find DIAMOND on system path, please install with 'conda install -c bioconda diamond")
-            # subprocess.check_call([sys.executable, '-m', 'conda', 'install',
-            #                        '-c bioconda diamond'])
-            # subprocess.call("conda install -c bioconda diamond")
+    def run_fastcat(self, input_files, output_dir):
+        output_file = os.path.join(output_dir, "concatenated.fastq")
+        cmd = ["fastcat", "-o", output_file] + input_files
+        subprocess.run(cmd, check=True)
+        return output_file
 
-        if not os.path.exists(f"{ROOT}/src/resources/db/megan-mapping-annotree-June-2021.db"):
-            print("Did not find annotree MEGAN mapping fille, trying to download it from the web...")
-            URL = "https://software-ab.informatik.uni-tuebingen.de/download/megan-annotree/megan-mapping-annotree-June-2021.db.zip"
-            response = requests.get(URL)
-            open(f"{ROOT}/src/resources/db/megan-mapping-annotree-June-2021.db.zip", "wb").write(response.content)
-            with zipfile.ZipFile(f"{ROOT}/src/resources/db/megan-mapping-annotree-June-2021.db.zip", 'r') as zip_ref:
-                zip_ref.extractall(f"{ROOT}/src/resources/db/")
-            os.remove(f"{ROOT}/src/resources/db/megan-mapping-annotree-June-2021.db.zip")
+    def run_filtlong(self, input_file, output_dir, min_length, min_quality):
+        output_file = os.path.join(output_dir, "filtered.fastq")
+        cmd = ["filtlong", "--min_length", str(min_length), "--min_mean_q", str(min_quality), input_file]
+        with open(output_file, "w") as out:
+            subprocess.run(cmd, stdout=out, check=True)
+        return output_file
 
-        if not os.path.exists(f"{ROOT}/src/resources/db/annotree.dmnd"):
-            print("Did not find annotree DIAMOND db, will download and build...")
-            URL = "https://software-ab.informatik.uni-tuebingen.de/download/megan-annotree/annotree.fasta.gz"
-            response = requests.get(URL)
-            open(f"{ROOT}/src/resources/db/annotree.fasta.gz", "wb").write(response.content)
-            subprocess.Popen(["diamond", "makedb", "--in", f"{ROOT}/src/resources/db/annotree.fasta.gz",
-                              f"--db", f"{ROOT}/src/resources/db/annotree.dmnd", "-p", f"{self.cpus}"])
-        diamond_cmd = ["diamond", "blastx", "-d", f"{ROOT}/src/resources/db/annotree.dmnd",
-                       "-q", f"{ROOT}/src/resources/pipeline_out/{sample_name}/consensus.fasta", "-o",
-                       f"{ROOT}/src/resources/pipeline_out/{sample_name}/consensus.daa", "--outfmt", "100", "-c1",
-                       "-b12", "-t", f"{ROOT}/src/resources/pipeline_out/{sample_name}/", "-p", f"{self.cpus}",
-                       "--top", "10", "-F15", "--range-culling"]
-        with open(os.devnull, 'wb') as devnull:
-            subprocess.Popen(diamond_cmd, stdout=devnull, stderr=subprocess.STDOUT)
-        meganize_cmd = f"daa-meganizer -i {ROOT}/src/resources/pipeline_out/{sample_name}/consensus.daa" \
-                       f" -mdb {ROOT}/src/resources/db/megan-mapping-annotree-June-2021.db -t {self.cpus} --lcaCoveragePercent 51 -lg"
-        subprocess.call(meganize_cmd)
-        read_extractor_cmd = f"read-extractor -i {ROOT}/src/resources/pipeline_out/{sample_name}/consensus.daa  -o {ROOT}/src/resources/pipeline_out/{sample_name}/bins/%t.fasta -c Taxonomy --frameShiftCorrect"
-        subprocess.call(read_extractor_cmd)
+    def run_metaflye(self, input_file, output_dir):
+        cmd = ["flye", "--meta", "--nano-raw", input_file, "--out-dir", output_dir]
+        subprocess.run(cmd, check=True)
+        return os.path.join(output_dir, "assembly.fasta")
 
+    def run_semibin(self, assembly_file, reads_file, output_dir):
+        bins_dir = os.path.join(output_dir, "bins")
+        cmd = ["SemiBin", "single_easy_bin", "-i", assembly_file, "-r", reads_file, "-o", bins_dir]
+        subprocess.run(cmd, check=True)
+        return bins_dir
 
-    # daa-meganizer -i $daa -mdb /abscratch/lucas/databases/megan-mapping-annotree-June-2021.db -t 48 --lcaCoveragePercent 51 -lg
-    # read-extractor -i $daa -o $output_folder/extracted_reads/%t.fasta -c Taxonomy --frameShiftCorrect
-    def run_prokka(self, bin_folder_path):
-        fasta_files = glob.glob(f"{bin_folder_path}/*.fasta")
-        for fasta in fasta_files:
-            cmd = f"prokka --outdir {bin_folder_path}" \
-                  f" --force --prefix $(basename {fasta}) {fasta}  --cpus 0 --addgenes"
-            subprocess.call(cmd)
+    def run_gtdbtk(self, bins_dir, output_dir, threads):
+        if not os.path.exists(self.gtdbtk_db_path):
+            print("Downloading GTDB-TK database...")
+            subprocess.run(["gtdbtk", "download", "--all"], check=True)
+        
+        gtdbtk_out = os.path.join(output_dir, "gtdbtk_out")
+        cmd = ["gtdbtk", "classify_wf", "--genome_dir", bins_dir, "--out_dir", gtdbtk_out, "--cpus", str(threads)]
+        subprocess.run(cmd, check=True)
+        return gtdbtk_out
 
-    """
-    This method takes as input
-    @param path_to_prokka_output: Path to the output of prokka that contains the tsv files that will get concatenated
-    @param output_path: Path to safe the final tsv file to. That tsv file can then used as input for keggcharter and has the columns with EC_number nad taxonomy
-    """
+    def run_checkm2(self, bins_dir, output_dir, threads):
+        if not os.path.exists(self.checkm2_db_path):
+            print("Downloading CheckM2 database...")
+            subprocess.run(["checkm2", "database", "--download"], check=True)
+        
+        checkm2_out = os.path.join(output_dir, "checkm2_out")
+        cmd = ["checkm2", "predict", "--threads", str(threads), "--input", bins_dir, "--output-directory", checkm2_out]
+        subprocess.run(cmd, check=True)
+        return checkm2_out
+
+    def run_bakta(self, bins_dir, output_dir):
+        bakta_out = os.path.join(output_dir, "bakta_out")
+        for bin_file in os.listdir(bins_dir):
+            if bin_file.endswith(".fa") or bin_file.endswith(".fasta"):
+                bin_path = os.path.join(bins_dir, bin_file)
+                cmd = ["bakta", "--output", os.path.join(bakta_out, bin_file), bin_path]
+                subprocess.run(cmd, check=True)
+        return bakta_out
 
     def create_keggcharter_input(self, path_to_prokka_output):
         keggcharter_sheet = {'taxonomy': ['']}
@@ -526,16 +506,7 @@ class FunctionalRunner:
         subprocess.run(cmd, check=True)
         return checkm2_out
 
-    def run_bakta(self, bins_dir, output_dir, threads):
-        bakta_out = os.path.join(output_dir, "bakta_out")
-        os.makedirs(bakta_out, exist_ok=True)
-        for bin_file in os.listdir(bins_dir):
-            if bin_file.endswith(".fa") or bin_file.endswith(".fasta"):
-                bin_path = os.path.join(bins_dir, bin_file)
-                cmd = ["bakta", "--threads", str(threads), "--output", os.path.join(bakta_out, bin_file), bin_path]
-                subprocess.run(cmd, check=True)
-        return bakta_out
-
+    
     def run_gtdbtk(self, bins_dir, output_dir, threads):
         if not os.path.exists(self.gtdbtk_db_path):
             print("Downloading GTDB-TK database...")
@@ -545,3 +516,23 @@ class FunctionalRunner:
         cmd = ["gtdbtk", "classify_wf", "--genome_dir", bins_dir, "--out_dir", gtdbtk_out, "--cpus", str(threads)]
         subprocess.run(cmd, check=True)
         return gtdbtk_out
+
+    def run(self, input_file, output_dir, threads=1):
+        assembly_dir = os.path.join(output_dir, "assembly")
+        os.makedirs(assembly_dir, exist_ok=True)
+
+        cmd = [
+            self.flye_path,
+            "--nano-raw", input_file,
+            "--out-dir", assembly_dir,
+            "--threads", str(threads)
+        ]
+
+        try:
+            subprocess.run(cmd, check=True)
+            print(f"Flye assembly completed successfully. Results saved in {assembly_dir}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Flye: {e}")
+            raise
+
+        # Add additional functional analysis steps here if needed

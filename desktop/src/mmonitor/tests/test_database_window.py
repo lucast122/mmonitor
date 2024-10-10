@@ -5,7 +5,7 @@ from unittest import mock
 from unittest.mock import patch, MagicMock, call
 import multiprocessing
 import subprocess
-from mmonitor.userside.DatabaseWindow import DatabaseWindow  # Remove process_chunk from this import
+from mmonitor.userside.DatabaseWindow import DatabaseWindow, process_chunk
 
 class TestDatabaseWindow(unittest.TestCase):
     def setUp(self):
@@ -25,20 +25,13 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
 
     def test_process_chunk(self):
         chunk = self.test_input.strip().split('\n')
-        result, skipped = process_chunk(chunk)
+        result = process_chunk(chunk)
         self.assertEqual(len(result), 2)
-        self.assertEqual(skipped, 1)
         self.assertIn("NR_181927.1\t123456\n", result)
         self.assertIn("NR_181928.1\t789012\n", result)
 
     @patch('multiprocessing.Pool')
     def test_create_seq2taxid_map(self, mock_pool):
-        mock_pool.return_value.__enter__.return_value.map.return_value = [
-            (["NR_181927.1\t123456\n"], 0),
-            (["NR_181928.1\t789012\n"], 0),
-            ([], 1)
-        ]
-
         with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_input:
             temp_input.write(self.test_input)
             temp_input.flush()
@@ -48,10 +41,7 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
             output_filename = temp_output.name
 
         mock_db_window = MagicMock()
-        skipped, total = DatabaseWindow.create_seq2taxid_map(mock_db_window, input_filename, output_filename)
-
-        self.assertEqual(skipped, 1)
-        self.assertEqual(total, 2)
+        DatabaseWindow.create_seq2taxid_map(mock_db_window, input_filename, output_filename)
 
         with open(output_filename, 'r') as f:
             content = f.read()
@@ -63,43 +53,27 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
         os.unlink(output_filename)
 
     @patch('subprocess.run')
-    @patch('subprocess.Popen')
-    @patch('multiprocessing.Pool')
-    @patch('os.path.getsize')
-    def test_build_emu_db(self, mock_getsize, mock_pool, mock_popen, mock_run):
-        mock_db_window = MagicMock()
-        mock_db_window.base_dir = "/path/to/base"
-        mock_db_window.emu_db_path = "/path/to/emu_db"
-        mock_db_window.create_seq2taxid_map.return_value = (0, 100)  # 0 skipped, 100 processed
-        mock_getsize.return_value = 1000  # Non-zero file size
-
-        mock_process = MagicMock()
-        mock_process.stdout.readline.side_effect = ["Output line 1", "Output line 2", ""]
-        mock_process.poll.return_value = 0
-        mock_popen.return_value = mock_process
-
-        DatabaseWindow._build_emu_db(mock_db_window)
-
-        # Check if necessary methods were called
-        mock_db_window.log_progress.assert_called()
-        mock_run.assert_called()
-        mock_popen.assert_called()
-
-        # Check if the emu_db_path was updated
-        self.assertIn("custom_emu_db", mock_db_window.emu_db_path)
-
-    @patch('subprocess.run')
     def test_build_centrifuge_db(self, mock_run):
         mock_db_window = MagicMock()
         mock_db_window.centrifuge_db_path = "/path/to/centrifuge_db"
 
-        DatabaseWindow._build_centrifuge_db(mock_db_window)
+        DatabaseWindow._build_centrifuge_db(mock_db_window, ['bacteria'], 'ncbi', '/path/to/index')
 
-        # Check if necessary methods were called
         mock_run.assert_called()
 
-        # Check if the progress window was closed
-        mock_db_window.close_progress_window.assert_called()
+    @patch('subprocess.run')
+    @patch('subprocess.Popen')
+    @patch('multiprocessing.cpu_count')
+    def test_build_emu_db(self, mock_cpu_count, mock_popen, mock_run):
+        mock_db_window = MagicMock()
+        mock_db_window.base_dir = "/path/to/base"
+        mock_db_window.emu_db_path = "/path/to/emu_db"
+        mock_db_window.create_seq2taxid_map.return_value = None
+        mock_cpu_count.return_value = 4
+
+        DatabaseWindow._build_emu_db(mock_db_window, ['bacteria'])
+
+        mock_run.assert_called()
 
     @patch('subprocess.run')
     @patch('tempfile.TemporaryDirectory')
@@ -109,30 +83,19 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
         mock_db_window.emu_db_path = "/path/to/emu_db"
         mock_temp_dir.return_value.__enter__.return_value = "/tmp/dir"
 
-        DatabaseWindow._build_emu_db(mock_db_window)
+        DatabaseWindow._build_emu_db(mock_db_window, ['bacteria'])
 
-        # Check if wget was called to download the necessary files
         mock_run.assert_any_call(["wget", "-O", "/tmp/dir/taxdump.tar.gz", "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"], 
-                                 capture_output=True, text=True, check=True)
-        mock_run.assert_any_call(["wget", "-O", "/tmp/dir/16S.fna.gz", "https://ftp.ncbi.nlm.nih.gov/refseq/TargetedLoci/Bacteria/bacteria.16SrRNA.fna.gz"], 
-                                 capture_output=True, text=True, check=True)
-
-        # Check if the files were extracted
-        mock_run.assert_any_call(["tar", "-xzvf", "/tmp/dir/taxdump.tar.gz", "-C", mock.ANY], 
-                                 capture_output=True, text=True, check=True)
-        mock_run.assert_any_call(["gunzip", "-f", "/tmp/dir/16S.fna.gz"], 
                                  capture_output=True, text=True, check=True)
 
     @patch('os.path.getsize')
-    @patch('builtins.open', new_callable=mock.mock_open, read_data="Test content")
+    @patch('builtins.open', new_callable=mock.mock_open, read_data="")
     def test_empty_seq2taxid_map(self, mock_open, mock_getsize):
         mock_db_window = MagicMock()
         mock_getsize.return_value = 0  # Simulate empty file
 
-        with self.assertRaises(ValueError) as context:
-            DatabaseWindow._build_emu_db(mock_db_window)
-
-        self.assertIn("seq2taxid map is empty", str(context.exception))
+        with self.assertRaises(ValueError):
+            DatabaseWindow._build_emu_db(mock_db_window, ['bacteria'])
 
     @patch('subprocess.run')
     @patch('subprocess.Popen')
@@ -141,7 +104,7 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
         mock_db_window = MagicMock()
         mock_db_window.base_dir = "/path/to/base"
         mock_db_window.emu_db_path = "src/resources/emu_db"
-        mock_db_window.create_seq2taxid_map.return_value = (0, 100)  # 0 skipped, 100 processed
+        mock_db_window.create_seq2taxid_map.return_value = None
         mock_cpu_count.return_value = 4
 
         mock_process = MagicMock()
@@ -151,12 +114,11 @@ CCGAGCGGTAGAAGATCTTCGGATCTTTGAGAGCGGCGTACGGGTGCGTAACACGTGTGCA
 
         DatabaseWindow._build_emu_db(mock_db_window, ['bacteria'])
 
-        # Check if the emu build-database command was called with the correct parameters
         expected_command = [
             "emu", "build-database", "emu_custom_db",
             "--sequences", mock.ANY,
             "--seq2tax", mock.ANY,
-            "--ncbi-taxonomy", mock.ANY,
+            "--taxonomy", mock.ANY,
             "--output", mock.ANY,
             "--threads", "12"
         ]

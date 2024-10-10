@@ -8,114 +8,182 @@ import subprocess
 import sys
 import gzip
 import shutil
-import queue  # Add this import
-import threading  # Make sure this is imported as well
+import queue
+import threading
 from build_mmonitor_pyinstaller import ROOT
 from tkcalendar import Calendar
+import re
+import json
+from mmonitor.userside.utils import create_tooltip
+from mmonitor.userside.MMonitorCMD import MMonitorCMD
+from mmonitor.userside.PipelineWindow import PipelinePopup
+from Bio import SeqIO
+import numpy as np
+
 
 class FolderWatcherWindow(ctk.CTkFrame):
-    def __init__(self, parent):
+    def __init__(self, parent, gui_ref):
         print("Initializing FolderWatcherWindow")
         super().__init__(parent)
         self.parent = parent
+        self.gui = gui_ref
         self.samples = {}
         self.watching = False
         self.selected_date = datetime.date.today()
         self.auto_analyze_var = tk.BooleanVar(value=False)
-        self.use_suggested_name_var = tk.BooleanVar(value=False)
+        self.use_suggested_name_var = tk.BooleanVar(value=True)
+        self.use_file_date_var = tk.BooleanVar(value=True)
+        self.config_file = os.path.join(os.path.expanduser("~"), ".mmonitor_config.json")
+        self.load_config()
+        self.analysis_type = tk.StringVar(value="taxonomy-wgs")
         self.create_widgets()
         
-        self.queue = queue.Queue()
-        self.after(100, self.process_queue)
+        self.update_queue = queue.Queue()
+        self.parent.after(100, self.process_queue)
         print("FolderWatcherWindow initialized")
+
+        self.update_appearance()
+
+    def load_config(self):
+        if os.path.exists(self.config_file):
+            with open(self.config_file, 'r') as f:
+                self.config = json.load(f)
+        else:
+            messagebox.showwarning("Configuration Missing", "Please set up analysis parameters in the Analysis tab first.")
+            self.config = {}
 
     def create_widgets(self):
         print("Creating FolderWatcherWindow widgets")
         
-        # Main frame
         main_frame = ctk.CTkFrame(self)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Title and explanation
         title_label = ctk.CTkLabel(main_frame, text="Folder Watcher", font=("Helvetica", 24, "bold"))
         title_label.pack(pady=(0, 10))
         
-        explanation = ("This tool allows you to monitor a folder for new sequencing files.\n"
-                       "You can set up automatic analysis for new samples as they arrive.")
+        explanation = ("Monitor a folder for new sequencing files and automatically analyze samples.\n"
+                       "Select multiple samples for batch analysis when 'Use suggested name' is checked.")
         ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
 
-        # Folder selection frame
         folder_frame = ctk.CTkFrame(main_frame)
         folder_frame.pack(fill="x", pady=(0, 10))
 
         ctk.CTkLabel(folder_frame, text="Folder to watch:").pack(side="left", padx=5)
         self.folder_entry = ctk.CTkEntry(folder_frame, width=300)
         self.folder_entry.pack(side="left", padx=5, expand=True, fill="x")
-        ctk.CTkButton(folder_frame, text="Browse", command=self.browse_folder).pack(side="left", padx=5)
+        browse_button = ctk.CTkButton(folder_frame, text="Browse", command=self.browse_folder)
+        browse_button.pack(side="left", padx=5)
+        create_tooltip(browse_button, "Select a folder to monitor for new sequencing files.")
+        
         self.watch_button = ctk.CTkButton(folder_frame, text="Start Watching", command=self.toggle_watching)
         self.watch_button.pack(side="left", padx=5)
+        create_tooltip(self.watch_button, "Start or stop monitoring the selected folder.")
 
-        # Sample information frame
         info_frame = ctk.CTkFrame(main_frame)
         info_frame.pack(fill="x", pady=10)
 
-        # Sample name
         sample_name_frame = ctk.CTkFrame(info_frame)
         sample_name_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(sample_name_frame, text="Sample Name:").pack(side="left", padx=5)
+        ctk.CTkLabel(sample_name_frame, text="Sample Name:", width=120, anchor="e").pack(side="left", padx=5)
         self.sample_name_entry = ctk.CTkEntry(sample_name_frame, width=200)
         self.sample_name_entry.pack(side="left", padx=5)
-        ctk.CTkCheckBox(sample_name_frame, text="Use suggested name", variable=self.use_suggested_name_var, 
-                        command=self.toggle_sample_name_entry).pack(side="left", padx=5)
+        self.use_suggested_checkbox = ctk.CTkCheckBox(sample_name_frame, text="Use suggested name", variable=self.use_suggested_name_var, 
+                        command=self.toggle_sample_name_entry)
+        self.use_suggested_checkbox.pack(side="left", padx=5)
+        create_tooltip(self.use_suggested_checkbox, "Automatically use suggested sample names based on file paths.\nEnables multi-sample selection.")
 
-        # Project and subproject
         for label, attr in [("Project Name:", "project_entry"), ("Subproject Name:", "subproject_entry")]:
             frame = ctk.CTkFrame(info_frame)
             frame.pack(fill="x", pady=5)
-            ctk.CTkLabel(frame, text=label).pack(side="left", padx=5)
-            setattr(self, attr, ctk.CTkEntry(frame, width=200))
-            getattr(self, attr).pack(side="left", padx=5)
+            ctk.CTkLabel(frame, text=label, width=120, anchor="e").pack(side="left", padx=5)
+            entry = ctk.CTkEntry(frame, width=200)
+            entry.pack(side="left", padx=5)
+            setattr(self, attr, entry)
 
-        # Date selection
         date_frame = ctk.CTkFrame(info_frame)
         date_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(date_frame, text="Date:").pack(side="left", padx=5)
+        ctk.CTkLabel(date_frame, text="Date:", width=120, anchor="e").pack(side="left", padx=5)
         self.date_btn = ctk.CTkButton(date_frame, text="Select Date", command=self.open_calendar)
         self.date_btn.pack(side="left", padx=5)
-        ctk.CTkCheckBox(date_frame, text="Use file creation date").pack(side="left", padx=5)
+        use_file_date_checkbox = ctk.CTkCheckBox(date_frame, text="Use file creation date", variable=self.use_file_date_var)
+        use_file_date_checkbox.pack(side="left", padx=5)
+        create_tooltip(use_file_date_checkbox, "Use the file creation date instead of manually selecting a date.")
 
-        # Analysis type selection
         analysis_frame = ctk.CTkFrame(main_frame)
         analysis_frame.pack(fill="x", pady=10)
-        self.analysis_var = tk.StringVar(value="taxonomy-wgs")
-        ctk.CTkRadioButton(analysis_frame, text="WGS Analysis", variable=self.analysis_var, value="taxonomy-wgs").pack(side="left", padx=10)
-        ctk.CTkRadioButton(analysis_frame, text="16S Analysis", variable=self.analysis_var, value="taxonomy-16s").pack(side="left", padx=10)
+        ctk.CTkLabel(analysis_frame, text="Analysis Type:").pack(side="left", padx=5)
+        analysis_menu = ctk.CTkOptionMenu(analysis_frame, variable=self.analysis_type, 
+                                          values=["taxonomy-wgs", "taxonomy-16s", "assembly-functional"])
+        analysis_menu.pack(side="left", padx=5)
+        create_tooltip(analysis_menu, "Select the type of analysis to perform")
 
-        # Treeview
-        tree_frame = ttk.Frame(main_frame)
-        tree_frame.pack(fill="both", expand=True, pady=10)
-        self.tree = ttk.Treeview(tree_frame, columns=("status",))
-        self.tree.heading("#0", text="Sample/File")
-        self.tree.heading("status", text="Status")
-        self.tree.pack(side="left", fill="both", expand=True)
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.create_file_treeview(main_frame)
 
-        # Control buttons
         control_frame = ctk.CTkFrame(main_frame)
         control_frame.pack(fill="x", pady=10)
-        self.start_analysis_button = ctk.CTkButton(control_frame, text="Start Analysis", command=self.start_analysis)
-        self.start_analysis_button.pack(side="left", padx=5)
-        ctk.CTkCheckBox(control_frame, text="Auto-analyze new samples", variable=self.auto_analyze_var).pack(side="left", padx=5)
+        
+        self.run_selected_button = ctk.CTkButton(control_frame, text="Run Selected Sample", command=self.run_selected_sample)
+        self.run_selected_button.pack(side="left", padx=5)
+        create_tooltip(self.run_selected_button, "Run analysis for the selected sample")
 
+        self.run_all_button = ctk.CTkButton(control_frame, text="Run All Analyses", command=self.run_all_analyses)
+        self.run_all_button.pack(side="left", padx=5)
+        create_tooltip(self.run_all_button, "Run analysis for all samples")
+
+        auto_analyze_checkbox = ctk.CTkCheckBox(control_frame, text="Auto-analyze new samples", variable=self.auto_analyze_var)
+        auto_analyze_checkbox.pack(side="left", padx=5)
+        create_tooltip(auto_analyze_checkbox, "Automatically start analysis when new samples are detected")
+
+        self.configure_treeview_colors()
         print("FolderWatcherWindow widgets created")
+
+    def create_file_treeview(self, parent):
+        tree_frame = ttk.Frame(parent)
+        tree_frame.pack(fill="both", expand=True, pady=10)
+
+        self.file_tree = ttk.Treeview(tree_frame, columns=("files", "status", "read_type"), selectmode="extended")
+        self.file_tree.heading("#0", text="Sample")
+        self.file_tree.heading("files", text="Files")
+        self.file_tree.heading("status", text="Status")
+        self.file_tree.heading("read_type", text="Detected Read Type")
+        self.file_tree.pack(side="left", fill="both", expand=True)
+
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.file_tree.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.file_tree.configure(yscrollcommand=scrollbar.set)
+
+    def configure_treeview_colors(self):
+        style = ttk.Style()
+        if ctk.get_appearance_mode() == "Dark":
+            style.configure("Treeview", 
+                            background="gray20", 
+                            foreground="white", 
+                            fieldbackground="gray20")
+            style.map('Treeview', background=[('selected', 'gray30')])
+        else:
+            style.configure("Treeview", 
+                            background="white", 
+                            foreground="black", 
+                            fieldbackground="white")
+            style.map('Treeview', background=[('selected', 'gray70')])
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
         if folder:
             self.folder_entry.delete(0, tk.END)
             self.folder_entry.insert(0, folder)
+            self.suggest_project_names(folder)
+            self.scan_existing_files(folder)
+
+    def suggest_project_names(self, folder):
+        project_name = os.path.basename(folder)
+        subproject_name = os.path.basename(os.path.dirname(folder))
+        
+        self.project_entry.delete(0, tk.END)
+        self.project_entry.insert(0, project_name)
+        
+        self.subproject_entry.delete(0, tk.END)
+        self.subproject_entry.insert(0, subproject_name)
 
     def toggle_watching(self):
         if not self.watching:
@@ -124,166 +192,192 @@ class FolderWatcherWindow(ctk.CTkFrame):
             self.stop_watching()
 
     def start_watching(self):
+        if os.path.exists(self.config_file):
+            with open(self.config_file, 'r') as f:
+                pipeline_config = json.load(f)
+        else:
+            messagebox.showerror("Error", "Configuration file not found. Please set up analysis parameters in the Analysis tab first.")
+            return
+
+        pipeline_popup = PipelinePopup(self, self.gui)
+        missing_params = pipeline_popup.check_missing_parameters(pipeline_config)
+        if missing_params:
+            messagebox.showerror("Error", f"Cannot start watching. The following parameters are missing in the pipeline configuration:\n{', '.join(missing_params)}")
+            return
+
         folder = self.folder_entry.get()
         if not folder:
             messagebox.showerror("Error", "Please select a folder to watch.")
             return
 
         self.samples.clear()
-        self.tree.delete(*self.tree.get_children())
+        self.file_tree.delete(*self.file_tree.get_children())
 
-        threading.Thread(target=self.scan_existing_files, args=(folder,), daemon=True).start()
+        self.scan_existing_files(folder)
 
-        self.folder_monitor = FolderMonitor([folder], self)  # Changed from self.gui.folder_monitor
+        if hasattr(self, 'folder_monitor'):
+            self.folder_monitor.stop()
+
+        self.folder_monitor = FolderMonitor([folder], self)
         self.folder_monitor.start()
         self.watching = True
         self.watch_button.configure(text="Stop Watching")
 
-    def scan_existing_files(self, folder):
-        for root, dirs, files in os.walk(folder):
-            if "fastq_pass" in dirs:
-                fastq_pass_dir = os.path.join(root, "fastq_pass")
-                barcode_dirs = [d for d in os.listdir(fastq_pass_dir) if d.startswith("barcode")]
-                
-                if barcode_dirs:
-                    for barcode_dir in barcode_dirs:
-                        parent_folder = os.path.basename(os.path.dirname(fastq_pass_dir))
-                        self.process_sample_folder(os.path.join(fastq_pass_dir, barcode_dir), f"{parent_folder}_{barcode_dir}")
-                else:
-                    parent_folder = os.path.basename(os.path.dirname(fastq_pass_dir))
-                    self.process_sample_folder(fastq_pass_dir, parent_folder)
-
-    def process_sample_folder(self, folder, sample_name):
-        files = [f for f in os.listdir(folder) if f.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')) and not f.endswith('_concatenated.fastq.gz')]
-        if files:
-            self.queue.put(('add_sample', sample_name, folder, files))
-
-    def add_new_file(self, file_path):
-        if "_concatenated" in file_path:
-            return  # Ignore concatenated files
-
-        parent_folder = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(file_path))))
-        barcode_folder = os.path.basename(os.path.dirname(file_path))
-        suggested_sample_name = f"{parent_folder}_{barcode_folder}"
-        self.queue.put(('add_file', suggested_sample_name, file_path))
-
-    def process_queue(self):
-        try:
-            while True:
-                action, *args = self.queue.get_nowait()
-                if action == 'add_sample':
-                    self._add_sample(*args)
-                elif action == 'add_file':
-                    self._add_file(*args)
-        except queue.Empty:
-            pass
-        finally:
-            self.after(100, self.process_queue)
-
-    def _add_sample(self, sample_name, folder, files):
-        if sample_name not in self.samples:
-            self.samples[sample_name] = []
-            self.tree.insert("", "end", sample_name, text=sample_name)
-        
-        for file in files:
-            file_path = os.path.join(folder, file)
-            if file_path not in self.samples[sample_name]:
-                self.samples[sample_name].append(file_path)
-                self.tree.insert(sample_name, "end", text=file, values=("Existing",))
-
-    def _add_file(self, suggested_sample_name, file_path):
-        if suggested_sample_name not in self.samples:
-            self.samples[suggested_sample_name] = []
-            self.tree.insert("", "end", suggested_sample_name, text=suggested_sample_name)
-        
-        if file_path not in self.samples[suggested_sample_name]:
-            self.samples[suggested_sample_name].append(file_path)
-            self.tree.insert(suggested_sample_name, "end", text=os.path.basename(file_path), values=("New",))
-
-        if self.auto_analyze_var.get() and self.should_start_analysis(suggested_sample_name):
-            threading.Thread(target=self.start_analysis_for_sample, args=(suggested_sample_name,), daemon=True).start()
+        messagebox.showinfo("Folder Watch Started", f"Now watching folder: {folder}")
 
     def stop_watching(self):
-        if hasattr(self, 'folder_monitor'):  # Changed from self.gui.folder_monitor
+        if hasattr(self, 'folder_monitor'):
             self.folder_monitor.stop()
         self.watching = False
         self.watch_button.configure(text="Start Watching")
 
-    def get_sample_name(self, folder_path):
-        if "barcode" in folder_path:
-            return os.path.basename(folder_path)
-        return os.path.basename(os.path.dirname(folder_path))
-
-    def should_start_analysis(self, sample_name):
-        # Add your conditions here, e.g., number of files, time since last analysis, etc.
-        return len(self.samples[sample_name]) >= 5  # Start analysis when 5 or more files are available
-
-    def start_analysis_for_sample(self, suggested_sample_name):
-        analysis_type = self.analysis_var.get()
-        sample_date = self.selected_date.strftime("%Y-%m-%d") if not self.use_file_date.get() else datetime.datetime.fromtimestamp(os.path.getctime(self.samples[suggested_sample_name][0])).strftime("%Y-%m-%d")
+    def scan_existing_files(self, folder):
+        for root, dirs, files in os.walk(folder):
+            fastq_files = [f for f in files if f.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz'))]
+            if fastq_files:
+                sample_name = self.suggest_sample_name(root)
+                file_paths = [os.path.join(root, f) for f in fastq_files]
+                self.add_sample(sample_name, file_paths)
+    """
+    Detect if the reads look like 16S or WGS based on read length distribution.
+    """
+    
+    def detect_read_type(self, file_path, length_threshold=2000, fraction_threshold=0.6, max_reads=100):
+        read_lengths = []
         
-        if self.use_suggested_name_var.get():
-            sample_name = suggested_sample_name
+        # Open file (gzipped or not)
+        open_func = gzip.open if file_path.endswith('.gz') else open
+        try:
+            with open_func(file_path, "rt") as handle:
+                for record in SeqIO.parse(handle, "fastq"):
+                    read_lengths.append(len(record.seq))
+                    if len(read_lengths) >= max_reads:
+                        break
+        except EOFError:
+            # Handle the case where the file is empty or corrupted
+            return "Unknown (File error)"
+        
+        if not read_lengths:
+            return "Unknown (No reads)"
+        
+        # Handle the case of a single read
+        if len(read_lengths) == 1:
+            return "Looks like WGS" if read_lengths[0] >= length_threshold else "Looks like 16S"
+        
+        read_lengths = np.array(read_lengths)
+        fraction_below_threshold = np.sum(read_lengths < length_threshold) / len(read_lengths)
+
+        if fraction_below_threshold >= fraction_threshold:
+            return "Looks like 16S"
         else:
-            sample_name = self.sample_name_entry.get()
+            return "Looks like WGS"
 
-        input_files = self.samples[suggested_sample_name]  # Use all files for the sample
+    def add_sample(self, sample_name, file_paths):
+        if sample_name not in self.samples:
+            self.samples[sample_name] = file_paths
+            read_types = []
+            import random
+            for file_path in random.sample(file_paths, min(5, len(file_paths))):  # Use 5 random files
+                read_types.append(self.detect_read_type(file_path))
+            if read_types:
+                read_type = max(set(read_types), key=read_types.count)  # Majority vote
+            else:
+                read_type = "Unknown"
+            
+            self.file_tree.insert("", "end", sample_name, text=sample_name, values=(f"{len(file_paths)} files", "New", read_type))
+        else:
+            new_files = [f for f in file_paths if f not in self.samples[sample_name]]
+            self.samples[sample_name].extend(new_files)
+            current_status = self.file_tree.item(sample_name, "values")[1]
+            current_read_type = self.file_tree.item(sample_name, "values")[2]
+            if new_files and current_status != "New":
+                new_status = "New"
+            else:
+                new_status = current_status
+            self.file_tree.item(sample_name, values=(f"{len(self.samples[sample_name])} files", new_status, current_read_type))
+
+        for file_path in file_paths:
+            if self.file_tree.exists(file_path):
+                continue
+            self.file_tree.insert(sample_name, "end", file_path, text=os.path.basename(file_path), values=("", ""))
+
+        if self.auto_analyze_var.get() and new_status == "New":
+            self.run_analysis_for_sample(sample_name)
+
+    def run_selected_sample(self):
+        selected_items = self.file_tree.selection()
+        if not selected_items:
+            messagebox.showinfo("Info", "Please select a sample to analyze.")
+            return
         
-        cmd = [
-            sys.executable,
-            "-m", "mmonitor.userside.MMonitorCMD",
+        for item in selected_items:
+            if self.file_tree.parent(item) == "":  # Only process parent items (samples)
+                self.run_analysis_for_sample(item)
+
+    def run_all_analyses(self):
+        for sample in self.samples:
+            self.run_analysis_for_sample(sample)
+
+    def run_analysis_for_sample(self, sample_name):
+        analysis_type = self.analysis_type.get()
+        
+        with open(self.config_file, 'r') as f:
+            config = json.load(f)
+        
+        # Add conda environment to PATH
+        conda_env_path = os.path.expanduser("~/miniconda3/envs/fastcat/bin")
+        os.environ["PATH"] = f"{conda_env_path}:{os.environ['PATH']}"
+        
+        cmd_runner = MMonitorCMD()
+        args = [
             "-a", analysis_type,
-            "-c", self.gui.db_path or os.path.join(ROOT, "src", "resources", "db_config.json"),
+            "-c", self.gui.db_path,
+            "-i"] + self.samples[sample_name] + [
             "-s", sample_name,
-            "-d", sample_date,
+            "-d", self.selected_date.strftime("%Y-%m-%d"),
             "-p", self.project_entry.get(),
             "-u", self.subproject_entry.get(),
+            "-n", config.get('min_abundance', '0.01'),
+            "-t", config.get('threads', '1'),
             "--overwrite"
         ]
-        
-        # Add input files to the command
-        cmd.extend(["-i"] + input_files)
-        
-        env = os.environ.copy()
-        mmonitor_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        env["PYTHONPATH"] = f"{mmonitor_path}:{env.get('PYTHONPATH', '')}"
 
-        subprocess.Popen(cmd, env=env)
+        if analysis_type == "assembly-functional":
+            args.extend([
+                "--assembly-mode", config.get('assembly_mode', 'nano-raw'),
+                "--medaka-model", config.get('medaka_model', 'r1041_e82_400bps_sup_v5.0.0'),
+            ])
+            if config.get('is_isolate', False):
+                args.append("--isolate")
 
-    def get_or_create_concat_file(self, sample_name):
-        concat_file = os.path.join(os.path.dirname(self.samples[sample_name][0]), f"{sample_name}_concatenated.fastq.gz")
-        
-        if not os.path.exists(concat_file):
-            # Create new concatenated file
-            with gzip.open(concat_file, 'wb') as outfile:
-                for file in self.samples[sample_name]:
-                    with gzip.open(file, 'rb') as infile:
-                        outfile.write(infile.read())
-        else:
-            # Append new files to existing concatenated file
-            with gzip.open(concat_file, 'ab') as outfile:
-                for file in self.samples[sample_name]:
-                    if os.path.getmtime(file) > os.path.getmtime(concat_file):
-                        with gzip.open(file, 'rb') as infile:
-                            outfile.write(infile.read())
-        
-        return concat_file
+        cmd_runner.initialize_from_args(cmd_runner.parse_arguments(args))
+        try:
+            cmd_runner.run()
+            self.file_tree.item(sample_name, values=(f"{len(self.samples[sample_name])} files", "Completed", self.file_tree.item(sample_name, "values")[2]))
+        except Exception as e:
+            print(f"Error running analysis for {sample_name}: {str(e)}")
+            self.file_tree.item(sample_name, values=(f"{len(self.samples[sample_name])} files", "Error", self.file_tree.item(sample_name, "values")[2]))
 
-    def start_analysis(self):
-        selected_items = self.tree.selection()
-        if not selected_items:
-            messagebox.showinfo("Info", "Please select samples to analyze.")
-            return
+    def suggest_sample_name(self, path):
+        # Try to extract meaningful sample name from the path
+        path_parts = path.split(os.sep)
+        for part in reversed(path_parts):
+            if re.match(r'barcode\d+', part, re.IGNORECASE):
+                return part
+            if re.match(r'sample\d+', part, re.IGNORECASE):
+                return part
+        # If no meaningful name found, use the last directory name
+        return os.path.basename(path)
 
-        for item in selected_items:
-            suggested_sample_name = self.tree.item(item, "text")
-            if suggested_sample_name in self.samples:
-                self.start_analysis_for_sample(suggested_sample_name)
-
-    
-    def set_date(self, date):
-        self.selected_date = date
-        self.date_button.configure(text=date.strftime("%Y-%m-%d"))
+    def process_queue(self):
+        try:
+            while True:
+                method, args = self.update_queue.get_nowait()
+                if method == 'add_sample':
+                    self.add_sample(*args)
+        except queue.Empty:
+            pass
+        self.after(100, self.process_queue)
 
     def open_calendar(self):
         def on_close():
@@ -305,3 +399,19 @@ class FolderWatcherWindow(ctk.CTkFrame):
             self.sample_name_entry.configure(state="disabled")
         else:
             self.sample_name_entry.configure(state="normal")
+
+    def update_appearance(self):
+        self.configure_treeview_colors()
+        
+        # Update colors based on the current theme
+        bg_color = self.cget("fg_color")
+        text_color = "white" if ctk.get_appearance_mode() == "Dark" else "black"
+
+        for widget in self.winfo_children():
+            if isinstance(widget, ctk.CTkFrame):
+                widget.configure(fg_color=bg_color)
+            elif isinstance(widget, (ctk.CTkLabel, ctk.CTkButton, ctk.CTkCheckBox, ctk.CTkRadioButton)):
+                widget.configure(text_color=text_color)
+
+        # Update treeview colors
+        self.configure_treeview_colors()

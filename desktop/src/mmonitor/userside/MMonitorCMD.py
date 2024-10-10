@@ -8,6 +8,9 @@ import numpy as np
 import logging
 import subprocess
 from datetime import datetime
+import tempfile
+import shutil
+import traceback
 
 from build_mmonitor_pyinstaller import ROOT
 from mmonitor.userside.FastqStatistics import FastqStatistics
@@ -59,6 +62,9 @@ class MMonitorCMD:
         self.django_db = None
         self.centrifuge_db = None
         self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.output_dir = None  # We'll set this in the initialize_from_args method
+        self.config = {}  # Initialize config as an empty dictionary
+        self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
 
         # Add minimap2 from lib folder to PATH
         minimap2_path = os.path.join(ROOT, "lib", "minimap2")
@@ -69,10 +75,12 @@ class MMonitorCMD:
 
     def initialize_from_args(self, args):
         self.args = args
+        self.output_dir = os.path.join(self.pipeline_out, self.args.sample)
+        os.makedirs(self.output_dir, exist_ok=True)
         if self.args.emu_db:
             self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
         else:
-            self.emu_runner = EmuRunner()
+            self.emu_runner = EmuRunner(custom_db_path=self.emu_db_path)
         try:
             self.django_db = DjangoDBInterface(self.args.config or self.db_path)
             # Ensure the django_db is logged in
@@ -503,28 +511,53 @@ class MMonitorCMD:
 
         print("Functional analysis pipeline completed successfully.")
 
+    def concatenate_files(self, input_files, output_file):
+        try:
+            with open(output_file, 'wb') as outfile:
+                for filename in input_files:
+                    if filename.endswith('.gz'):
+                        with gzip.open(filename, 'rb') as infile:
+                            shutil.copyfileobj(infile, outfile)
+                    else:
+                        with open(filename, 'rb') as infile:
+                            shutil.copyfileobj(infile, outfile)
+            logger.info(f"Concatenated files saved to {output_file}")
+        except Exception as e:
+            logger.error(f"Error concatenating files: {str(e)}")
+            raise
+
     def run(self):
-        logger.debug(f"Starting run with analysis type: {self.args.analysis}")
+        logger.info(f"Starting run with analysis type: {self.args.analysis}")
         
-        # Print the current PATH before running any analysis
-        logger.debug(f"Current PATH: {os.environ['PATH']}")
+        logger.info(f"Current PATH: {os.environ['PATH']}")
 
         if self.args.analysis == "taxonomy-16s":
-            logger.debug("Running taxonomy-16s analysis")
-            self.taxonomy_nanopore_16s()
+            self.emu_runner = EmuRunner(self.emu_runner.custom_db_path)
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                self.emu_runner.concatenate_fastq_files(self.args.input, temp_file.name)
+                success = self.emu_runner.run_emu(
+                    input_file=temp_file.name,
+                    output_dir=self.output_dir,
+                    db_dir=self.emu_runner.custom_db_path,
+                    threads=self.args.threads,
+                    N=50,
+                    K="500M",
+                    minimap_type="map-ont"
+                )
+            os.unlink(temp_file.name)
+
+            if not success:
+                self.logger.error("Emu analysis failed")
+                return
+
         elif self.args.analysis == "taxonomy-wgs":
-            logger.debug("Running taxonomy-wgs analysis")
-            self.taxonomy_nanopore_wgs()
-        elif self.args.analysis == "assembly":
-            logger.debug("Running assembly pipeline")
-            self.assembly_pipeline()
-        elif self.args.analysis == "functional":
-            logger.debug("Running functional pipeline")
-            self.functional_pipeline()
-        elif self.args.analysis == "stats":
-            logger.debug("Running stats analysis")
-            self.update_only_statistics()
-        logger.debug("Finished run")
+            self.centrifuge_runner.run(self.args.input, self.output_dir, self.args.centrifuge_db, self.args.threads)
+        elif self.args.analysis in ["assembly", "functional"]:
+            self.functional_runner.run(self.args.input, self.output_dir, self.args.threads)
+        else:
+            logger.error(f"Unsupported analysis type: {self.args.analysis}")
+
+        logger.info("Finished run")
 
     def run_single_sample(self):
         if self.args.analysis == "taxonomy-16s":
@@ -557,6 +590,44 @@ class MMonitorCMD:
         print(f"Emu analysis complete for sample {sample_name}")
 
     # Apply similar changes to other methods that might be writing directly to stdout/stderr
+
+    def run_pipeline(self, selected_steps, params):
+        input_files = self.get_input_files()
+        output_dir = self.get_output_directory()
+
+        if "concatenate" in selected_steps:
+            concatenated_file = self.concatenate_files(input_files, os.path.join(output_dir, "concatenated.fastq"))
+        
+        if "filter" in selected_steps:
+            filtered_file = self.functional_runner.run_filtlong(concatenated_file, output_dir, params["min_length"], params["min_quality"])
+        
+        if "assembly" in selected_steps:
+            assembly_file = self.functional_runner.run_metaflye(filtered_file, output_dir, params["threads"])
+        
+        if "binning" in selected_steps:
+            bins_dir = self.functional_runner.run_metabat2(assembly_file, filtered_file, output_dir, params["threads"])
+        
+        if "taxonomy" in selected_steps:
+            gtdb_out = self.functional_runner.run_gtdbtk(bins_dir, output_dir, params["threads"])
+        
+        if "quality" in selected_steps:
+            checkm2_out = self.functional_runner.run_checkm2(bins_dir, output_dir, params["threads"])
+        
+        if "annotation" in selected_steps:
+            bakta_out = self.functional_runner.run_bakta(bins_dir, output_dir, params["threads"])
+        
+        if "phylogeny" in selected_steps:
+            tree_file = self.functional_runner.build_phylogenetic_tree(gtdb_out, output_dir, params["threads"])
+        
+        # TODO: Implement step 9 - Upload annotations to mmonitor web app
+
+    def get_input_files(self):
+        # Implement method to get input files from user
+        pass
+
+    def get_output_directory(self):
+        # Implement method to get output directory from user
+        pass
 
 class OutputLogger:
     def __init__(self, log_file_path):
