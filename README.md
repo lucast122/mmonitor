@@ -435,10 +435,8 @@ MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
 ---
 
-**Note**: For detailed methods, benchmarks, and validations, refer to the publication associated with MMonitor (in preparation)
-and please cite:
-Automating Taxonomic and Functional
-Analysis of Metagenomes in real-time using
-Nanopore Sequencing and MMonitor
-Timo N. Lucas,1,2 Ulrike Biehain, Anupam Gautam 1,2,7, Tobias Laas, Simon Konzalla,
-Largus T. Angenent,3,4,5 Ruth E. Ley,6, Daniel H. Huson 1,2
+**Note**: For detailed information and methods, refer to the publication:
+## Automation of Taxonomic and Functional Analysis for the Monitoring of Metagenomes in real-tiem using Nanopore Sequencing and MMonitor
+## How to Automate Taxonomic and Functional Analysis of Metagenomes in real-time using Nanopore Sequencing and MMonitor
+# Timo N. Lucas, Ulrike Biehain, Anupam Gautam, Tobias Laas, Simon Konzalla, Largus T. Angenent, Ruth E. Ley, Daniel H. Huson
+
