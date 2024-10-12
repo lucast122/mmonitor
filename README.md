@@ -425,16 +425,15 @@ MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
   - **Simon Konzalla**: Development contributions.
 
 - **💡 Funding**:
-  - *[Please insert funding information here, including funder names, grant numbers, and recipient authors.]*
+  - Funding by CMFI
 
 - **🤝 Collaborations**:
   - MMonitor was developed at the University of Tübingen in collaboration with environmental biotechnologists and microbiome researchers from the Angenent Lab and Ley Lab. Special thanks to:
-  - Ulrike Biehain for helping in p[lanning and testing the software, suggesting new features
-  - 
+  - Daniel Huson, Largus Angenent, and Ruth Ley for supervising the project
+  - Ulrike Biehain for helping in planning and testing the software, suggesting new features
+  - Jeon Byoung Seon and Kurt Gemeinhardt for providing the metagenomic whole genome sequencing data
+  - Yihua Liu, Soyoung Ham, for helping to test the application during development and providing feedback
 
-### Ethics Approval
-
-- *[If applicable, provide an ethics approval statement for your study here.]*
 
 ### Conflicts of Interest
 
@@ -443,3 +442,9 @@ MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 ---
 
 **Note**: For detailed methods, benchmarks, and validations, refer to the publication associated with MMonitor (in preparation)
+and please cite:
+Automating Taxonomic and Functional
+Analysis of Metagenomes in real-time using
+Nanopore Sequencing and MMonitor
+Timo N. Lucas,1,2 Ulrike Biehain, Anupam Gautam 1,2,7, Tobias Laas, Simon Konzalla,
+Largus T. Angenent,3,4,5 Ruth E. Ley,6, Daniel H. Huson 1,2
