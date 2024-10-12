@@ -1,94 +1,445 @@
-Desktop Pipeline runner for MMonitor. This is a wrapper for metagenome software with many extra features useful for metagenome monitoring. For the Webserver check out the other (mmonitor-server).
+Certainly! I've added relevant icons to enhance the visual appeal of the documentation. Here's the updated Markdown with icons:
 
-## MMonitor quick Tutorial with test data
+---
 
-This shall serve as a small example on how to use MMonitor with some test data. We will be doing taxonomic analysis of 6 16S rRNA samples using a small coverage, followed by an evaluation using the MMonitor dashboard including some basic statistics and metadata correlations.
+# 📊 MMonitor Documentation
 
-1. If you are not registered yet go to the [website](https://mmonitor.org) to do so. You will need the username and password later to login.
-2. Clone this repository:
-   `git clone https://github.com/lucast122/MMonitor`
-3. There should be a filled called 'sample_list.csv' in the MMonitor/desktop/mmonitor_tutorial subfolder. Change the paths in the 'sample folder' column so they match the actual path of the files on your    computer. For example in the row describing sample1 you should enter the full path to the folder sample 1, do the same for the other samples.   
-4. Create a new conda environment, install the required packages and change PYTHONPATH:  
-   `conda create --name mmonitor python=3.11`  
-   `conda activate mmonitor`  
-   `pip install -r MMonitor/desktop/requirements.txt`  
-   `conda install -c bioconda minimap2`  
-   `export PYTHONPATH=$PYTHONPATH:MMonitor/desktop/`  
-   `export PYTHONPATH=$PYTHONPATH:MMonitor/desktop/src/`  
-   
-6. Start the GUI using `python MMonitor/desktop/src/mmonitor/__main__.py` If you get an error telling you that some module was not you probably didn't export the PYTHONPATH correctly. The command uses a relative path to the folder that you downloaded, so maybe change it to the full absolute path if the relative path doesn't work.
-7. After starting the app the main window should pop up. Click user authentication and change the username and password to the name and password you chose on the website. Save the config.
-8. Click 'Process sequencing data' and select 'Quick taxonomy 16s nanopore' then click 'continue'.
-9. The 'Sample Data Input' window should open. Now click 'Add multiple samples from CSV'.
-10. In the file selection window select the sample_list.csv that you changes earlier.
-11. You should receive the message 'Processing 6 samples. This may take a while.' if everything worked. If you receive an error message check the file paths in the csv again and make sure they are   
-    correct.
-12. Click 'submit' and check the console. Analysis should start now. If you receive an error message make sure that minimap2 is installed an on your sytem PATH. Wait for the analysis to finish, you  
-    should see a popup window saying 'Analysis complete'.
-13. Go back to the website, login with your credentials and click on 'Dashboard'.
-14. Check out the taxonomy of the samples in the taxonomy dashboard. Try out different plot types and different taxonomic ranks by using the dropdown selections.
-15. Go to diversity and check the alpha diversity of the samples.
-16. Go to QC and check basic statistics of the samples.
-17. Go to Correlations. Upload the 'metadata.csv' from the folder 'mmonitor_tutorial'. If the metadata parsed correctly you should get a notification telling you that 6 metadata entries were parsed.
-18. Refresh the page and click 'Download Taxonomy-metadata Correlations' to download a CSV file containing the correlation between the taxonomic profiles and the metadata. Check out the resulting   
-    correlations to see if any taxa correlate with the metadata.
-19. If at any stage something didn't work please report the error using the 'Submit feedback' function. Please also report general feedback and other issues you had using the software.
+## Table of Contents
 
+1. [📖 Introduction](#-introduction)
+2. [💾 Installation Instructions](#-installation-instructions)
+3. [🚀 Quick Start Guide](#-quick-start-guide)
+4. [🛠️ Detailed Usage Instructions](#%EF%B8%8F-detailed-usage-instructions)
+5. [⚙️ Configuration and Settings](#%EF%B8%8F-configuration-and-settings)
+6. [📈 Output and Results](#-output-and-results)
+7. [🌐 Web Dashboard](#-web-dashboard)
+8. [🐞 Error Handling and Troubleshooting](#-error-handling-and-troubleshooting)
+9. [🤝 Contributing](#-contributing)
+10. [📄 Licensing and Acknowledgments](#-licensing-and-acknowledgments)
 
+---
 
+## 📖 Introduction
 
-## App Requirements
+**MMonitor** is an open-source software platform designed for the real-time analysis and visualization of metagenomic datasets produced by Oxford Nanopore Technologies sequencing. It provides a user-friendly interface for automating taxonomic and functional analysis of metagenomes, offering both a desktop application for running bioinformatics pipelines and a web-based dashboard for interactive result inspection.
 
-- Install `R` and packages `("jpeg", "png", "RColorBrewer", "lattice", "latticeExtra")`
-- Add `Rscript` to path!
-- Download the latest version of [centrifuge](https://github.com/DaehwanKimLab/centrifuge), install and make sure executable is on system path
-- Either download and [build new index](https://ccb.jhu.edu/software/centrifuge/manual.shtml) or download pre-built index for centrifuge
+### Key Features
 
+- **⚡ Real-time Analysis**: Processes sequencing data as it is generated, enabling immediate insights.
+- **🖥️ User-friendly Interface**: Offers both a graphical user interface (GUI) and a command-line interface (CLI) for flexibility.
+- **🔧 Customizable Pipelines**: Allows users to configure analysis pipelines and use custom reference databases.
+- **📊 Visualization Dashboard**: Provides dynamic insights into taxonomic composition over time, quality scores, diversity indices, and taxonomy-metadata correlations.
+- **📝 Automated Reporting**: Generates comprehensive reports and visualizations for easy interpretation.
+- **🖱️ Cross-platform Support**: Available for macOS, Linux, and Windows (limited functionality on Windows).
 
-## Develop Project
+### Intended Audience
 
-- Install Python>=3.9 (must include `tkinter`)
-- `pip install -r requirements.txt`
-- `cd src && python -m mmonitor`
+MMonitor is designed for researchers, bioinformaticians, and scientists working in microbiology, environmental biotechnology, clinical microbiology, and related fields who need to monitor microbial communities in real-time.
 
+---
 
-## R Horizon Plot Troubleshooting
+## 💾 Installation Instructions
 
-`latticeExtra` and its dependencies needs to be installed in the library that `Rscript` uses.
-Find out what libraries `Rscript` uses with `Rscript -e ".libPaths()"` and make sure they all have the necessary packages installed with
-`install.packages(c("jpeg", "png", "RColorBrewer", "lattice", "latticeExtra"), lib = "<library path>")`.
-You might need to start your R IDE with admin privileges depending on the library location. 
+### Supported Operating Systems
 
+- **🍎 macOS**
+- **🐧 Linux (Unix)**
+- **🪟 Windows** (Note: Limited functionality due to pipeline compatibility)
 
-## Build App
+### Prerequisites
 
+- **Hardware Requirements**:
+  - 💻 Modern CPU
+  - 🧮 16-32 GB of RAM
+- **Software Requirements**:
+  - 🐍 Python 3.10 or higher
+  - 🛠️ Git (for cloning repositories)
+  - 🐚 Conda (optional, recommended for environment management)
+  - 📦 R and R packages: `jpeg`, `png`, `RColorBrewer`, `lattice`, `latticeExtra`
+  - 🧰 External tools (included in builds or installed via requirements): Minimap2, MetaFlye, Medaka, Centrifuger, Emu, Bakta, CheckM2, etc.
 
-1. Download code on machine with desired operating system 
-2. `pip install pyinstaller`[1](https://pyinstaller.readthedocs.io/en/stable/spec-files.html) [2](https://pyinstaller.readthedocs.io/en/stable/usage.html#supporting-multiple-operating-systems)
+### Installation Steps
 
-3. `python build.py`
+#### 🍎 macOS
 
-Tested on Windows 10 and Ubuntu 20.
+1. **Download the Prebuilt Application**:
 
-Executable is most likely not backwards compatible.
+   - Visit the [MMonitor website](https://mmonitor.org/) and download the latest version for macOS.
 
-## How to use
+2. **Run the Application**:
 
-1. Create or choose Project
-  A project represents the database MMonitor uses. The user always has to create or choose a previously created database in order to use the tool. Creating a project         will create a called <name>.sqlite3 on the dard drive, where <name> is the name the user chooses.
-2. Run analysis pipeline
-  Click the button "Run analysis pipeline" to open up the pipeline selection window. Please select the analysis you want to perform. For taxonomic analysis select either     "Quick taxonomy nanopore" or "Quick taxonomy 16s nanopore" depending on your data input. Use the first if you have whole genome sequencing reads and, if you have 16s       reads choose the second. The functional analysis takes way longer than taxonomic because the reads will first need to get assembled into contigs and then mapped against    a database for binning. Especially binning may take longer depending on your system.
-4. Start Monitoring
-   If you choose a project that has been previously created and you already ran an analysis for it then you can also skip step 2 and start monitoring directly. However,       clicking the button "Start monitoring" with an empty project will result in an error message popping up. If you ran an analysis in step 2 and received a notification       that the analysis has finished you can then go ahead and click "Start monitoring". A browser window with your default browser will popup along with the visualization       application.
-5. Analyze data in Dashboard
-   After step 3 you can now look at the results of the analysis in the browser dashboard. Click on one of the links to change between the different apps. Following is a       quick summary of each apps' functionality.
-Optional: Add metadata from csv
-   If you have metadata you can add it as a csv file. In the analysis dashapp you can then see correlation values for your metadata and taxonomy.
+   - Unzip the downloaded application.
+   - Open the file named `mmonitor`.
+   - If prompted with a security warning, you may need to adjust your security settings to allow the app to run.
 
-Taxonomy: View the absolute and relative abundances of your samples after running a taxonomic analysis.
-Horizon plot: Create a horizon plot to quickly see changes in abundance between your samples.
-Correlations: If you previously added metadata you can here view the different correlation values between your metagenome abundances and the metadata.
-KEGG: View the KEGG metabolic maps created by the analysis pipeline if all functional analysis steps were selected.
-Gene browser: Check out your assembled metagenomes using the gene browser nNot tested yet, may not work on every system).
+3. **Verify Installation**:
 
-Be sure to press 'Quit' to terminate the app, as it also terminates the dash server.
+   - Wait for the application to start.
+   - If the application doesn't start, check the console output for error messages.
+
+#### 🐧 Linux (Unix)
+
+1. **Clone the Repository**:
+
+   ```bash
+   git clone https://github.com/lucast122/MMonitor.git
+   ```
+
+2. **Set Up the Environment** (optional but recommended):
+
+   ```bash
+   conda create -n mmonitor python=3.11
+   conda activate mmonitor
+   ```
+
+3. **Install Required Python Packages**:
+
+   ```bash
+   pip install -r MMonitor/desktop/requirements.txt
+   ```
+
+4. **Install External Dependencies**:
+
+   ```bash
+   conda install -c bioconda minimap2
+   ```
+
+5. **Set the PYTHONPATH**:
+
+   ```bash
+   export PYTHONPATH=$PYTHONPATH:MMonitor/desktop/
+   export PYTHONPATH=$PYTHONPATH:MMonitor/desktop/src/
+   ```
+
+6. **Run the Application**:
+
+   ```bash
+   python MMonitor/desktop/src/mmonitor/__main__.py
+   ```
+
+   - If you encounter an error about missing modules, ensure that the `PYTHONPATH` is correctly set.
+
+#### 🪟 Windows
+
+**Note**: Running analysis pipelines is currently not supported on Windows due to compatibility issues with certain bioinformatics tools.
+
+1. **Clone the Repository**:
+
+   - Open PowerShell and run:
+
+     ```powershell
+     git clone https://github.com/lucast122/MMonitor.git
+     ```
+
+2. **Set Up the Environment** (optional):
+
+   ```powershell
+   conda create -n mmonitor python=3.10
+   conda activate mmonitor
+   ```
+
+3. **Install Required Python Packages**:
+
+   ```powershell
+   pip install -r MMonitor\desktop\requirements.txt
+   ```
+
+4. **Run the Application**:
+
+   ```powershell
+   python MMonitor\desktop\src\mmonitor\__main__.py
+   ```
+
+   - Note: You can use MMonitor on Windows to add metadata and inspect local databases, but running pipelines requires a Unix-based system.
+
+---
+
+## 🚀 Quick Start Guide
+
+### Running a Sample Analysis
+
+1. **🔐 Login or Register**:
+
+   - Visit the [MMonitor website](https://mmonitor.org/) and register an account or log in if you already have one.
+
+2. **🖥️ Launch MMonitor**:
+
+   - Run the MMonitor application as per your operating system instructions.
+
+3. **👤 User Authentication**:
+
+   - In the application, click on **User Authentication**.
+   - Enter your username and password that you registered on the website.
+   - Save the configuration.
+
+4. **🧪 Process Sequencing Data**:
+
+   - Click on **Process Sequencing Files**.
+   - Select the desired analysis:
+     - **🔬 Quick Taxonomy 16S Nanopore** for 16S rRNA reads.
+     - **🧬 Quick Taxonomy Nanopore** for whole-genome sequencing (WGS) reads.
+     - For functional analysis, select **🧩 Functional Analysis Pipeline** and choose the desired steps.
+
+5. **➕ Add Samples**:
+
+   - **Single Sample**:
+     - Fill in the required sample information.
+     - Click **Add FASTQ from folder** and select the folder containing your sequencing data.
+   - **Multiple Samples**:
+     - Prepare a CSV file with sample information (an example can be found in the `mmonitor_tutorial` folder).
+     - Click **Add multiple samples from CSV** and select your CSV file.
+
+6. **▶️ Run Analysis**:
+
+   - Click **Submit** to start the analysis.
+   - Wait for the analysis to complete (a notification will appear).
+
+7. **🔎 View Results**:
+
+   - Visit the [MMonitor Dashboard](https://mmonitor.org/dashboard) and log in.
+   - Explore your results using the various visualization tools available.
+
+---
+
+## 🛠️ Detailed Usage Instructions
+
+### User Interface Interaction
+
+- **🖱️ Graphical User Interface (GUI)**:
+  - The GUI provides an intuitive way to interact with MMonitor, suitable for users who prefer a visual approach.
+- **💻 Command-Line Interface (CLI)**:
+  - Advanced users can use the CLI for more control and to run analyses on remote servers.
+
+### Important Commands and Options (CLI)
+
+- **Main Analysis Types**:
+
+  ```bash
+  python MMonitor/desktop/src/mmonitor/__main__.py -a [analysis_type] -c [config_file] [options]
+  ```
+
+  - `analysis_type`: `taxonomy-wgs`, `taxonomy-16s`, `assembly`, `functional`, `stats`
+  - `config_file`: Path to the JSON config file.
+
+- **Options**:
+
+  - `-i`, `--input`: Input files or directories.
+  - `-s`, `--sample`: Sample name.
+  - `-d`, `--date`: Sample date (YYYY-MM-DD).
+  - `-p`, `--project`: Project name.
+  - `-u`, `--subproject`: Subproject name.
+  - `-m`, `--multicsv`: Path to CSV file for multiple samples.
+  - `-b`, `--barcodes`: Use barcode column from CSV for multiplexing.
+  - `--emu-db`: Path to custom Emu database.
+  - `--centrifuge-db`: Path to Centrifuge database.
+  - `-t`, `--threads`: Number of threads to use.
+  - `--overwrite`: Overwrite existing records.
+  - `-q`, `--qc`: Calculate QC statistics.
+  - `-x`, `--update`: Update counts and abundances in the database.
+
+### Customization
+
+- **🗄️ Custom Databases**:
+  - Users can specify custom databases for taxonomic profilers like Emu and Centrifuge.
+  - Use the **Database Manager** in the GUI or provide paths via CLI options.
+
+- **⚙️ Changing Pipelines**:
+  - Currently, pipelines are predefined, but users can adjust parameters and select which steps to run.
+  - Advanced users can modify pipeline scripts or contribute to the project for additional customization.
+
+---
+
+## ⚙️ Configuration and Settings
+
+### Configuring the App
+
+- **🔐 User Authentication**:
+  - Configure your login credentials in the **User Authentication** window.
+  - Credentials are stored in a JSON configuration file (`db_config.json`).
+
+- **🔗 External Tools and Paths**:
+  - Paths to external tools are managed automatically in the builds.
+  - If running from source, ensure that tools like Minimap2 are installed and available in your system's PATH.
+
+- **📝 Changing Parameters**:
+  - Parameters for analyses can be adjusted in the GUI before running a pipeline.
+  - In the CLI, parameters are adjusted using command-line options.
+
+### Configuration Files
+
+- **📁 Database Configuration**:
+  - The `db_config.json` file stores database connection settings.
+  - This file is created and managed by the GUI but can be edited manually if needed.
+
+---
+
+## 📈 Output and Results
+
+### Types of Outputs
+
+- **🦠 Taxonomic Profiles**:
+  - Generated using Emu (for 16S rRNA) and Centrifuger (for WGS).
+  - Results include species-level taxonomic abundances.
+
+- **📊 Quality Control Reports**:
+  - Read lengths, quality scores, GC content, and more.
+
+- **🧬 Functional Analyses**:
+  - Metagenome-assembled genomes (MAGs).
+  - KEGG metabolic pathway maps.
+
+### Accessing Results
+
+- **💾 Local Storage**:
+  - Results are stored in the `pipeline_out` directory within the application resources.
+  - File formats include TSV, CSV, and JSON.
+
+- **🌐 Web Dashboard**:
+  - Results are uploaded to the MMonitor web server for visualization.
+  - Access via the Dashboard after logging in.
+
+---
+
+## 🌐 Web Dashboard
+
+### Interacting with the Dashboard
+
+- **🌐 Access**:
+  - Visit the [MMonitor Dashboard](https://mmonitor.org/dashboard) and log in with your credentials.
+
+- **🗺️ Navigation**:
+  - Use the menu to navigate between different visualization tools:
+    - **🦠 Taxonomy**: View taxonomic profiles.
+    - **📊 Diversity**: Explore alpha and beta diversity metrics.
+    - **🔍 Quality Control**: Inspect sequencing quality metrics.
+    - **🔗 Correlations**: Analyze correlations between taxa and metadata.
+    - **🧬 KEGG**: View KEGG metabolic pathway maps.
+
+### Visualizations and Metrics
+
+- **📈 Plots and Graphs**:
+  - Stacked bar charts, area plots, horizon graphs, heatmaps, PCoA plots, and more.
+
+- **📊 Metrics**:
+  - Alpha Diversity (Shannon, Simpson indices).
+  - Beta Diversity (Bray-Curtis distances).
+
+- **🖱️ Interactivity**:
+  - Hover over plots for detailed information.
+  - Filter and select samples based on criteria.
+
+### Metadata Integration
+
+- **📄 Uploading Metadata**:
+  - In the **Correlations** section, upload a CSV file containing metadata.
+  - Ensure that sample names in the metadata match those in your analysis.
+
+- **🔗 Correlation Analysis**:
+  - Analyze Pearson, Spearman, or Kendall correlations between taxa abundances and metadata variables.
+
+---
+
+## 🐞 Error Handling and Troubleshooting
+
+### Common Issues
+
+- **❌ Dependency Problems**:
+  - Missing external tools or libraries.
+  - Version incompatibilities.
+
+- **⚠️ Runtime Errors**:
+  - Insufficient memory or CPU resources.
+  - Incorrect file paths or permissions.
+
+- **🚫 Pipeline Failures**:
+  - Errors during assembly, binning, or annotation steps.
+
+### Diagnosing and Fixing Issues
+
+- **📜 Check Logs**:
+  - Review console output for error messages.
+  - Log files may be generated in the output directories.
+
+- **🔍 Verify Installations**:
+  - Ensure all dependencies are correctly installed.
+  - For missing R packages, run:
+
+    ```R
+    install.packages(c("jpeg", "png", "RColorBrewer", "lattice", "latticeExtra"))
+    ```
+
+- **🖥️ System Resources**:
+  - Close unnecessary applications to free up memory.
+  - Consider running on a system with more RAM or CPU cores.
+
+### Getting Help
+
+- **🐙 GitHub Issues**:
+  - Report issues or seek assistance by opening an issue on the [MMonitor Pipeline GitHub repository](https://github.com/lucast122/mmonitor-pipeline/issues).
+
+- **✉️ Contact Support**:
+  - Email the developer at [timo-niklas.lucas@uni-tuebingen.de](mailto:timo-niklas.lucas@uni-tuebingen.de).
+
+---
+
+## 🤝 Contributing
+
+### How to Contribute
+
+- **💻 Code Contributions**:
+  - Fork the repositories:
+    - [MMonitor Pipeline](https://github.com/lucast122/mmonitor-pipeline)
+    - [MMonitor Server](https://github.com/lucast122/mmonitor-server)
+  - Create a new branch for your feature or bug fix.
+  - Submit a pull request for review.
+
+- **🐞 Bug Reports and Feature Requests**:
+  - Use GitHub Issues to report bugs or suggest new features.
+
+### Contribution Guidelines
+
+- **📐 Coding Standards**:
+  - Follow Python PEP 8 style guidelines.
+  - Write clear, concise commit messages.
+
+- **✅ Pull Request Process**:
+  - Ensure that all tests pass before submitting.
+  - Provide a detailed description of changes.
+
+- **💬 Community Engagement**:
+  - Participate in discussions and help answer questions.
+
+---
+
+## 📄 Licensing and Acknowledgments
+
+### License
+
+MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
+### Acknowledgments
+
+- **👥 Contributors**:
+  - **Timo N. Lucas**: Lead developer.
+  - **Tobias Laas**: Development contributions.
+  - **Simon Konzalla**: Development contributions.
+
+- **💡 Funding**:
+  - *[Please insert funding information here, including funder names, grant numbers, and recipient authors.]*
+
+- **🤝 Collaborations**:
+  - MMonitor was developed at the University of Tübingen in collaboration with environmental biotechnologists and microbiome researchers from the Angenent Lab and Ley Lab. Special thanks to:
+  - Ulrike Biehain for helping in p[lanning and testing the software, suggesting new features
+  - 
+
+### Ethics Approval
+
+- *[If applicable, provide an ethics approval statement for your study here.]*
+
+### Conflicts of Interest
+
+- The authors declare no conflicts of interest.
+
+---
+
+**Note**: For detailed methods, benchmarks, and validations, refer to the publication associated with MMonitor (in preparation)
