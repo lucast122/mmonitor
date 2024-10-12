@@ -1,7 +1,3 @@
-Certainly! I've added relevant icons to enhance the visual appeal of the documentation. Here's the updated Markdown with icons:
-
----
-
 # 📊 MMonitor Documentation
 
 ## Table of Contents
@@ -16,8 +12,6 @@ Certainly! I've added relevant icons to enhance the visual appeal of the documen
 8. [🐞 Error Handling and Troubleshooting](#-error-handling-and-troubleshooting)
 9. [🤝 Contributing](#-contributing)
 10. [📄 Licensing and Acknowledgments](#-licensing-and-acknowledgments)
-
----
 
 ## 📖 Introduction
 
