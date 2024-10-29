@@ -28,7 +28,7 @@
 
 ### Intended Audience
 
-MMonitor is designed for researchers, bioinformaticians, and scientists working in microbiology, environmental biotechnology, clinical microbiology, and related fields who need to monitor microbial communities in real-time.
+MMonitor is designed for researchers, bioinformaticians, and scientists working in microbiology, environmental biotechnology, clinical microbiology, and related fields who need to analyze microbial communities using nanopore sequencing (taxonomy and function) in real-time.
 
 ---
 
