@@ -23,11 +23,11 @@ from mmonitor.dashapp.index import Index
 from mmonitor.database.DBConfigForm import DataBaseConfigForm
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.database.mmonitor_db import MMonitorDBInterface
-from mmonitor.userside.CentrifugeRunner import CentrifugeRunner
+from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
 from mmonitor.userside.EmuRunner import EmuRunner
 from mmonitor.userside.FastqStatistics import FastqStatistics
 from mmonitor.userside.InputWindow import InputWindow
-from mmonitor.userside.PipelineWindow import PipelinePopup
+from mmonitor.userside.PipelineConfig import PipelineConfig
 from mmonitor.userside.FunctionalRunner import FunctionalRunner
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from mmonitor.userside.DatabaseWindow import DatabaseWindow
@@ -36,9 +36,29 @@ import multiprocessing
 from mmonitor.userside.utils import create_tooltip
 import json
 
-VERSION = "v1.1.0"
-MAIN_WINDOW_X, MAIN_WINDOW_Y = 1100, 950
-CONSOLE_WIDTH = 300
+VERSION = "v0.1.0"
+MAIN_WINDOW_X, MAIN_WINDOW_Y = 1500, 1000  # Standard window size
+CONSOLE_WIDTH = 300  # Fixed console width
+SIDEBAR_WIDTH = 220  # Fixed sidebar width
+CONTENT_WIDTH = MAIN_WINDOW_X - SIDEBAR_WIDTH - CONSOLE_WIDTH
+
+# Add color scheme constants
+COLORS = {
+    "primary": "#2B6CB0",        # Deep blue
+    "primary_hover": "#2C5282",  # Darker blue
+    "secondary": "#718096",      # Slate gray
+    "background": "#FFFFFF",     # White
+    "surface": "#F7FAFC",        # Light gray background
+    "border": "#E2E8F0",        # Light border color
+    "text": "#2D3748",          # Dark gray text
+    "text_secondary": "#4A5568", # Secondary text color
+    "success": "#38A169",       # Green
+    "error": "#E53E3E",         # Red
+    "warning": "#D69E2E",       # Yellow
+    "console_bg": "#F8FAFC",    # Very light gray for console
+    "console_text": "#1A202C",  # Very dark gray for console text
+    "button_text": "#FFFFFF"    # White text for buttons
+}
 
 class TeeOutput(io.StringIO):
     def __init__(self, original_stream, gui):
@@ -89,23 +109,42 @@ class GUI(ctk.CTk):
         print("Initializing GUI...")
         super().__init__()
         self.title(f"MMonitor {VERSION}")
-        self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}")
-        self.minsize(MAIN_WINDOW_X, MAIN_WINDOW_Y)  # Set minimum window size
-        self.resizable(False, False)
+        
+        # Center window on screen
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = (screen_width - MAIN_WINDOW_X) // 2
+        y = (screen_height - MAIN_WINDOW_Y) // 2
+        
+        # Set window size and position
+        self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}+{x}+{y}")
+        self.minsize(MAIN_WINDOW_X, MAIN_WINDOW_Y)
+        
+        # Define padding and spacing
+        self.FRAME_PADDING = 15
+        self.WIDGET_SPACING = 8
+        
+        # Define font sizes
+        self.default_font_size = 14
+        self.title_font_size = 20
+        self.small_font_size = 12
 
-        # Define FRAME_PADDING here
-        self.FRAME_PADDING = 20
-
-        # Set initial appearance mode
-        self.appearance_mode = "light"
-        ctk.set_appearance_mode(self.appearance_mode)
-
+        # Load appearance mode from system and config
+        self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.load_appearance_mode()
+        
+        # Define theme colors based on mode
+        self.update_theme_colors()
+        
+        # Initialize variables
         self.console_expanded = False
-        self.console_auto_opened = False
+        self.console_auto_opened = False  # Start with console closed
+
+        # Rest of initialization...
         self.folder_monitor = None
         self.folder_watcher_window = None
         self.database_window = None
-        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
         self.logged_in = False
         self.offline_mode = False
         self.current_user = None
@@ -114,8 +153,8 @@ class GUI(ctk.CTk):
         self.setup_runners()
         self.init_layout()
 
-        # Create console before redirecting stdout and stderr
-        self.create_console()
+        # Create console but don't show it
+        # self.create_console()
 
         # Redirect stdout and stderr
         sys.stdout = TeeOutput(sys.stdout, self)
@@ -140,7 +179,7 @@ class GUI(ctk.CTk):
 
     def setup_runners(self):
         print("Setting up runners...")
-        self.centrifuge_runner = CentrifugeRunner()
+        self.centrifugr_runner = CentrifugerRunner()
         self.emu_runner = EmuRunner()
         self.functional_analysis_runner = FunctionalRunner()
         self.cmd_runner = MMonitorCMD()
@@ -150,53 +189,215 @@ class GUI(ctk.CTk):
         print("Initializing layout...")
         ctk.set_default_color_theme("blue")
         
-        # Create main content area
-        self.content_frame = ctk.CTkFrame(self)
-        self.content_frame.pack(side="right", fill="both", expand=True)
-
-        # Create sidebar
-        self.sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
-        self.sidebar.pack(side="left", fill="y", padx=0, pady=0)
-
-        # Add logo or app name to sidebar
-        logo_label = ctk.CTkLabel(self.sidebar, text="MMonitor", font=("Helvetica", 20, "bold"))
-        logo_label.pack(pady=20)
-
+        # Create main frame with fixed minimum size
+        self.main_frame = ctk.CTkFrame(self)
+        self.main_frame.pack(fill="both", expand=True)
+        
+        # Create a container frame for sidebar and content
+        self.inner_frame = ctk.CTkFrame(self.main_frame)
+        self.inner_frame.pack(side="left", fill="both", expand=True)
+        
+        # Create sidebar with fixed width
+        self.sidebar = ctk.CTkFrame(
+            self.inner_frame, 
+            width=SIDEBAR_WIDTH, 
+            corner_radius=0
+        )
+        self.sidebar.pack(side="left", fill="y")
+        self.sidebar.pack_propagate(False)
+        
+        # Create content frame with minimum width
+        content_min_width = MAIN_WINDOW_X - SIDEBAR_WIDTH - CONSOLE_WIDTH
+        self.content_frame = ctk.CTkFrame(
+            self.inner_frame,
+            width=content_min_width
+        )
+        self.content_frame.pack(side="left", fill="both", expand=True)
+        
+        # Create console frame (always on right)
+        self.create_console()
+        
+        # Create sidebar buttons
         self.create_sidebar_buttons()
 
-        # Add Toggle Console button
-        self.toggle_console_button = ctk.CTkButton(self.sidebar, text="Toggle Console", command=self.toggle_console)
-        self.toggle_console_button.pack(side="bottom", pady=10, padx=10, fill="x")
+    def create_console(self):
+        """Create the console frame with consistent size"""
+        self.console_frame = ctk.CTkFrame(
+            self.main_frame, 
+            width=CONSOLE_WIDTH,
+            height=MAIN_WINDOW_Y,
+            fg_color=COLORS["console_bg"]
+        )
+        self.console_frame.pack(side="right", fill="y")
+        self.console_frame.pack_propagate(False)
+        
+        # Modern title bar
+        console_title = ctk.CTkFrame(
+            self.console_frame, 
+            height=40, 
+            fg_color=COLORS["primary"]
+        )
+        console_title.pack(fill="x", padx=1, pady=(1, 0))
+        console_title.pack_propagate(False)
+        
+        ctk.CTkLabel(
+            console_title, 
+            text="Console Output", 
+            font=("Helvetica", 12, "bold"),
+            text_color=COLORS["button_text"]
+        ).pack(side="left", padx=10)
+        
+        # Improved toggle button
+        self.minimize_btn = ctk.CTkButton(
+            console_title,
+            text="−",
+            width=30,
+            height=30,
+            corner_radius=5,
+            command=self.toggle_console,
+            fg_color=COLORS["primary"],
+            hover_color=COLORS["primary_hover"],
+            text_color=COLORS["button_text"]
+        )
+        self.minimize_btn.pack(side="right", padx=5, pady=5)
+        
+        # Console text area with improved styling
+        self.console_text = ctk.CTkTextbox(
+            self.console_frame, 
+            wrap="word",
+            width=CONSOLE_WIDTH - 20,
+            height=MAIN_WINDOW_Y - 60,
+            fg_color="white",
+            text_color=COLORS["console_text"],
+            font=("Consolas", 11)
+        )
+        self.console_text.pack(expand=True, fill="both", padx=10, pady=10)
+        
+        self.console_expanded = True
+        self.console_auto_opened = True
 
-        # Add Toggle Dark Mode button below Toggle Console
-        self.toggle_dark_mode_button = ctk.CTkButton(self.sidebar, text="Toggle Dark Mode", command=self.toggle_dark_mode)
-        self.toggle_dark_mode_button.pack(side="bottom", pady=10, padx=10, fill="x")
-
-        print("Layout initialization complete.")
+    def toggle_console(self):
+        """Toggle the console visibility with consistent size"""
+        if self.console_expanded:
+            self.console_frame.pack_forget()
+            self.minimize_btn.configure(text="□")
+        else:
+            self.console_frame.pack(side="right", fill="y")
+            self.minimize_btn.configure(text="−")
+        self.console_expanded = not self.console_expanded
 
     def create_sidebar_buttons(self):
         buttons = [
-            ("Home", self.show_home, "home_icon.png"),
-            ("Analysis", self.show_analysis, "analysis_icon.png"),
-            ("Watch Folder", self.show_folder_watcher, "folder_icon.png"),
-            ("Manage Databases", self.show_database_management, "database_icon.png"),
+            ("Home", self.show_home, "🏠", "Navigate to the home screen"),
+            ("Configuration", self.show_analysis, "⚙️", "Configure analysis parameters"),
+            ("Watch Folder", self.show_folder_watcher, "📁", "Monitor folders for new sequences"),
+            ("Manage Databases", self.show_database_management, "🗄️", "Manage reference databases"),
         ]
 
-        for text, command, icon_name in buttons:
-            icon = self.load_icon(icon_name, size=(24, 24))  # Slightly larger icons
-            btn = ctk.CTkButton(self.sidebar, text=text, command=lambda cmd=command: self.check_login_and_execute(cmd), 
-                                image=icon, compound="left", anchor="w", height=40,
-                                fg_color="transparent", hover_color=("gray80", "gray30"),
-                                font=("Helvetica", 12))
-            btn.pack(pady=5, padx=10, fill="x")
-            create_tooltip(btn, f"Click to {text.lower()}")
+        # Create a container for the entire sidebar content
+        sidebar_content = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        sidebar_content.pack(fill="both", expand=True, pady=20)
 
-        # Add login status at the top
-        self.login_status_label = ctk.CTkLabel(self.sidebar, text="Not logged in", anchor="w", height=40)
-        self.login_status_label.pack(pady=10, padx=10, fill="x", side="top")
+        # Logo/Title section
+        logo_frame = ctk.CTkFrame(sidebar_content, fg_color="transparent")
+        logo_frame.pack(fill="x", pady=(0, 30), padx=20)
+        
+        logo_label = ctk.CTkLabel(logo_frame, text="Metagenome\nMonitor",
+                                 font=("Helvetica", 28, "bold"), justify="left")
+        logo_label.pack(pady=(0, 5))
+        
+        version_label = ctk.CTkLabel(logo_frame, text=VERSION,
+                                    font=("Helvetica", 12))
+        version_label.pack()
 
-        # Update appearance for initial mode
-        self.update_appearance()
+        # Navigation buttons with modern styling
+        nav_frame = ctk.CTkFrame(sidebar_content, fg_color="transparent")
+        nav_frame.pack(fill="x", expand=True, padx=10)
+
+        for text, command, icon, tooltip in buttons:
+            btn_container = ctk.CTkFrame(nav_frame, fg_color="transparent")
+            btn_container.pack(fill="x", pady=5)
+            
+            # Create modern button with hover effect
+            btn = ctk.CTkButton(
+                btn_container, 
+                text=f"{icon}  {text}",
+                command=lambda cmd=command: self.check_login_and_execute(cmd),
+                height=45,
+                corner_radius=10,
+                font=("Helvetica", 14),
+                anchor="w",
+                fg_color="transparent",
+                text_color=self.theme_colors["text"],
+                hover_color=self.theme_colors["button_hover"],
+                border_width=2,
+                border_color=self.theme_colors["button_secondary"],
+                compound="left"
+            )
+            btn.pack(fill="x", padx=5)
+            
+            # Add hover animation with mode-aware text color
+            def on_enter(e, b=btn):
+                is_dark = self.appearance_mode == "dark"
+                b.configure(
+                    fg_color=self.theme_colors["button"],
+                    text_color="white" if is_dark else "black"  # Mode-specific text color
+                )
+            
+            def on_leave(e, b=btn):
+                b.configure(
+                    fg_color="transparent",
+                    text_color=self.theme_colors["text"]
+                )
+            
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
+            create_tooltip(btn, tooltip)
+
+        # Status section at bottom
+        status_frame = ctk.CTkFrame(sidebar_content, fg_color="transparent")
+        status_frame.pack(fill="x", side="bottom", pady=20, padx=15)
+        
+        self.login_status_label = ctk.CTkLabel(
+            status_frame, 
+            text="Not logged in",
+            font=("Helvetica", 12)
+        )
+        self.login_status_label.pack(fill="x")
+        
+        # Modern toggle console button
+        self.toggle_console_button = ctk.CTkButton(
+            status_frame, 
+            text="Toggle Console",
+            command=self.toggle_console,
+            height=35,
+            corner_radius=8,
+            font=("Helvetica", 12),
+            fg_color=self.theme_colors["button"],
+            hover_color=self.theme_colors["button_hover"],
+            border_width=1,
+            border_color=self.theme_colors["button"]
+        )
+        self.toggle_console_button.pack(fill="x", pady=(10, 0))
+
+        # Update theme colors for dark/light mode
+        def update_colors():
+            is_dark = self.appearance_mode == "dark"
+            bg_color = "gray20" if is_dark else "white"
+            text_color = "white" if is_dark else "black"
+            hover_color = "gray30" if is_dark else "gray80"
+            
+            for widget in nav_frame.winfo_children():
+                if isinstance(widget, ctk.CTkButton):
+                    widget.configure(
+                        text_color=text_color,
+                        hover_color=hover_color,
+                        border_color="gray40" if is_dark else "gray70"
+                    )
+        
+        # Call initially and bind to theme changes
+        update_colors()
+        self.bind("<<ThemeChanged>>", lambda _: update_colors())
 
     def load_icon(self, icon_name, size=(20, 20)):
         icon_path = os.path.join(IMAGES_PATH, icon_name)
@@ -206,18 +407,12 @@ class GUI(ctk.CTk):
             print(f"Warning: Icon {icon_name} not found.")
             return None
 
-    def toggle_console(self):
-        if self.console_expanded:
-            self.console_frame.pack_forget()
-            self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}")
-        else:
-            self.console_frame.pack(side="right", fill="y", expand=False)
-            self.geometry(f"{MAIN_WINDOW_X + CONSOLE_WIDTH}x{MAIN_WINDOW_Y}")
-        self.console_expanded = not self.console_expanded
-
     def update_console(self, text):
+        """Update console content and auto-show if needed"""
         self.console_text.insert("end", text)
         self.console_text.see("end")
+        
+        # Auto-show console on first update if configured
         if not self.console_expanded and not self.console_auto_opened:
             self.toggle_console()
             self.console_auto_opened = True
@@ -552,157 +747,335 @@ class GUI(ctk.CTk):
         self.update()  # Force update of the GUI
 
     def show_login(self):
+        """Show login window using the LoginWindow class"""
         self.clear_content_frame()
         
-        login_frame = ctk.CTkFrame(self.content_frame)
-        login_frame.pack(padx=20, pady=20, fill="both", expand=True)
-
-        ctk.CTkLabel(login_frame, text="Login to MMonitor", font=("Helvetica", 24, "bold")).pack(pady=(0, 20))
-
-        # Server address
-        server_frame = ctk.CTkFrame(login_frame)
-        server_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(server_frame, text="Server:", width=100).pack(side="left", padx=(0, 10))
-        self.server_entry = ctk.CTkEntry(server_frame)
-        self.server_entry.pack(side="left", expand=True, fill="x")
-        self.server_entry.insert(0, "mmonitor.org")
-
-        # Port (disabled by default)
-        port_frame = ctk.CTkFrame(login_frame)
-        port_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(port_frame, text="Port:", width=100).pack(side="left", padx=(0, 10))
-        self.port_entry = ctk.CTkEntry(port_frame, state="disabled")
-        self.port_entry.pack(side="left", expand=True, fill="x")
-        self.port_entry.insert(0, "443")  # Default HTTPS port
-        self.port_checkbox = ctk.CTkCheckBox(port_frame, text="Custom Port", command=self.toggle_port_entry)
-        self.port_checkbox.pack(side="left", padx=(10, 0))
-
-        # Username
-        username_frame = ctk.CTkFrame(login_frame)
-        username_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(username_frame, text="Username:", width=100).pack(side="left", padx=(0, 10))
-        self.username_entry = ctk.CTkEntry(username_frame)
-        self.username_entry.pack(side="left", expand=True, fill="x")
-
-        # Password
-        password_frame = ctk.CTkFrame(login_frame)
-        password_frame.pack(fill="x", pady=10)
-        ctk.CTkLabel(password_frame, text="Password:", width=100).pack(side="left", padx=(0, 10))
-        self.password_entry = ctk.CTkEntry(password_frame, show="*")
-        self.password_entry.pack(side="left", expand=True, fill="x")
-
-        # Buttons
-        button_frame = ctk.CTkFrame(login_frame)
-        button_frame.pack(fill="x", pady=(20, 0))
-        ctk.CTkButton(button_frame, text="Login", command=self.perform_login).pack(side="left", padx=5, expand=True, fill="x")
-        ctk.CTkButton(button_frame, text="Offline Mode", command=self.enter_offline_mode).pack(side="right", padx=5, expand=True, fill="x")
-
-    def toggle_port_entry(self):
-        if self.port_checkbox.get():
-            self.port_entry.configure(state="normal")
-            if not self.port_entry.get():
-                self.port_entry.insert(0, "443")  # Default HTTPS port
-        else:
-            self.port_entry.configure(state="disabled")
-
-    def perform_login(self):
-        server = self.server_entry.get()
-        port = self.port_entry.get() if self.port_checkbox.get() else "443"
-        username = self.username_entry.get()
-        password = self.password_entry.get()
+        # Create login window embedded in content frame
+        login_frame = LoginWindow(self.content_frame, self.db_path)
+        login_frame.pack(fill="both", expand=True)
         
-        # Here you would typically validate the credentials against your backend
-        # For this example, we'll just check if both fields are non-empty
-        if server and username and password:
-            self.logged_in = True
-            self.current_user = username
-            self.offline_mode = False
-            self.update_login_status()
-            self.show_home()
-        else:
-            messagebox.showerror("Login Failed", "Invalid server, username or password")
+        # Ensure console stays on right if expanded
+        if self.console_expanded:
+            self.console_frame.pack(side="right", fill="y")
 
     def enter_offline_mode(self):
+        self.logged_in = True
         self.offline_mode = True
+        self.current_user = "Offline"
+        
+        # Start the local Django server
+        self.start_local_server()
+        
+        # Update the configuration for the local server
+        self.django_db.set_offline_mode(True)
+        
         self.update_login_status()
         self.show_home()
+        print("Entered offline mode")
+
+    def start_local_server(self):
+        def run_server():
+            django_dir = '/Users/timo/Downloads/home/minion-computer/mmonitor_production/MMonitor/server'
+            manage_py_path = os.path.join(django_dir, 'manage.py')
+            python_interpreter = '/Users/timo/miniconda3/bin/python'
+            
+            if not os.path.exists(manage_py_path):
+                print(f"Error: manage.py not found at {manage_py_path}")
+                return
+
+            if not os.path.exists(python_interpreter):
+                print(f"Error: Python interpreter not found at {python_interpreter}")
+                return
+
+            os.chdir(django_dir)
+            try:
+                result = subprocess.run(
+                    [python_interpreter, "manage.py", "runserver", "127.0.0.1:8000"],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                print("Server output:", result.stdout)
+            except subprocess.CalledProcessError as e:
+                print(f"Error starting Django server: {e}")
+                print("Error output:", e.output)
+                print("Standard output:", e.stdout)
+                print("Standard error:", e.stderr)
+            except Exception as e:
+                print(f"Unexpected error starting Django server: {e}")
+
+        # Run the server in a separate thread
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+        print("Local server thread started")
 
     def update_login_status(self):
-        if self.logged_in:
-            self.login_status_label.configure(text=f"Logged in as {self.current_user}")
-        elif self.offline_mode:
+        if self.offline_mode:
             self.login_status_label.configure(text="Offline Mode")
+        elif self.logged_in:
+            self.login_status_label.configure(text=f"Logged in as {self.current_user}")
         else:
             self.login_status_label.configure(text="Not logged in")
+
+    def perform_login(self):
+        self.login_button.configure(state="disabled", text="Logging in...")
+        self.offline_button.configure(state="disabled")
+        self.login_status.configure(text="Attempting to log in...")
+        
+        threading.Thread(target=self._login_thread, daemon=True).start()
+
+    def _login_thread(self):
+        try:
+            success = self.django_db.login(
+                self.username_entry.get(),
+                self.password_entry.get(),
+                self.server_entry.get(),
+                self.port_entry.get(),
+                self.remember_var.get()
+            )
+            self.after(0, self._login_callback, success)
+        except Exception as e:
+            print(f"Exception during login: {e}")
+            self.after(0, self._login_callback, False)
+
+    def _login_callback(self, success):
+        if success:
+            self.logged_in = True
+            self.offline_mode = False
+            self.current_user = self.username_entry.get()
+            self.update_login_status()
+            self.login_status.configure(text="Login successful.")
+            self.after(1000, self.show_home)
+        else:
+            self.login_status.configure(text="Login failed. Please try again.")
+            self.login_button.configure(state="normal", text="Login")
+            self.offline_button.configure(state="normal")
+
+        print(f"Login {'succeeded' if success else 'failed'}")
 
     def logout(self):
         self.logged_in = False
         self.current_user = None
         self.offline_mode = False
         self.update_login_status()
+        self.db_interface = DjangoDBInterface(self.db_path)  # Reset the DB interface
         self.show_login()
 
-    def toggle_dark_mode(self):
-        if self.appearance_mode == "light":
-            self.appearance_mode = "dark"
-            ctk.set_appearance_mode("dark")
-        else:
-            self.appearance_mode = "light"
-            ctk.set_appearance_mode("light")
+    def load_appearance_mode(self):
+        """Load appearance mode from system and config"""
+        # Always use light mode for now
+        self.appearance_mode = "light"
+        ctk.set_appearance_mode("light")
         
-        self.update_appearance()
-        if self.folder_watcher_window:
-            self.folder_watcher_window.update_appearance()
+        # Commented out dark mode detection
+        # try:
+        #     with open(self.config_file, 'r') as f:
+        #         config = json.load(f)
+        #         saved_mode = config.get('appearance_mode')
+        # except (FileNotFoundError, json.JSONDecodeError):
+        #     saved_mode = None
+        # 
+        # if saved_mode:
+        #     self.appearance_mode = saved_mode
+        # else:
+        #     # Get system preference
+        #     import darkdetect
+        #     self.appearance_mode = "dark" if darkdetect.isDark() else "light"
+        # 
+        # ctk.set_appearance_mode(self.appearance_mode)
+
+    def update_theme_colors(self):
+        """Update theme colors based on current mode"""
+        # Always use light mode colors
+        self.theme_colors = {
+            "text": "#1A1A1A",
+            "secondary_text": "#666666",
+            "button": "#2B7DE9",
+            "button_hover": "#1E63C4",
+            "button_text": "#FFFFFF",
+            "button_secondary": "#E0E0E0",
+            "button_secondary_hover": "#CCCCCC",
+            "background": "#FFFFFF",
+            "sidebar": "#F5F5F5",
+            "frame": "#FFFFFF",
+            "border": "#E0E0E0",
+            "input": "#F8F8F8",
+            "hover": "#EEEEEE"
+        }
+
+    def toggle_dark_mode(self):
+        """Toggle between light and dark mode"""
+        # Commented out dark mode toggle functionality
+        # new_mode = "light" if self.appearance_mode == "dark" else "dark"
+        # self.appearance_mode = new_mode
+        # ctk.set_appearance_mode(new_mode)
+        # 
+        # # Update theme colors
+        # self.update_theme_colors()
+        # 
+        # # Update all windows
+        # self.update_all_windows()
+        # 
+        # # Save to config
+        # try:
+        #     with open(self.config_file, 'r') as f:
+        #         config = json.load(f)
+        #     config['appearance_mode'] = new_mode
+        #     with open(self.config_file, 'w') as f:
+        #         json.dump(config, f, indent=4)
+        # except Exception as e:
+        #     print(f"Error saving appearance mode: {e}")
+        pass
 
     def update_appearance(self):
-        if self.appearance_mode == "light":
-            self.configure(fg_color="white")
-            for widget in self.sidebar.winfo_children():
-                if isinstance(widget, ctk.CTkButton):
-                    widget.configure(fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC")
-                elif isinstance(widget, ctk.CTkLabel):
-                    widget.configure(text_color="black")
-        else:
-            self.configure(fg_color="gray10")
-            for widget in self.sidebar.winfo_children():
-                if isinstance(widget, ctk.CTkButton):
-                    widget.configure(fg_color="gray20", text_color="white", hover_color="gray30")
-                elif isinstance(widget, ctk.CTkLabel):
-                    widget.configure(text_color="white")
+        # Always use light mode appearance
+        self.configure(fg_color="white")
+        for widget in self.sidebar.winfo_children():
+            if isinstance(widget, ctk.CTkButton):
+                widget.configure(fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC")
+            elif isinstance(widget, ctk.CTkLabel):
+                widget.configure(text_color="black")
+
+    def update_all_windows(self):
+        """Update appearance of all windows"""
+        # Update main window
+        self.update_appearance()
+        
+        # Update folder watcher
+        if hasattr(self, 'folder_watcher_window') and self.folder_watcher_window:
+            self.folder_watcher_window.update_appearance()
+        
+        # Update database window
+        if hasattr(self, 'database_window') and self.database_window:
+            self.database_window.update_appearance()
+        
+        # Update console
+        if hasattr(self, 'console_frame'):
+            self.update_console_appearance()
+
+    def update_console_appearance(self):
+        """Update console appearance based on current theme"""
+        if self.console_expanded:
+            self.console_frame.configure(
+                fg_color=self.theme_colors["frame"],
+                border_color=self.theme_colors["border"]
+            )
+            self.console_text.configure(
+                fg_color=self.theme_colors["input"],
+                text_color=self.theme_colors["text"]
+            )
 
     def show_home(self):
+        """Show the home screen with vertical layout and clear user guidance"""
         self.clear_content_frame()
         
-        content_scroll = ctk.CTkScrollableFrame(self.content_frame)
-        content_scroll.pack(fill="both", expand=True, padx=self.FRAME_PADDING, pady=self.FRAME_PADDING)
+        # Create main container with padding
+        home_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        home_frame.pack(fill="both", expand=True, padx=40, pady=20)
         
-        ctk.CTkLabel(content_scroll, text="Welcome to MMonitor", font=("Helvetica", 24, "bold")).pack(pady=20)
+        # Title and welcome message
+        title_frame = ctk.CTkFrame(home_frame, fg_color="transparent")
+        title_frame.pack(fill="x", pady=(0, 30))
         
-        if self.logged_in or self.offline_mode:
-            explanation = ("MMonitor is a comprehensive tool for metagenomic analysis.\n"
-                           "Use the sidebar to navigate between different functionalities.")
-            ctk.CTkLabel(content_scroll, text=explanation, wraplength=500).pack(pady=(0, 20))
+        ctk.CTkLabel(
+            title_frame,
+            text="Welcome to MMonitor",
+            font=("Helvetica", 28, "bold")
+        ).pack(anchor="w")
+        
+        ctk.CTkLabel(
+            title_frame,
+            text="Real-time Monitoring and Analysis of Nanopore Metagenome Sequencing Data",
+            font=("Helvetica", 14),
+            text_color=self.theme_colors["secondary_text"]
+        ).pack(anchor="w")
+        
+        # Create steps container
+        steps_frame = ctk.CTkFrame(home_frame, fg_color="transparent")
+        steps_frame.pack(fill="x", pady=10)
+        
+        # Step 1: Analysis Configuration
+        step1_frame = self.create_step_frame(
+            steps_frame,
+            "1. Configure Analysis Parameters",
+            "Set up your analysis pipeline parameters including taxonomy settings, "
+            "quality thresholds, and processing options.",
+            "mmonitor_button_dna.png",
+            lambda: self.check_login_and_execute(self.show_analysis),
+            "Configure Analysis"
+        )
+        step1_frame.pack(fill="x", pady=(0, 20))
+        
+        # Step 2: Database Management
+        step2_frame = self.create_step_frame(
+            steps_frame,
+            "2. Manage Taxonomy Databases",
+            "Optional: Build or select custom taxonomy databases for your analysis. "
+            "Pre-built databases are available by default.",
+            "mmonitor_button_dna.png",
+            lambda: self.check_login_and_execute(self.show_database_management),
+            "Manage Databases"
+        )
+        step2_frame.pack(fill="x", pady=(0, 20))
+        
+        # Step 3: Sample Analysis
+        step3_frame = self.create_step_frame(
+            steps_frame,
+            "3. Analyze Sequencing Data",
+            "Process your sequencing data in real-time during runs or analyze "
+            "completed sequencing data. Supports both single-sample and batch processing.",
+            "mmonitor_button_dna.png",
+            lambda: self.check_login_and_execute(self.show_sequencing_monitor),
+            "Start Analysis"
+        )
+        step3_frame.pack(fill="x", pady=(0, 20))
 
-            actions = [
-                ("Start New Analysis", self.show_analysis, "Configure and run a new analysis pipeline"),
-                ("View Recent Results", self.view_results, "Check your latest analysis results"),
-                ("Manage Databases", self.open_database_window, "Update or configure your databases"),
-                ("Watch Folder", self.open_folder_watcher, "Set up automatic analysis for new files"),
-            ]
+    def create_step_frame(self, parent, title, description, icon_path, command, button_text):
+        """Create a consistent frame for each step"""
+        frame = ctk.CTkFrame(parent)
+        frame.configure(fg_color=self.theme_colors.get("surface", "#F7FAFC"))  # Use default if not found
+        
+        # Content container
+        content = ctk.CTkFrame(frame, fg_color="transparent")
+        content.pack(fill="x", padx=20, pady=15)
+        
+        # Title with step number
+        ctk.CTkLabel(
+            content,
+            text=title,
+            font=("Helvetica", 16, "bold"),
+            text_color=self.theme_colors.get("text", "#2D3748")
+        ).pack(anchor="w")
+        
+        # Description
+        ctk.CTkLabel(
+            content,
+            text=description,
+            font=("Helvetica", 12),
+            text_color=self.theme_colors.get("secondary_text", "#4A5568"),
+            wraplength=800,
+            justify="left"
+        ).pack(anchor="w", pady=(5, 10))
+        
+        # Action button
+        ctk.CTkButton(
+            content,
+            text=button_text,
+            command=command,
+            height=32,
+            font=("Helvetica", 12),
+            fg_color=self.theme_colors.get("primary", "#2B6CB0"),
+            hover_color=self.theme_colors.get("primary_hover", "#2C5282"),
+            text_color="#FFFFFF"
+        ).pack(anchor="w")
+        
+        return frame
 
-            for title, command, description in actions:
-                card = ctk.CTkFrame(content_scroll)
-                card.pack(fill="x", padx=10, pady=10)
-                
-                ctk.CTkLabel(card, text=title, font=("Helvetica", 18, "bold")).pack(pady=5)
-                ctk.CTkLabel(card, text=description, wraplength=300).pack(pady=5)
-                ctk.CTkButton(card, text="Go", command=command, width=100).pack(pady=10)
-
-            # Add logout button
-            ctk.CTkButton(content_scroll, text="Logout", command=self.logout).pack(pady=20)
-        else:
-            ctk.CTkLabel(content_scroll, text="Please log in to access MMonitor features.").pack(pady=20)
-            ctk.CTkButton(content_scroll, text="Go to Login", command=self.show_login).pack(pady=10)
+    def show_sequencing_monitor(self):
+        """Show the sequencing monitor (renamed from folder_watcher)"""
+        self.clear_content_frame()
+        self.folder_watcher_window = FolderWatcherWindow(self.content_frame, self)
+        self.folder_watcher_window.pack(fill="both", expand=True)
 
     def view_results(self):
         if self.logged_in:
@@ -721,16 +1094,59 @@ class GUI(ctk.CTk):
 
     def show_analysis(self):
         self.clear_content_frame()
-        self.pipeline_popup = PipelinePopup(self.content_frame, self)
+        
+        # Create main configuration frame with modern styling
+        config_frame = ctk.CTkFrame(self.content_frame)
+        config_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Add title with modern typography
+        title_frame = ctk.CTkFrame(config_frame, fg_color="transparent")
+        title_frame.pack(fill="x", pady=(0, 20))
+        
+        ctk.CTkLabel(
+            title_frame, 
+            text="Analysis Configuration",
+            font=("Helvetica", 24, "bold")
+        ).pack(anchor="w")
+        
+        ctk.CTkLabel(
+            title_frame,
+            text="Configure your analysis parameters and pipeline settings",
+            font=("Helvetica", 12),
+            text_color=self.theme_colors["secondary_text"]
+        ).pack(anchor="w")
+        
+        # Add pipeline configuration with reference to main window
+        self.pipeline_popup = PipelineConfig(config_frame, self)
         self.pipeline_popup.pack(fill="both", expand=True)
+        
+        # Ensure console stays on right
+        if self.console_expanded:
+            self.console_frame.pack(side="right", fill="y")
 
     def show_folder_watcher(self):
         if self.check_valid_config():
+            # Clear only the content frame contents
             self.clear_content_frame()
+            
+            # Ensure main frame and sidebar maintain their sizes
+            self.main_frame.pack_propagate(False)
+            self.sidebar.pack_propagate(False)
+            
+            # Create and pack the folder watcher window in the content frame
             self.folder_watcher_window = FolderWatcherWindow(self.content_frame, self)
             self.folder_watcher_window.pack(fill="both", expand=True)
+            
+            # Ensure proper layout
+            self.content_frame.pack(side="right", fill="both", expand=True)
+            self.sidebar.pack(side="left", fill="y")
+            
+            # Update geometry to ensure everything fits
+            self.update_idletasks()
+            
         else:
-            messagebox.showwarning("Invalid Configuration", "Please set up analysis parameters in the Analysis tab first.")
+            messagebox.showwarning("Invalid Configuration", 
+                                 "Please set up analysis parameters in the Analysis tab first.")
             self.show_analysis()
 
     def show_database_management(self):
@@ -744,21 +1160,18 @@ class GUI(ctk.CTk):
         self.update()  # Force update of the GUI
 
     def clear_content_frame(self):
-        if self.content_frame.winfo_children():
-            print("Clearing content frame")
-            for widget in self.content_frame.winfo_children():
-                widget.destroy()
-            print("Content frame cleared")
-        else:
-            print("Content frame is already empty")
-
-    def create_console(self):
-        self.console_frame = ctk.CTkFrame(self)
-        self.console_frame.pack(side="right", fill="y", expand=False)
-        self.console_frame.pack_forget()  # Initially hide the console
-
-        self.console_text = ctk.CTkTextbox(self.console_frame, wrap="word", width=300)
-        self.console_text.pack(fill="both", expand=True)
+        """Clear only the content frame while preserving the sidebar and console"""
+        # Ensure main frame and sidebar maintain their sizes
+        self.main_frame.pack_propagate(False)
+        self.sidebar.pack_propagate(False)
+        
+        # Clear content frame widgets
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        
+        # Ensure console stays on the right
+        if self.console_expanded:
+            self.console_frame.pack(side="right", fill="y")
 
     def check_login_and_execute(self, command):
         if self.logged_in or self.offline_mode:
@@ -806,3 +1219,33 @@ class CustomDatePicker(ctk.CTkToplevel):
             self.destroy()
         except ValueError:
             messagebox.showerror("Invalid Date", "Please enter a valid date.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
