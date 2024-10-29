@@ -5,11 +5,20 @@ import subprocess
 from json import loads
 from typing import List, Tuple, Any
 import pandas as pd
-import requests as pyrequests
+import requests
 from requests.auth import HTTPBasicAuth
 from Bio import SeqIO
 import keyring
 from keyring.errors import PasswordDeleteError
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.exceptions import Timeout, RequestException
+
+
+
+
+
+# Disable the InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 def _parse_dict(x):
     return pd.Series(loads(x))
@@ -50,7 +59,19 @@ class DjangoDBInterface:
         self.password = None
         self.host = None
         self.port = None
+        self.offline_mode = False
         self.load_config()
+
+    def set_offline_mode(self, offline):
+        self.offline_mode = offline
+        if offline:
+            self.host = '127.0.0.1'
+            self.port = '8000'
+        else:
+            # Reset to default online values if needed
+            self.host = 'mmonitor.org'
+            self.port = '443'
+        self.save_config()
 
     def load_config(self):
         if os.path.exists(self.config_path):
@@ -59,8 +80,8 @@ class DjangoDBInterface:
                 self.username = config.get('user')
                 self.host = config.get('host')
                 self.port = config.get('port', 443)
+                self.offline_mode = config.get('offline_mode', False)
                 
-                # Try to get password from keyring
                 stored_password = keyring.get_password("MMonitor", self.username)
                 if stored_password:
                     self.password = stored_password
@@ -71,16 +92,15 @@ class DjangoDBInterface:
         config = {
             'user': self.username,
             'host': self.host,
-            'port': self.port
+            'port': self.port,
+            'offline_mode': self.offline_mode
         }
         if remember:
             keyring.set_password("MMonitor", self.username, self.password)
         else:
-            # If not remembering, try to remove any stored password
             try:
                 keyring.delete_password("MMonitor", self.username)
             except PasswordDeleteError:
-                # Password doesn't exist, so we can ignore this error
                 pass
         
         with open(self.config_path, 'w') as file:
@@ -92,7 +112,12 @@ class DjangoDBInterface:
         self.host = host
         self.port = port
         
-        # Verify credentials
+        # Set offline_mode to False for online login attempts
+        self.offline_mode = False if host != '127.0.0.1' else True
+        
+        print(f"Attempting to login with: {username}@{host}:{port}")
+        print(f"Offline mode: {self.offline_mode}")
+        
         if self.verify_credentials():
             self.save_config(remember)
             return True
@@ -100,29 +125,52 @@ class DjangoDBInterface:
 
     def verify_credentials(self):
         user_id = self.get_user_id(self.username, self.password)
+        print(f"Received user_id: {user_id}")
         return user_id is not None
 
     def get_user_id(self, username: str, password: str):
-        django_url = f"https://{self.host}:{self.port}/users/get_user_id/"
-        print(f"Attempting to get user ID from URL: {django_url}")
-        print(f"Using username: {username}")
+        protocol = 'http' if self.offline_mode else 'https'
+        django_url = f"{protocol}://{self.host}:{self.port}/users/get_user_id/"
         try:
-            response = pyrequests.post(django_url, data={'username': username, 'password': password})
+            response = requests.post(
+                django_url, 
+                data={'username': username, 'password': password}, 
+                verify=not self.offline_mode,
+                timeout=10
+            )
             print(f"Response status code: {response.status_code}")
             print(f"Response content: {response.content}")
+            
             if response.status_code == 200:
-                return response.json()['user_id']
-            else:
-                print(f"Failed to get user ID. Status code: {response.status_code}")
+                try:
+                    return response.json().get('user_id')
+                except json.JSONDecodeError:
+                    print(f"Failed to decode JSON. Raw response: {response.text}")
+                    return None
+            elif response.status_code == 400:
+                print(f"Authentication failed: {response.text}")
                 return None
+            else:
+                print(f"Unexpected status code: {response.status_code}")
+                return None
+        except Timeout:
+            print("Request timed out")
+            return None
+        except RequestException as e:
+            print(f"Request exception: {e}")
+            return None
         except Exception as e:
             print(f"Exception occurred while getting user ID: {str(e)}")
             return None
 
     def get_unique_sample_ids(self):
-        django_url = f"https://{self._db_config['host']}:{self.port}/users/get_unique_sample_ids/"
-        response = pyrequests.post(django_url,
-                                   data={'username': self._db_config['user'], 'password': self._db_config['password']})
+        protocol = 'http' if self.offline_mode else 'https'
+        django_url = f"{protocol}://{self.host}:{self.port}/users/get_unique_sample_ids/"
+        response = requests.post(
+            django_url,
+            data={'username': self.username, 'password': self.password},
+            verify=not self.offline_mode
+        )
         if response.status_code == 200:
             return response.json().get('sample_ids', [])
         else:
@@ -206,7 +254,7 @@ class DjangoDBInterface:
 
         # Send all records in one request
         try:
-            response = pyrequests.post(
+            response = requests.post(
                 f"https://{self._db_config['host']}:{self.port}/users/overwrite_nanopore_record/",
                 json=records,  # Send the list of records
                 auth=HTTPBasicAuth(self._db_config['user'], self._db_config['password'])
@@ -223,77 +271,90 @@ class DjangoDBInterface:
 
     def send_nanopore_record_centrifuge(self, kraken_out_path: str, sample_name: str, project_id: str, subproject_id: str,
                                         date: str, overwrite: bool):
-
-        df = pd.read_csv(
-            kraken_out_path,
-            sep='\t',
-            header=None,
-            usecols=[0,1, 3, 5],
-            names=["abundance",'Count', 'Rank', 'Name']
-        )
-
-        df = df.sort_values('Count', ascending=False)
-
-        df['Sample'] = sample_name
-        df['Sample_date'] = date
-        df = df[df['Rank'] == "S"]
-        df = df[df['abundance'] > 1]
-        df = df.drop(columns='Rank')
-
-        user_id = self.get_user_id(self._db_config['user'], self._db_config['password'])
-
+        """Send Centrifuger results to the database"""
+        # First verify user credentials
+        user_id = self.get_user_id(self.username, self.password)
         if user_id is None:
             print("Invalid user credentials")
-            return
-        print(f"User id clientside: {user_id}")
+            return False
 
-        sample_ids = self.get_unique_sample_ids()
-        print(f"Found samples: {sample_ids}")
-        # do not add sample if overwrite is False and the sample_name is already present in the django DB
-        # this makes sure that a sample is only reprocessed if the overwrite bool is set e.g. with the cmd line or in the GUI
-        if sample_name in sample_ids and not overwrite:
-            print(
-                f"Skipping sample {sample_name} as it is already in the database. Select overwrite to reprocess a sample.")
-            return
-
-        records = []
-        for index, row in df.iterrows():
-            record_data = {
-                "sample_id": sample_name,
-                "project_id": project_id,
-                "subproject_id": subproject_id,
-                "date": date,
-                "taxonomy": row["Name"].strip(),  # Assuming species for now; might need adjustments based on taxonomic rank
-                "abundance": row["abundance"]/100, #divide abundance by 100 to get same format used by emu
-                "count": row["Count"],
-                "project_id": project_id,
-                "subproject": subproject_id,
-                "tax_genus": "empty",
-                "tax_family": "empty",
-                "tax_order": "empty",
-                "tax_class": "empty",
-                "tax_phylum": "empty",
-                "tax_superkingdom": "empty",
-                "tax_clade": "empty",
-                "tax_subspecies": "empty"
-
-            }
-            # print(record_data)
-            records.append(record_data)
-
-        # print(f"Sending record: {records}")
         try:
-            response = pyrequests.post(
-                f"https://{self._db_config['host']}:{self.port}/users/overwrite_nanopore_record/",
-                json=records,  # Send the list of records
-                auth=HTTPBasicAuth(self._db_config['user'], self._db_config['password'])
+            # Read and process the Centrifuger output
+            df = pd.read_csv(
+                kraken_out_path,
+                sep='\t',
+                header=None,
+                usecols=[0, 1, 3, 5],
+                names=["abundance", 'Count', 'Rank', 'Name']
             )
-            if response.status_code != 201:
-                print(f"Failed to add records: {response.content}")
-            else:
-                print(f"Records added successfully.")
+
+            df = df.sort_values('Count', ascending=False)
+            df['Sample'] = sample_name
+            df['Sample_date'] = date
+            df = df[df['Rank'] == "S"]  # Keep only species-level classifications
+            df = df[df['abundance'] > 1]  # Filter by abundance
+            df = df.drop(columns='Rank')
+
+            print(f"User id clientside: {user_id}")
+
+            # Check if sample already exists
+            sample_ids = self.get_unique_sample_ids()
+            print(f"Found samples: {sample_ids}")
+            
+            if sample_name in sample_ids and not overwrite:
+                print(f"Skipping sample {sample_name} as it is already in the database. Select overwrite to reprocess a sample.")
+                return False
+
+            # Prepare records for database
+            records = []
+            for index, row in df.iterrows():
+                record_data = {
+                    "sample_id": sample_name,
+                    "project_id": project_id,
+                    "subproject_id": subproject_id,
+                    "date": date,
+                    "taxonomy": row["Name"].strip(),
+                    "abundance": row["abundance"]/100,  # Convert to same format as EMU
+                    "count": row["Count"],
+                    "project_id": project_id,
+                    "subproject": subproject_id,
+                    "tax_genus": "empty",
+                    "tax_family": "empty",
+                    "tax_order": "empty",
+                    "tax_class": "empty",
+                    "tax_phylum": "empty",
+                    "tax_superkingdom": "empty",
+                    "tax_clade": "empty",
+                    "tax_subspecies": "empty"
+                }
+                records.append(record_data)
+
+            # Send to database
+            protocol = 'http' if self.offline_mode else 'https'
+            url = f"{protocol}://{self.host}:{self.port}/users/overwrite_nanopore_record/"
+            
+            try:
+                response = requests.post(
+                    url,
+                    json=records,
+                    auth=HTTPBasicAuth(self.username, self.password),
+                    verify=not self.offline_mode
+                )
+                
+                if response.status_code == 201:
+                    print(f"Records added successfully for sample {sample_name}")
+                    return True
+                else:
+                    print(f"Failed to add records: {response.content}")
+                    return False
+                    
+            except Exception as e:
+                print(f"Error sending data to server: {e}")
+                return False
+                
         except Exception as e:
-            print(e)
+            print(f"Error processing Centrifuger output: {e}")
+            return False
 
     import os
 
@@ -330,7 +391,7 @@ class DjangoDBInterface:
         }
 
         try:
-            response = pyrequests.post(url, files=files, data=data, auth=auth)
+            response = requests.post(url, files=files, data=data, auth=auth)
             response.raise_for_status()  # Raise an exception for bad status codes
             if response.status_code == 201:
                 print(f"MAG {name} uploaded successfully.")
@@ -338,7 +399,7 @@ class DjangoDBInterface:
             else:
                 print(f"Failed to upload MAG {name}: {response.content}")
                 return None
-        except pyrequests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as e:
             print(f"Error uploading MAG {name}: {e}")
             return None
         finally:
@@ -346,3 +407,12 @@ class DjangoDBInterface:
             files['gff_file'].close()
             files['fasta_file'].close()
             files['fai_file'].close()
+
+
+
+
+
+
+
+
+
