@@ -14,10 +14,10 @@ import traceback
 
 from build_mmonitor_pyinstaller import ROOT
 from mmonitor.userside.FastqStatistics import FastqStatistics
-
+# from mmonitor.userside.CentrifugeRunner import CentrifugeRunner  # Update import
 from src.mmonitor.database.django_db_interface import DjangoDBInterface
-from src.mmonitor.userside.CentrifugeRunner import CentrifugeRunner
 from src.mmonitor.userside.FunctionalRunner import FunctionalRunner
+from src.mmonitor.userside.CentrifugerRunner import CentrifugerRunner
 from src.mmonitor.userside.EmuRunner import EmuRunner
 from Bio import SeqIO
 import gzip
@@ -54,17 +54,20 @@ class MMonitorCMD:
         self.use_multiplexing = None
         self.multi_sample_input = None
         self.emu_runner = None  # Initialize to None
-        self.centrifuge_runner = CentrifugeRunner()
+        self.centrifuger_runner = CentrifugerRunner()  
         self.functional_runner = FunctionalRunner()
         self.db_config = {}
         self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
         self.args = None
         self.django_db = None
-        self.centrifuge_db = None
-        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.centrifuger_db = None  # Changed from centrifuge_db
+        self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")  # Changed from db_config.json
         self.output_dir = None  # We'll set this in the initialize_from_args method
         self.config = {}  # Initialize config as an empty dictionary
         self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
+        self.offline_mode = False
+        self.logged_in = False
+        self.current_user = None
 
         # Add minimap2 from lib folder to PATH
         minimap2_path = os.path.join(ROOT, "lib", "minimap2")
@@ -74,23 +77,39 @@ class MMonitorCMD:
         print(f"Updated PATH: {os.environ['PATH']}")
 
     def initialize_from_args(self, args):
+        """Initialize with proper offline mode handling"""
         self.args = args
         self.output_dir = os.path.join(self.pipeline_out, self.args.sample)
         os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Load config file first
+        try:
+            with open(args.config, 'r') as f:
+                self.config = json.load(f)
+        except Exception as e:
+            print(f"Error loading config file: {e}")
+            self.config = {}
+        
         if self.args.emu_db:
             self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
         else:
             self.emu_runner = EmuRunner(custom_db_path=self.emu_db_path)
-        try:
-            self.django_db = DjangoDBInterface(self.args.config or self.db_path)
-            # Ensure the django_db is logged in
-            if not self.django_db.verify_credentials():
-                print("Error: Not logged in or invalid credentials.")
+        
+        # Skip database initialization in offline mode
+        if not self.offline_mode:
+            try:
+                self.django_db = DjangoDBInterface(self.args.config or self.db_path)
+            except (FileNotFoundError, ValueError) as e:
+                print(f"Error initializing database interface: {e}")
                 sys.exit(1)
-        except (FileNotFoundError, ValueError) as e:
-            print(f"Error initializing database interface: {e}")
-            sys.exit(1)
-        self.centrifuge_db = args.centrifuge_db or os.path.join(ROOT, "src", "resources", "centrifuge_db", "p_compressed")
+        
+        # Set centrifuger_db path with proper fallback chain
+        self.centrifuger_db = (
+            self.args.centrifuger_db or  # Command line argument
+            self.config.get('centrifuger_db') or  # From config file
+            os.path.join(ROOT, "src", "resources", "centrifuger_db")  # Default path
+        )
+        print(f"Using Centrifuger database: {self.centrifuger_db}")
 
     def valid_file(self, path):
         if not os.path.isfile(path):
@@ -117,12 +136,11 @@ class MMonitorCMD:
         
         # Main analysis type
         parser.add_argument('-a', '--analysis', required=True, choices=['taxonomy-wgs', 'taxonomy-16s', 'assembly', 'functional', 'stats'],
-                            help='Type of analysis to perform. Choices are taxonomy-wgs, taxonomy-16s, assembly, functional and stats.'
-                                 'Functional will run the functional analysis pipeline including assembly, correction, binning, annotation and KEGG analysis while assembly will only run assembly, correction and binning.')
+                            help='Type of analysis to perform.')
 
         # Configuration file
         parser.add_argument('-c', '--config', required=True, type=str,
-                            help='Path to JSON config file. Ensure the file is accessible.')
+                            help='Path to JSON config file.')
 
         # Input options: Multi CSV or single input folder
         group = parser.add_mutually_exclusive_group(required=True)
@@ -130,33 +148,44 @@ class MMonitorCMD:
                            help='Path to CSV containing information for multiple samples.')
         group.add_argument('-i', '--input', nargs='+', help='Input files for single sample processing')
 
-        # Additional parameters
+        # Sample information
         parser.add_argument('-s', '--sample', type=str, help='Sample name.')
         parser.add_argument('-d', '--date', type=MMonitorCMD.valid_date, help='Sample date in YYYY-MM-DD format.')
         parser.add_argument('-p', '--project', type=str, help='Project name.')
         parser.add_argument('-u', '--subproject', type=str, help='Subproject name.')
+        
+        # Quality control parameters
+        parser.add_argument('--min-length', type=int, default=1000,
+                           help='Minimum read length to include in analysis.')
+        parser.add_argument('--min-quality', type=float, default=10.0,
+                           help='Minimum read quality score to include in analysis.')
+        parser.add_argument('--min-abundance', type=float, default=0.01,
+                           help='Minimum abundance threshold for taxonomic classification.')
+        
+        # Processing options
         parser.add_argument('-b', '--barcodes', action="store_true",
                             help='Use barcode column from CSV for multiplexing.')
-        parser.add_argument("--overwrite", action="store_true", help="Overwrite existing records. Defaults to False.")
-
-        # Quality control and update options
-        parser.add_argument('-q', '--qc', action="store_true", help='Calculate QC statistics for input samples.')
+        parser.add_argument("--overwrite", action="store_true", 
+                            help="Overwrite existing records.")
+        parser.add_argument('-q', '--qc', action="store_true", 
+                            help='Calculate QC statistics for input samples.')
         parser.add_argument('-x', '--update', action="store_true",
                             help='Update counts and abundances to the MMonitor DB.')
-
-        # Abundance threshold
-        parser.add_argument('-n', '--minabundance', type=float, default=0.01,
-                            help='Minimal abundance threshold for 16s taxonomy. Default is 0.01 what means that all taxa'
-                                 'below 1% abundance will not be uploaded to the MMonitor server.')
-
-        # Verbose and logging level
-        parser.add_argument('-v', '--verbose', action="store_true", help='Enable verbose output.')
-        parser.add_argument('--loglevel', type=str, default='INFO', choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'],
-                            help='Set the logging level.')
-
+        
+        # Database paths
         parser.add_argument('--emu-db', type=str, help='Path to custom Emu database')
-        parser.add_argument('-t', '--threads', type=int, default=1, help='Number of threads to use for processing.')
-        parser.add_argument('--centrifuge-db', type=str, help='Path to the Centrifuge database')
+        parser.add_argument('--centrifuger-db', type=str, help='Path to the Centrifuger database')  # Updated name
+        
+        # Performance options
+        parser.add_argument('-t', '--threads', type=int, default=1, 
+                            help='Number of threads to use for processing.')
+        
+        # Logging options
+        parser.add_argument('-v', '--verbose', action="store_true", 
+                            help='Enable verbose output.')
+        parser.add_argument('--loglevel', type=str, default='INFO', 
+                            choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'],
+                            help='Set the logging level.')
 
         parsed_args = parser.parse_args(args)
 
@@ -351,134 +380,40 @@ class MMonitorCMD:
             return False
 
     def taxonomy_nanopore_wgs(self):
-        cent_db_path = os.path.join(ROOT, 'src', 'resources', 'dec_22')
-        today = datetime.now()
-        default_date = today.strftime("%Y-%m-%d")
-
-        def add_sample_to_databases(sample_name, project_name, subproject_name, sample_date):
-            kraken_out_path = f"{ROOT}/src/resources/pipeline_out/{sample_name}_kraken_out"
-            self.django_db.send_nanopore_record_centrifuge(kraken_out_path, sample_name, project_name, subproject_name,
-                                                           sample_date, self.args.overwrite)
-
-        if not os.path.exists(os.path.join(ROOT, "src", "resources", "dec_22.1.cf")):
-            print("centrifuge db not found")
-
+        """Run WGS taxonomy analysis using Centrifuger"""
         if not self.args.multicsv:
             sample_name = str(self.args.sample)
-            # when a sample is already in the database and user does not want to overwrite quit now
             if not self.args.overwrite:
                 if self.check_sample_in_db(sample_name):
                     print("Sample is already in DB use --overwrite to overwrite it...")
                     return
             project_name = str(self.args.project)
             subproject_name = str(self.args.subproject)
-            # sample_date = self.args.date.strftime('%Y-%m-%d')  # Convert date to string format
-            sample_date = self.args.date  # Convert date to string format
-            if sample_date is None:
-                sample_date = default_date
-
-            # Use the get_files_from_folder method from CentrifugeRunner
-            files = self.centrifuge_runner.get_files_from_folder(self.args.input[0])  # Assuming args.input is a list with at least one element
+            sample_date = self.args.date
+            
+            files = self.centrifuger_runner.get_files_from_folder(self.args.input[0])
             
             if self.args.update:
                 print("Update parameter specified. Will only update results from file.")
-                add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
+                self.add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
                 return
-            # concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq.gz"
+
+            # Concatenate input files
             if files[0].endswith(".gz"):
                 concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq.gz"
-                CentrifugeRunner.concatenate_gzipped_files(files,concat_file_name)
+                self.centrifuger_runner.concatenate_gzipped_files(files, concat_file_name)
             else:
                 concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq"
-                CentrifugeRunner.concatenate_fastq_fast(files, concat_file_name, False)
+                self.centrifuger_runner.concatenate_fastq_fast(files, concat_file_name, False)
 
-            self.centrifuge_runner.run_centrifuge(concat_file_name, sample_name, self.centrifuge_db)
-            add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
+            # Run Centrifuger analysis
+            self.centrifuger_runner.run(concat_file_name, sample_name, self.centrifuger_db)
+            self.add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
+            
             if self.args.qc:
-                self.add_statistics(self.centrifuge_runner.concat_file_name, sample_name, project_name, subproject_name,
-                                    sample_date)
+                self.add_statistics(concat_file_name, sample_name, project_name, subproject_name, sample_date)
                 print("adding statistics")
             os.remove(concat_file_name)
-
-        else:
-            self.load_from_csv()
-            print("Processing multiple samples")
-            concat_files_list = []
-            all_file_paths = []
-            sample_names_to_process = []
-            project_names = []
-            subproject_names = []
-            sample_dates = []
-            for index, file_path_list in enumerate(self.multi_sample_input["file_paths_lists"]):
-                files = file_path_list
-                all_file_paths.append(files)
-                sample_name = self.multi_sample_input["sample_names"][index]
-                print(f"Analyzing amplicon data for sample {sample_name}.")
-                # when a sample is already in the database and user does not want to overwrite quit now
-                if not self.args.overwrite:
-                    if self.check_sample_in_db(sample_name):
-                        print(
-                            f"Sample {sample_name} already in DB and overwrite not specified, continue with next sample...")
-                        continue
-
-                sample_names_to_process.append(sample_name)
-                if files[index].endswith(".gz"):
-                    concat_file_name = f"{os.path.dirname(files[index])}/{sample_name}_concatenated.fastq.gz"
-                else:
-                    concat_file_name = f"{os.path.dirname(files[index])}/{sample_name}_concatenated.fastq"
-                concat_files_list.append(concat_file_name)
-
-
-                project_name = self.multi_sample_input["project_names"][index]
-                subproject_name = self.multi_sample_input["subproject_names"][index]
-                sample_date = self.multi_sample_input["dates"][index]
-
-                project_names.append(project_name)
-                subproject_names.append(subproject_name)
-                sample_dates.append(sample_date)
-
-            for idx, files in enumerate(all_file_paths):
-                sample_name = self.multi_sample_input["sample_names"][idx]
-                print(f"Analyzing amplicon data for sample {sample_name}.")
-                total_files = len(all_file_paths)
-                print(f"Concatenating fastq files... ({idx + 1}/{total_files})")
-                if files[idx].endswith(".gz"):
-                    concat_file_name = f"{os.path.dirname(files[idx])}/{sample_name}_concatenated.fastq.gz"
-                    CentrifugeRunner.concatenate_gzipped_files(files,concat_file_name)
-                else:
-                    concat_file_name = f"{os.path.dirname(files[idx])}/{sample_name}_concatenated.fastq"
-                    CentrifugeRunner.concatenate_fastq_fast(files, concat_file_name, False)
-                concat_files_list.append(concat_file_name)
-            centrifuge_tsv_path = os.path.join(ROOT, "src", "resources", "centrifuge.tsv")
-            print(f"Creating centrifuge tsv...")
-            CentrifugeRunner.create_centrifuge_input_file(self.multi_sample_input["sample_names"],
-                                                                concat_files_list,
-                                                                centrifuge_tsv_path)
-            print(f"Running centrifuge for multiple samples from tsv {centrifuge_tsv_path}...")
-            CentrifugeRunner.run_centrifuge_multi_sample(centrifuge_tsv_path, self.centrifuge_db)
-
-            print(f"Make kraken report from centrifuge reports...")
-
-            CentrifugeRunner.make_kraken_report_from_tsv(centrifuge_tsv_path, self.centrifuge_db)
-
-
-            print(f"Adding all samples to database...")
-            for idx, sample in enumerate(sample_names_to_process):
-                add_sample_to_databases(sample, project_names[idx], subproject_names[idx], sample_dates[idx])
-
-                # calculate QC statistics if qc argument is given by user
-                if self.args.qc:
-                    print(f"Adding statistics for sample: {sample}...")
-                    # print(f"Loading files: {file_paths}")
-                    print(f"concat files list {concat_files_list}")
-
-
-                    self.add_statistics(concat_files_list[idx], sample_names_to_process[idx], project_names[idx],
-                                        subproject_names[idx],
-                                        sample_dates[idx])
-            print(f"Removing concatenated files...")
-            for concat_file in concat_files_list:
-                os.remove(concat_file)
 
     def assembly_pipeline(self):
         output_dir = os.path.join(self.pipeline_out, self.args.sample)
@@ -527,37 +462,72 @@ class MMonitorCMD:
             raise
 
     def run(self):
+        """Run the analysis with proper authentication handling"""
         logger.info(f"Starting run with analysis type: {self.args.analysis}")
         
+        # Skip authentication check if in offline mode
+        if not self.offline_mode:
+            # Only check credentials if not in offline mode
+            if not self.logged_in:
+                logger.error("Error: Not logged in or invalid credentials.")
+                return False
+        else:
+            logger.info("Running in offline mode - skipping authentication check")
+
         logger.info(f"Current PATH: {os.environ['PATH']}")
 
-        if self.args.analysis == "taxonomy-16s":
-            self.emu_runner = EmuRunner(self.emu_runner.custom_db_path)
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                self.emu_runner.concatenate_fastq_files(self.args.input, temp_file.name)
-                success = self.emu_runner.run_emu(
-                    input_file=temp_file.name,
-                    output_dir=self.output_dir,
-                    db_dir=self.emu_runner.custom_db_path,
-                    threads=self.args.threads,
-                    N=50,
-                    K="500M",
-                    minimap_type="map-ont"
-                )
-            os.unlink(temp_file.name)
+        try:
+            if self.args.analysis == "taxonomy-16s":
+                self.emu_runner = EmuRunner(self.emu_runner.custom_db_path)
+                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                    self.emu_runner.concatenate_fastq_files(self.args.input, temp_file.name)
+                    success = self.emu_runner.run_emu(
+                        input_file=temp_file.name,
+                        output_dir=self.output_dir,
+                        db_dir=self.emu_runner.custom_db_path,
+                        threads=self.args.threads,
+                        N=50,
+                        K="500M",
+                        minimap_type="map-ont"
+                    )
+                os.unlink(temp_file.name)
 
-            if not success:
-                self.logger.error("Emu analysis failed")
-                return
+                if not success:
+                    logger.error("Emu analysis failed")
+                    return False
 
-        elif self.args.analysis == "taxonomy-wgs":
-            self.centrifuge_runner.run(self.args.input, self.output_dir, self.args.centrifuge_db, self.args.threads)
-        elif self.args.analysis in ["assembly", "functional"]:
-            self.functional_runner.run(self.args.input, self.output_dir, self.args.threads)
-        else:
-            logger.error(f"Unsupported analysis type: {self.args.analysis}")
+            elif self.args.analysis == "taxonomy-wgs":
+                # Concatenate input files first
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
+                    # Use concatenate_gzipped_files from centrifuger_runner
+                    self.centrifuger_runner.concatenate_gzipped_files(self.args.input, temp_file.name)
+                    
+                    print(f"Using Centrifuger database path: {self.centrifuger_db}")
+                    # Run Centrifuger with concatenated file
+                    success = self.centrifuger_runner.run_centrifuger(
+                        input_file=temp_file.name,
+                        sample_name=self.args.sample,
+                        db_path=self.centrifuger_db  # Make sure this is passed correctly
+                    )
+                    os.unlink(temp_file.name)
+                    
+                    if not success:
+                        logger.error("Centrifuger analysis failed")
+                        return False
 
-        logger.info("Finished run")
+            elif self.args.analysis in ["assembly", "functional"]:
+                self.functional_runner.run(self.args.input, self.output_dir, self.args.threads)
+            else:
+                logger.error(f"Unsupported analysis type: {self.args.analysis}")
+                return False
+
+            logger.info("Analysis completed successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error during analysis: {str(e)}")
+            traceback.print_exc()
+            return False
 
     def run_single_sample(self):
         if self.args.analysis == "taxonomy-16s":
@@ -684,3 +654,11 @@ if __name__ == "__main__":
     args = cmd_runner.parse_arguments()
     cmd_runner.initialize_from_args(args)
     cmd_runner.run()
+
+
+
+
+
+
+
+
