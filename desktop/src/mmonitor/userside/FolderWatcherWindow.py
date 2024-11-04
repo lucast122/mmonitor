@@ -2,7 +2,10 @@ import os
 import datetime
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
+import traceback
 import customtkinter as ctk
+
+from mmonitor.userside.InputWindow import get_files_from_folder
 from .FolderMonitor import FolderMonitor
 import subprocess
 import sys
@@ -24,6 +27,9 @@ import time
 import multiprocessing
 import csv
 import tempfile
+import argparse
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 
 class FolderWatcherWindow(ctk.CTkFrame):
@@ -34,21 +40,28 @@ class FolderWatcherWindow(ctk.CTkFrame):
         self.gui = gui_ref
         
         # Get authentication state from main window
-        self.offline_mode = self.gui.offline_mode
-        self.logged_in = self.gui.logged_in
-        self.current_user = self.gui.current_user
+        self.offline_mode = gui_ref.offline_mode
+        self.logged_in = gui_ref.logged_in
+        self.current_user = gui_ref.current_user
+        
+        print(f"Authentication state: offline={self.offline_mode}, logged_in={self.logged_in}, user={self.current_user}")
         
         # Initialize variables
+        self.folder_var = tk.StringVar()
+        self.auto_analyze_var = tk.BooleanVar(value=False)
+        self.project_var = tk.StringVar()
+        self.subproject_var = tk.StringVar()
+        self.date_var = tk.StringVar(value=datetime.datetime.now().strftime("%Y-%m-%d"))
+        
         self.samples = {}
         self.watching = False
         self.folder_monitor = None
-        self.auto_analyze_var = tk.BooleanVar(value=False)
         
         self.config = {}
         self.watch_start_time = None
-        self.all_samples = {}  # All samples including existing ones
-        self.queue_samples = {}  # Only new samples after watching started
-        self.pending_files = []  # Initialize pending_files list
+        self.all_samples = {}
+        self.queue_samples = {}
+        self.pending_files = []
         self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
         
         # Load configuration first
@@ -56,24 +69,14 @@ class FolderWatcherWindow(ctk.CTkFrame):
         if not self.config:
             messagebox.showwarning(
                 "Configuration Missing",
-                "Please configure analysis parameters in the Configuration tab first."
+                "No configuration found. Please configure the pipeline first."
             )
-            return
         
-        # UI update control
-        self.last_update_time = time.time()
-        self.needs_update = False
-        self.expanded_items = set()
-        
-        # Create UI
         self.create_widgets()
-        self.after(100, self.process_queue)
         
-        # Bind to parent window close event
-        if isinstance(parent, tk.Tk) or isinstance(parent, tk.Toplevel):
-            parent.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
-        print("FolderWatcherWindow initialized")
+        # Add thread tracking
+        self.running_analyses = {}  # Keep track of running analysis threads
+        self.analysis_lock = threading.Lock()  # Thread safety for analysis operations
 
     def load_config(self):
         """Load analysis configuration from file"""
@@ -91,52 +94,84 @@ class FolderWatcherWindow(ctk.CTkFrame):
             return False
 
     def create_widgets(self):
-        # Configure self first
-        is_dark = ctk.get_appearance_mode() == "dark"
-        bg_color = "transparent"  # Use transparent background
+        """Create all widgets for the folder watcher window"""
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container.pack(fill="both", expand=True, padx=10, pady=5)
         
-        self.configure(fg_color=bg_color)
+        # Create folder selection frame
+        folder_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        folder_frame.pack(fill="x", pady=5)
         
-        # Main container with padding and rounded corners
-        self.main_container = ctk.CTkFrame(self, fg_color=bg_color)
-        self.main_container.pack(fill="both", expand=True, pady=10)
-
-        # Add title section with modern typography
-        title_frame = ctk.CTkFrame(self.main_container, fg_color=bg_color)
-        title_frame.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(title_frame, text="Folder Watcher", 
-                     font=("Helvetica", 24, "bold")).pack(pady=5)
-        ctk.CTkLabel(title_frame, text="Monitor folders for new sequencing data",
-                     font=("Helvetica", 12)).pack()
-
-        # Create sections with proper spacing
-        self.create_top_section(self.main_container)
-        self.create_separator(self.main_container)
+        # Project info frame
+        project_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        project_frame.pack(fill="x", pady=5)
+        
+        # Project fields
+        ctk.CTkLabel(project_frame, text="Project:").pack(side="left", padx=5)
+        self.project_entry = ctk.CTkEntry(project_frame, width=200)
+        self.project_entry.pack(side="left", padx=5)
+        
+        ctk.CTkLabel(project_frame, text="Subproject:").pack(side="left", padx=5)
+        self.subproject_entry = ctk.CTkEntry(project_frame, width=200)
+        self.subproject_entry.pack(side="left", padx=5)
+        
+        ctk.CTkLabel(project_frame, text="Date:").pack(side="left", padx=5)
+        self.date_entry = ctk.CTkEntry(project_frame, width=200)
+        self.date_entry.pack(side="left", padx=5)
+        self.date_entry.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
+        
+        # Folder selection
+        ctk.CTkLabel(folder_frame, text="Watch Folder:").pack(side="left", padx=5)
+        self.folder_entry = ctk.CTkEntry(folder_frame, textvariable=self.folder_var, width=400)
+        self.folder_entry.pack(side="left", padx=5)
+        
+        # Store reference to browse button
+        self.browse_button = ctk.CTkButton(folder_frame, text="Browse", 
+                                          command=self.browse_folder)
+        self.browse_button.pack(side="left", padx=5)
+        
+        # Watch control buttons
+        self.watch_button = ctk.CTkButton(folder_frame, text="Start Watching",
+                                         command=self.toggle_watching)
+        self.watch_button.pack(side="left", padx=5)
+        
+        # Create trees
         self.create_file_trees(self.main_container)
-        self.create_separator(self.main_container)
-        self.create_bottom_controls(self.main_container)
-
-        # Configure Treeview style
-        style = ttk.Style()
-        style.configure(
-            "Custom.Treeview",
-            background="#ffffff",
-            fieldbackground="#ffffff",
-            foreground="#000000",
-            font=("Helvetica", 11)
+        
+        # Create control buttons frame at the bottom
+        control_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        control_frame.pack(fill="x", pady=5)
+        
+        # Left side - Analyze Selected button
+        left_controls = ctk.CTkFrame(control_frame, fg_color="transparent")
+        left_controls.pack(side="left", padx=5)
+        
+        self.analyze_button = ctk.CTkButton(
+            left_controls,
+            text="Analyze Selected",
+            command=self.analyze_selected
         )
-        style.configure(
-            "Custom.Treeview.Heading",
-            background="#f0f0f0",
-            foreground="#000000",
-            font=("Helvetica", 11, "bold")
+        self.analyze_button.pack(side="left", padx=5)
+        
+        # Right side - Auto-analyze checkbox and Run Queue button
+        right_controls = ctk.CTkFrame(control_frame, fg_color="transparent")
+        right_controls.pack(side="right", padx=5)
+        
+        self.auto_analyze_checkbox = ctk.CTkCheckBox(
+            right_controls,
+            text="Auto-analyze new samples",
+            variable=self.auto_analyze_var,
+            onvalue=True,
+            offvalue=False
         )
-        # Configure selection colors
-        style.map(
-            "Custom.Treeview",
-            background=[("selected", "#e1e1e1")],
-            foreground=[("selected", "#000000")]
+        self.auto_analyze_checkbox.pack(side="left", padx=5)
+        
+        self.run_queue_button = ctk.CTkButton(
+            right_controls,
+            text="Run Queue",
+            command=self.run_queue
         )
+        self.run_queue_button.pack(side="left", padx=5)
 
     def create_separator(self, parent):
         """Create a visual separator line"""
@@ -190,174 +225,226 @@ class FolderWatcherWindow(ctk.CTkFrame):
         self.watch_button.pack(side="left", padx=2)
 
         # Project information section
-        project_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-        project_frame.pack(fill="x", pady=(10, 0))
+        # Project, subproject and date in one line
+        info_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        info_frame.pack(fill="x", pady=(10, 0))
 
-        # Project name
-        project_group = ctk.CTkFrame(project_frame, fg_color="transparent")
-        project_group.pack(fill="x", pady=2)
-        
-        ctk.CTkLabel(project_group, text="Project:", 
-                     font=("Helvetica", 12, "bold"), 
-                     width=80).pack(side="left")
-        
-        self.project_entry = ctk.CTkEntry(project_group, height=32)
-        self.project_entry.pack(side="left", expand=True, fill="x", padx=5)
-
-        # Subproject name
-        subproject_group = ctk.CTkFrame(project_frame, fg_color="transparent")
-        subproject_group.pack(fill="x", pady=2)
-        
-        ctk.CTkLabel(subproject_group, text="Subproject:", 
-                     font=("Helvetica", 12, "bold"), 
-                     width=80).pack(side="left")
-        
-        self.subproject_entry = ctk.CTkEntry(subproject_group, height=32)
-        self.subproject_entry.pack(side="left", expand=True, fill="x", padx=5)
-
-        # Date selection section
-        date_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-        date_frame.pack(fill="x", pady=(10, 0))
-
-        # Date picker
-        date_group = ctk.CTkFrame(date_frame, fg_color="transparent")
-        date_group.pack(fill="x", pady=2)
-        
-        ctk.CTkLabel(date_group, text="Date:", 
-                     font=("Helvetica", 12, "bold"), 
-                     width=80).pack(side="left")
-        
         # Initialize date variables
         self.selected_date = datetime.date.today()
         self.use_file_date = tk.BooleanVar(value=True)
-        
-        # Date entry and calendar button
-        date_entry_frame = ctk.CTkFrame(date_frame, fg_color="transparent")
-        date_entry_frame.pack(side="left", expand=True, fill="x", padx=5)
-        
-        self.date_entry = ctk.CTkEntry(date_entry_frame, height=32)
-        self.date_entry.pack(side="left", expand=True, fill="x")
+
+        # Project name
+        ctk.CTkLabel(info_frame, text="Project:", 
+                     font=("Helvetica", 12, "bold"), 
+                     width=60).pack(side="left")
+        self.project_entry = ctk.CTkEntry(info_frame, height=32, width=150)
+        self.project_entry.pack(side="left", padx=5)
+
+        # Subproject
+        ctk.CTkLabel(info_frame, text="Subproject:", 
+                     font=("Helvetica", 12, "bold"), 
+                     width=80).pack(side="left", padx=(10,0))
+        self.subproject_entry = ctk.CTkEntry(info_frame, height=32, width=150)
+        self.subproject_entry.pack(side="left", padx=5)
+
+        # Date picker
+        ctk.CTkLabel(info_frame, text="Date:", 
+                     font=("Helvetica", 12, "bold"), 
+                     width=40).pack(side="left", padx=(10,0))
+        self.date_entry = ctk.CTkEntry(info_frame, height=32, width=100)
+        self.date_entry.pack(side="left", padx=5)
         self.date_entry.insert(0, self.selected_date.strftime('%Y-%m-%d'))
-        
+
         calendar_button = ctk.CTkButton(
-            date_entry_frame,
-            text="📅",
+            info_frame,
+            text="📅", 
             width=32,
             height=32,
             command=self.show_calendar
         )
-        calendar_button.pack(side="left", padx=(5, 0))
+        calendar_button.pack(side="left")
 
-        # Use file date checkbox
-        checkbox_frame = ctk.CTkFrame(date_frame, fg_color="transparent")
-        checkbox_frame.pack(fill="x", pady=2)
-        
         self.use_file_date_checkbox = ctk.CTkCheckBox(
-            checkbox_frame,
-            text="Use file creation date",
+            info_frame,
+            text="Use file date",
             variable=self.use_file_date,
             font=("Helvetica", 11)
         )
-        self.use_file_date_checkbox.pack(side="left", padx=(80, 0))
+        self.use_file_date_checkbox.pack(side="left", padx=10)
 
     def create_file_trees(self, container):
         # Create a frame for both trees with proper spacing
         trees_frame = ctk.CTkFrame(container, fg_color="transparent")
-        trees_frame.pack(fill="both", expand=True, pady=5)
+        trees_frame.pack(fill="both", expand=True, pady=5, padx=20)
         
         # Left tree (70% width)
         left_frame = ctk.CTkFrame(trees_frame, fg_color="transparent")
-        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 2))
+        left_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
         
-        # Title and count for left tree
+        # Title for left tree
         left_header = ctk.CTkFrame(left_frame, fg_color="transparent")
         left_header.pack(fill="x", pady=2)
-        ctk.CTkLabel(left_header, text="All Files", 
-                     font=("Helvetica", 14, "bold")).pack(side="left")
+        ctk.CTkLabel(left_header, text="Detected Files", 
+                     font=("Helvetica", 14, "bold")).pack(anchor="w")
         
-        # Create the file tree with updated style
+        # Create container frame
+        tree_container = ctk.CTkFrame(left_frame, fg_color="#dbdbdb")
+        tree_container.pack(fill="both", expand=True)
+        
+        # Create customtkinter scrollbar
+        y_scrollbar = ctk.CTkScrollbar(tree_container)
+        y_scrollbar.pack(side="right", fill="y")
+        
+        # Create the file tree
         self.file_tree = ttk.Treeview(
-            left_frame,
+            tree_container,
             columns=("files", "status"),
             selectmode="extended",
-            style="Custom.Treeview",
-            height=15
+            height=15,
+            yscrollcommand=y_scrollbar.set,
+            style="Treeview"
         )
-        self.file_tree.pack(fill="both", expand=True)
+        self.file_tree.pack(side="left", fill="both", expand=True)
+        
+        # Configure scrollbar
+        y_scrollbar.configure(command=self.file_tree.yview)
         
         # Configure file tree columns
-        self.file_tree.heading("#0", text="Sample/File")
+        self.file_tree.heading("#0", text="Sample Name")
         self.file_tree.heading("files", text="Files")
         self.file_tree.heading("status", text="Status")
         
+        self.file_tree.column("#0", width=350, minwidth=350)
+        self.file_tree.column("files", width=100, minwidth=100)
+        self.file_tree.column("status", width=100, minwidth=100)
+        
         # Right tree (30% width)
         right_frame = ctk.CTkFrame(trees_frame, fg_color="transparent")
-        right_frame.pack(side="right", fill="both", padx=(2, 0))
+        right_frame.pack(side="right", fill="both", expand=True)
         
-        # Title and count for right tree
+        # Title for right tree
         right_header = ctk.CTkFrame(right_frame, fg_color="transparent")
         right_header.pack(fill="x", pady=2)
-        ctk.CTkLabel(right_header, text="Queue", 
+        ctk.CTkLabel(right_header, text="Analysis Queue", 
                      font=("Helvetica", 14, "bold")).pack(side="left")
         self.queue_count = ctk.CTkLabel(right_header, text="(0 samples, 0 files)", 
                                        font=("Helvetica", 12))
         self.queue_count.pack(side="left", padx=5)
         
-        # Create the queue tree with updated style
+        # Create container frame for right tree
+        right_tree_container = ctk.CTkFrame(right_frame, fg_color="#dbdbdb")
+        right_tree_container.pack(fill="both", expand=True)
+        
+        # Create customtkinter scrollbar for right tree
+        right_y_scrollbar = ctk.CTkScrollbar(right_tree_container)
+        right_y_scrollbar.pack(side="right", fill="y")
+        
+        # Create queue tree
         self.queue_tree = ttk.Treeview(
-            right_frame,
+            right_tree_container,
             columns=("files", "first_seen"),
             selectmode="extended",
-            style="Custom.Treeview",
-            height=15
+            height=15,
+            yscrollcommand=right_y_scrollbar.set,
+            style="Treeview"
         )
-        self.queue_tree.pack(fill="both", expand=True)
+        self.queue_tree.pack(side="left", fill="both", expand=True)
+        
+        # Configure right scrollbar
+        right_y_scrollbar.configure(command=self.queue_tree.yview)
         
         # Configure queue tree columns
-        self.queue_tree.heading("#0", text="Sample")
+        self.queue_tree.heading("#0", text="Sample Name")
         self.queue_tree.heading("files", text="Files")
-        self.queue_tree.heading("first_seen", text="First Seen")
+        self.queue_tree.heading("first_seen", text="Added")
         
-        # Configure column widths
-        self.file_tree.column("#0", width=200)
-        self.file_tree.column("files", width=100)
-        self.file_tree.column("status", width=100)
+        self.queue_tree.column("#0", width=200, minwidth=150)
+        self.queue_tree.column("files", width=100, minwidth=80)
+        self.queue_tree.column("first_seen", width=120, minwidth=100)
         
-        self.queue_tree.column("#0", width=150)
-        self.queue_tree.column("files", width=100)
-        self.queue_tree.column("first_seen", width=100)
+        # Apply color configuration
+        self.configure_treeview_colors()
+
+    def configure_file_tree(self, tree):
+        """Configure the file tree columns and headings"""
+        tree.configure(show="headings")  # Hide the tree view border
+        
+        # Configure columns
+        tree.heading("files", text="Files")
+        tree.heading("status", text="Status")
+        
+        # Set column widths
+        tree.column("files", width=100, minwidth=80)
+        tree.column("status", width=150, minwidth=100)
+
+    def configure_queue_tree(self, tree):
+        """Configure the queue tree columns and headings"""
+        tree.configure(show="headings")  # Hide the tree view border
+        
+        # Configure columns
+        tree.heading("files", text="Files")
+        tree.heading("first_seen", text="Added")
+        
+        # Set column widths
+        tree.column("files", width=100, minwidth=80)
+        tree.column("first_seen", width=120, minwidth=100)
+
+    def add_scrollbars(self, container, tree):
+        """Add scrollbars to a treeview"""
+        # Create frame for scrollbars
+        scroll_frame = ttk.Frame(container)
+        scroll_frame.pack(fill="both", expand=True)
+        
+        # Add vertical scrollbar (removed width parameter)
+        vsb = ttk.Scrollbar(scroll_frame, orient="vertical", command=tree.yview)
+        vsb.pack(side="right", fill="y")
+        
+        # Add horizontal scrollbar
+        hsb = ttk.Scrollbar(scroll_frame, orient="horizontal", command=tree.xview)
+        hsb.pack(side="bottom", fill="x")
+        
+        # Configure tree to use scrollbars
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree.pack(in_=scroll_frame, side="left", fill="both", expand=True)
 
     def create_bottom_controls(self, container):
-        bottom_frame = ctk.CTkFrame(container)
-        bottom_frame.pack(fill="x", pady=5)
-
-        # Left controls
-        self.auto_analyze_checkbox = ctk.CTkCheckBox(bottom_frame, 
-                                                   text="Auto-analyze new samples",
-                                                   variable=self.auto_analyze_var,
-                                                   font=("Helvetica", 11))
-        self.auto_analyze_checkbox.pack(side="left", padx=3)
-
-        # Right controls with smaller buttons
-        right_controls = ctk.CTkFrame(bottom_frame)
-        right_controls.pack(side="right")
+        """Create bottom controls with improved spacing"""
+        bottom_frame = ctk.CTkFrame(container, fg_color="transparent")
+        bottom_frame.pack(fill="x", padx=20, pady=(0, 20))  # Added bottom padding
         
-        button_params = {
-            "height": 28,
-            "font": ("Helvetica", 11)
-        }
+        # Left side controls
+        left_controls = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        left_controls.pack(side="left", fill="y")
         
-        ctk.CTkButton(right_controls, text="Analyze Selected", 
-                     command=self.run_selected_sample, 
-                     **button_params).pack(side="left", padx=2)
+        self.auto_analyze_checkbox = ctk.CTkCheckBox(
+            left_controls,
+            text="Auto-analyze new samples",
+            variable=self.auto_analyze_var,
+            font=("Helvetica", 12)
+        )
+        self.auto_analyze_checkbox.pack(side="left", padx=(0, 10))
         
-        ctk.CTkButton(right_controls, text="Analyze Queue", 
-                     command=self.analyze_selected_queue, 
-                     **button_params).pack(side="left", padx=2)
+        # Right side controls with spacing
+        right_controls = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        right_controls.pack(side="right", fill="y", padx=(0, 20))  # Added right padding
         
-        ctk.CTkButton(right_controls, text="Clear Queue", 
-                     command=self.clear_queue, 
-                     **button_params).pack(side="left", padx=2)
+        self.analyze_button = ctk.CTkButton(
+            right_controls,
+            text="Analyze Selected",
+            command=self.analyze_selected_queue,
+            height=32,
+            font=("Helvetica", 12)
+        )
+        self.analyze_button.pack(side="left", padx=5)
+        
+        self.clear_button = ctk.CTkButton(
+            right_controls,
+            text="Clear Queue",
+            command=self.clear_queue,
+            height=32,
+            font=("Helvetica", 12)
+        )
+        self.clear_button.pack(side="left", padx=5)
 
     def add_new_file(self, file_path):
         """Add a new file to both trees if appropriate"""
@@ -416,116 +503,75 @@ class FolderWatcherWindow(ctk.CTkFrame):
         self._after_id = self.after(100, self.process_queue)
 
     def update_file_tree(self):
-        """Update the main file tree view"""
+        """Update the file tree view with proper error handling"""
         try:
-            # Store expanded state
-            self.store_expanded_state()
-            
             # Clear existing items
             self.file_tree.delete(*self.file_tree.get_children())
             
-            # Add samples and their files
-            for sample_name, data in self.all_samples.items():
-                # Add sample
-                sample_id = self.file_tree.insert("", "end", text=sample_name,
-                                    values=(f"{len(data['files'])} files",
-                                           data['path']))
-                
-                # Add files under sample with unique IDs
-                for i, file_path in enumerate(data['files']):
-                    try:
-                        # Use index to ensure unique IDs
-                        file_id = f"{sample_name}_file_{i}"
-                        self.file_tree.insert(sample_id, "end", 
-                                            iid=file_id,
-                                            text=os.path.basename(file_path),
-                                            values=("", ""))
-                    except Exception as e:
-                        print(f"Error displaying file {file_path}: {e}")
+            print(f"Updating tree with {len(self.all_samples)} samples")  # Debug print
             
-            # Restore expanded state
-            self.restore_expanded_state()
+            for sample_name, data in self.all_samples.items():
+                try:
+                    # Insert sample as parent
+                    files = data.get('files', [])
+                    status = data.get('status', 'Pending')
+                    
+                    sample_id = self.file_tree.insert(
+                        "", "end",
+                        text=sample_name,
+                        values=(f"{len(files)} files", status))
+                    
+                    # Insert each file as child
+                    for file_path in files:
+                        try:
+                            self.file_tree.insert(
+                                sample_id, "end",
+                                text=os.path.basename(file_path),
+                                values=("", "")
+                            )
+                        except Exception as e:
+                            print(f"Error inserting file {file_path}: {e}")
                 
+                except Exception as e:
+                    print(f"Error processing sample {sample_name}: {e}")
+            
+            # Update queue count
+            queue_count = len(self.queue_samples)
+            total_files = sum(len(data.get('files', [])) for data in self.queue_samples.values())
+            self.queue_count.configure(text=f"({queue_count} samples, {total_files} files)")
+            
         except Exception as e:
             print(f"Error updating file tree: {e}")
-
-    def run_analysis_for_sample(self, sample_name):
-        """Run analysis for a single sample using MMonitorCMD"""
-        if not self.config:
-            messagebox.showerror("Error", "No configuration loaded. Please configure analysis parameters first.")
-            return
-
-        if sample_name not in self.all_samples:
-            print(f"Error: Sample {sample_name} not found in all_samples")
-            return
-
-        try:
-            # Get analysis parameters from config
-            if 'analysis_type' not in self.config:
-                messagebox.showerror("Error", "Analysis type not found in configuration.")
-                return
-                
-            analysis_type = self.config['analysis_type']
-            print(f"Starting {analysis_type} analysis for {sample_name}")
-            
-            # Get sample data
-            sample_data = self.all_samples[sample_name]
-            sample_folder = sample_data["path"]  # This is the actual folder containing the files
-            sample_files = sample_data["files"]  # These are the full paths to the files
-            
-            print(f"Processing sample {sample_name} from folder: {sample_folder}")
-            print(f"Found {len(sample_files)} files to analyze")
-            
-            try:
-                # Update tree item status
-                self.file_tree.item(sample_name, values=(f"{len(sample_files)} files", "Running..."))
-                self.file_tree.update()
-                
-                # Create MMonitorCMD instance with authentication state
-                cmd_runner = MMonitorCMD()
-                cmd_runner.offline_mode = self.offline_mode
-                cmd_runner.logged_in = self.logged_in
-                cmd_runner.current_user = self.current_user
-                
-                # Create temporary concatenated file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
-                    print(f"Creating concatenated file: {temp_file.name}")
-                    # Concatenate input files
-                    cmd_runner.centrifuger_runner.concatenate_gzipped_files(sample_files, temp_file.name)
-                    
-                    # Run Centrifuger analysis
-                    success = cmd_runner.centrifuger_runner.run_centrifuger(
-                        input_file=temp_file.name,
-                        sample_name=sample_name,
-                        db_path=self.config['centrifuger_db']  # Use the configured database path
-                    )
-                    
-                    # Clean up temporary file
-                    os.unlink(temp_file.name)
-                    
-                    # Update status based on success
-                    if success:
-                        self.file_tree.item(sample_name, values=(f"{len(sample_files)} files", "Completed"))
-                        messagebox.showinfo("Success", f"Analysis completed for sample {sample_name}")
-                    else:
-                        self.file_tree.item(sample_name, values=(f"{len(sample_files)} files", "Failed"))
-                        messagebox.showerror("Error", f"Analysis failed for sample {sample_name}")
-                    
-                    # Remove from queue if present
-                    if sample_name in self.queue_samples:
-                        del self.queue_samples[sample_name]
-                        self.update_queue_display()
-                        
-            except tk.TclError as e:
-                print(f"GUI Error updating tree: {e}")
-                # Continue with analysis even if GUI update fails
-                
-        except Exception as e:
-            error_msg = f"Error running analysis for {sample_name}: {str(e)}"
-            print(error_msg)
             import traceback
             traceback.print_exc()
-            messagebox.showerror("Error", error_msg)
+
+    
+    def analysis_completed(self, sample_name, success):
+        """Handle analysis completion in main thread"""
+        if success:
+            self.update_sample_status(sample_name, "Completed")
+            print(f"Analysis completed successfully for {sample_name}")
+        else:
+            self.update_sample_status(sample_name, "Failed")
+            print(f"Analysis failed for {sample_name}")
+        
+        # Remove from queue if present
+        if sample_name in self.queue_samples:
+            del self.queue_samples[sample_name]
+            self.needs_update = True
+
+    def analysis_failed(self, sample_name, error_msg):
+        """Handle analysis failure in main thread"""
+        self.update_sample_status(sample_name, "Failed")
+        messagebox.showerror("Analysis Error", f"Analysis failed for {sample_name}: {error_msg}")
+
+    def run_all_analyses(self):
+        """Run analyses for all samples in separate threads"""
+        for sample_name in list(self.samples.keys()):
+            if sample_name not in self.running_analyses:
+                self.run_analysis_for_sample(sample_name)
+            else:
+                print(f"Analysis already running for {sample_name}")
 
     def check_and_start_analysis(self, sample_name):
         """Check if conditions are met to start analysis"""
@@ -616,13 +662,17 @@ class FolderWatcherWindow(ctk.CTkFrame):
         messagebox.showinfo("Folder Watch Started", f"Now watching folder: {folder}")
 
     def stop_watching(self):
+        """Stop watching and clean up running analyses"""
         if self.folder_monitor:
             self.folder_monitor.stop()
             self.folder_monitor = None
+        
+        # Wait for running analyses to complete
+        for thread in self.running_analyses.values():
+            thread.join(timeout=0.1)  # Short timeout to avoid blocking
+        
         self.watching = False
         self.watch_button.configure(text="Start Watching")
-        
-        # Re-enable folder entry and browse button
         self.folder_entry.configure(state="normal")
         self.browse_button.configure(state="normal")
         
@@ -689,83 +739,6 @@ class FolderWatcherWindow(ctk.CTkFrame):
         else:
             return "Looks like WGS"
 
-    def add_sample(self, sample_name, file_paths):
-        if sample_name not in self.samples:
-            self.samples[sample_name] = file_paths
-            read_types = []
-            import random
-            for file_path in random.sample(file_paths, min(5, len(file_paths))):  # Use 5 random files
-                read_types.append(self.detect_read_type(file_path))
-            if read_types:
-                read_type = max(set(read_types), key=read_types.count)  # Majority vote
-            else:
-                read_type = "Unknown"
-            
-            self.file_tree.insert("", "end", sample_name, text=sample_name, values=(f"{len(file_paths)} files", "New", read_type))
-        else:
-            new_files = [f for f in file_paths if f not in self.samples[sample_name]]
-            self.samples[sample_name].extend(new_files)
-            current_status = self.file_tree.item(sample_name, "values")[1]
-            current_read_type = self.file_tree.item(sample_name, "values")[2]
-            if new_files and current_status != "New":
-                new_status = "New"
-            else:
-                new_status = current_status
-            self.file_tree.item(sample_name, values=(f"{len(self.samples[sample_name])} files", new_status, current_read_type))
-
-        for file_path in file_paths:
-            if self.file_tree.exists(file_path):
-                continue
-            self.file_tree.insert(sample_name, "end", file_path, text=os.path.basename(file_path), values=("", ""))
-
-        if self.auto_analyze_var.get() and new_status == "New":
-            self.run_analysis_for_sample(sample_name)
-
-    def run_all_analyses(self):
-        for sample in self.samples:
-            self.run_analysis_for_sample(sample)
-
-    def run_analysis_for_sample(self, sample_name):
-        with open(self.config_file, 'r') as f:
-            config = json.load(f)
-        analysis_type = config.get('analysis_type', 'default_analysis_type')
-        
-        with open(self.config_file, 'r') as f:
-            config = json.load(f)
-        
-        # Add conda environment to PATH
-        # conda_env_path = os.path.expanduser("~/miniconda3/envs/fastcat/bin")
-        # os.environ["PATH"] = f"{conda_env_path}:{os.environ['PATH']}"
-        
-        cmd_runner = MMonitorCMD()
-        args = [
-            "-a", analysis_type,
-            "-c", self.config_file,
-            "-i"] + self.samples[sample_name] + [
-            "-s", sample_name,
-            "-d", self.selected_date.strftime("%Y-%m-%d"),
-            "-p", self.project_entry.get(),
-            "-u", self.subproject_entry.get(),
-            "-n", config.get('min_abundance', '0.01'),
-            "-t", config.get('threads', multiprocessing.cpu_count()),
-            "--overwrite"
-        ]
-
-        if analysis_type == "assembly-functional":
-            args.extend([
-                "--assembly-mode", config.get('assembly_mode', 'nano-raw'),
-                "--medaka-model", config.get('medaka_model', 'r1041_e82_400bps_sup_v5.0.0'),
-            ])
-            if config.get('is_isolate', False):
-                args.append("--isolate")
-
-        cmd_runner.initialize_from_args(cmd_runner.parse_arguments(args))
-        try:
-            cmd_runner.run()
-            self.file_tree.item(sample_name, values=(f"{len(self.samples[sample_name])} files", "Completed", self.file_tree.item(sample_name, "values")[2]))
-        except Exception as e:
-            print(f"Error running analysis for {sample_name}: {str(e)}")
-            self.file_tree.item(sample_name, values=(f"{len(self.samples[sample_name])} files", "Error", self.file_tree.item(sample_name, "values")[2]))
 
     def suggest_sample_name(self, path):
         # Try to extract meaningful sample name from the path
@@ -856,140 +829,116 @@ class FolderWatcherWindow(ctk.CTkFrame):
             print(f"Error updating queue display: {e}")
 
     def process_queue(self):
-        """Only update trees if there are changes"""
-        current_time = time.time()
-        if current_time - self.last_update_time > 1:
-            if self.needs_update:  # Only update if there are changes
-                self.update_file_tree()
-                self.update_queue_display()
-                self.needs_update = False
-            self.last_update_time = current_time
+        """Process the update queue with debug output"""
+        if self.needs_update:
+            print("Processing update queue...")  # Debug print
+            self.update_file_tree()
+            self.update_queue_tree()
+            self.needs_update = False
+        
+        # Schedule next update
         self.after(100, self.process_queue)
 
-    def run_selected_sample(self):
-        """Run analysis for selected samples in the file tree using threading"""
-        selected_items = self.file_tree.selection()
-        if not selected_items:
-            messagebox.showinfo("Info", "Please select a sample to analyze.")
-            return
-        
-        # Start a thread for each selected sample
-        for item in selected_items:
-            # Get the parent item if this is a file
-            parent = self.file_tree.parent(item)
-            sample_name = self.file_tree.item(item)["text"] if not parent else self.file_tree.item(parent)["text"]
-            
-            if sample_name in self.all_samples:
-                # Create and start a thread for this sample
-                analysis_thread = threading.Thread(
-                    target=self._run_analysis_thread,
-                    args=(sample_name, item),
-                    daemon=True
-                )
-                analysis_thread.start()
-            else:
-                print(f"Error: Sample {sample_name} not found in samples list")
-                messagebox.showerror("Error", f"Sample {sample_name} not found in samples list")
 
     def _run_analysis_thread(self, sample_name, tree_item):
         """Thread function to run analysis for a single sample"""
         try:
             print(f"Starting analysis thread for sample: {sample_name}")
-            sample_data = self.all_samples[sample_name]
-            sample_files = sample_data["files"]
             
-            # Update GUI in main thread
-            self.after(0, lambda: self.file_tree.item(
-                tree_item, 
-                values=(f"{len(sample_files)} files", "Running...")
-            ))
+            # Update status in GUI thread
+            self.after(0, lambda: self.update_sample_status(sample_name, "Analyzing..."))
             
-            # Create MMonitorCMD instance
+            # Get sample files
+            files = self.all_samples[sample_name]['files']
+            
+            # Get project information
+            project_info = {
+                'project': self.project_entry.get() or "default_project",
+                'subproject': self.subproject_entry.get() or "default_subproject",
+                'date': self.date_entry.get()
+            }
+            
+            # Initialize MMonitorCMD
             cmd_runner = MMonitorCMD()
             cmd_runner.offline_mode = self.offline_mode
             cmd_runner.logged_in = self.logged_in
             cmd_runner.current_user = self.current_user
             
-            # Initialize Django DB interface
-            db_interface = DjangoDBInterface(self.config_file)
-            db_interface.offline_mode = self.offline_mode
-            db_interface.username = self.current_user
-            
-            # Get analysis type from config
-            analysis_type = self.config.get('analysis_type', 'taxonomy-wgs')
-            print(f"Starting {analysis_type} analysis for {sample_name}")
-            
-            # Run analysis and get output files
-            success = False
+            # Load config file
             try:
-                # Create temporary concatenated file
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
-                    print(f"Creating concatenated file: {temp_file.name}")
-                    # Concatenate input files
-                    cmd_runner.centrifuger_runner.concatenate_gzipped_files(sample_files, temp_file.name)
-                    
-                    # Run Centrifuger analysis
-                    success = cmd_runner.centrifuger_runner.run_centrifuger(
-                        input_file=temp_file.name,
-                        sample_name=sample_name,
-                        db_path=self.config['centrifuger_db']
-                    )
-                    
-                    if success:
-                        # Get the report file path
-                        report_file = os.path.join(
-                            cmd_runner.pipeline_out,
-                            sample_name,
-                            "centrifuger_report.tsv"
-                        )
-                        
-                        # Send results to Django DB
-                        if os.path.exists(report_file):
-                            print(f"Uploading results for sample {sample_name} to database")
-                            db_interface.send_nanopore_record_centrifuge(
-                                kraken_out_path=report_file,
-                                sample_name=sample_name,
-                                project_id=self.project_entry.get() or "default_project",
-                                subproject_id=self.subproject_entry.get() or "default_subproject",
-                                date=self.selected_date.strftime('%Y-%m-%d'),
-                                overwrite=True  # Since we're running a new analysis
-                            )
-                        else:
-                            print(f"Report file not found: {report_file}")
-                            success = False
-                    
-                    # Clean up temporary file
-                    os.unlink(temp_file.name)
-            
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+                    print(f"Loaded config: {config}")
             except Exception as e:
-                print(f"Error during analysis: {e}")
-                success = False
+                print(f"Error loading config: {e}")
+                raise
+            
+            # Verify database paths exist
+            centrifuger_db = config.get('centrifuger_db')
+            if not centrifuger_db:
+                raise ValueError("Centrifuger database path not found in config")
+            
+            if not os.path.exists(os.path.dirname(centrifuger_db)):
+                raise ValueError(f"Centrifuger database directory not found: {centrifuger_db}")
+            
+            # Set up arguments with proper database paths
+            args = argparse.Namespace(
+                analysis=config.get('analysis_type', 'taxonomy-wgs'),
+                config=self.config_file,
+                threads=config.get('threads', 4),
+                sample=sample_name,
+                project=project_info['project'],
+                subproject=project_info['subproject'],
+                date=datetime.datetime.strptime(project_info['date'], '%Y-%m-%d').date(),
+                input=files,
+                multicsv=None,
+                centrifuger_db=centrifuger_db,  # Use verified path
+                emu_db=config.get('emu_db'),
+                min_length=config.get('min_length', 1000),
+                min_quality=config.get('min_quality', 10.0),
+                min_abundance=config.get('min_abundance', 0.01),
+                overwrite=True,
+                qc=True,
+                update=False,
+                verbose=True,
+                loglevel='INFO'
+            )
+            
+            print(f"Analysis arguments:")
+            print(f"Centrifuger DB: {args.centrifuger_db}")
+            print(f"EMU DB: {args.emu_db}")
+            print(f"Sample: {args.sample}")
+            print(f"Project: {args.project}")
+            print(f"Subproject: {args.subproject}")
+            
+            # Initialize and run analysis
+            cmd_runner.initialize_from_args(args)
+            success = cmd_runner.run()
             
             # Update GUI in main thread
-            if success:
-                self.after(0, lambda: [
-                    self.file_tree.item(tree_item, values=(f"{len(sample_files)} files", "Completed")),
+            def update_gui():
+                if success:
+                    self.update_sample_status(sample_name, "Completed")
                     messagebox.showinfo("Success", f"Analysis completed for sample {sample_name}")
-                ])
-            else:
-                self.after(0, lambda: [
-                    self.file_tree.item(tree_item, values=(f"{len(sample_files)} files", "Failed")),
+                else:
+                    self.update_sample_status(sample_name, "Failed")
                     messagebox.showerror("Error", f"Analysis failed for sample {sample_name}")
-                ])
-            
-            # Remove from queue if present
-            if sample_name in self.queue_samples:
-                self.after(0, lambda: [
-                    self.queue_samples.pop(sample_name, None),
+                
+                # Remove from queue if present
+                if sample_name in self.queue_samples:
+                    del self.queue_samples[sample_name]
                     self.update_queue_display()
-                ])
+            
+            self.after(0, update_gui)
             
         except Exception as e:
             error_msg = f"Error running analysis for {sample_name}: {str(e)}"
             print(error_msg)
             traceback.print_exc()
+            
+            # Update GUI in main thread
             self.after(0, lambda: [
-                self.file_tree.item(tree_item, values=(f"{len(sample_files)} files", "Error")),
+                self.update_sample_status(sample_name, "Error"),
                 messagebox.showerror("Error", error_msg)
             ])
 
@@ -1017,41 +966,41 @@ class FolderWatcherWindow(ctk.CTkFrame):
     def update_queue_count(self):
         sample_count = len(self.queue_samples)
         file_count = sum(len(data["files"]) for data in self.queue_samples.values())
-        self.queue_count.configure(text=f"({sample_count} sample{'s' if sample_count != 1 else ''}, "
-                                      f"{file_count} file{'s' if file_count != 1 else ''})")
 
     def configure_treeview_colors(self):
-        """Configure treeview colors for light theme"""
+        """Configure cross-platform consistent treeview styling"""
         style = ttk.Style()
         
-        # Configure Treeview style
+        # Define colors
+        bg_color = "#dbdbdb"      # Light grey background
+        selected_bg = "#b4b4b4"   # Slightly darker grey for selection
+        
+        # Configure Treeview
         style.configure(
-            "Custom.Treeview",
-            background="white",
-            fieldbackground="white",
+            "Treeview",
+            background=bg_color,
+            fieldbackground=bg_color,
             foreground="black",
-            font=("Helvetica", 11)
+            borderwidth=0,
+            font=("Helvetica", 11),
+            rowheight=16
         )
         
         # Configure Treeview headers
         style.configure(
-            "Custom.Treeview.Heading",
-            background="#F5F5F5", 
+            "Treeview.Heading",
+            background=bg_color,
             foreground="black",
+            borderwidth=0,
             font=("Helvetica", 11, "bold")
         )
         
         # Configure selection colors
         style.map(
-            "Custom.Treeview",
-            background=[("selected", "#E8F0FE")],  # Light blue selection
-            foreground=[("selected", "#000000")]   # Keep text black when selected
+            "Treeview",
+            background=[("selected", selected_bg)],
+            foreground=[("selected", "black")]
         )
-        
-        # Update both trees
-        for tree in [self.file_tree, self.queue_tree]:
-            tree.configure(style="Custom.Treeview")
-            tree.tag_configure("new", foreground="#28a745")  # Green for new items
 
     def store_expanded_state(self):
         """Store which items are currently expanded"""
@@ -1190,6 +1139,329 @@ class FolderWatcherWindow(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", f"Error reading CSV file:\n{str(e)}")
             print(f"Error reading CSV: {e}")
+
+    def update_queue_tree(self):
+        """Update the queue tree view"""
+        try:
+            # Clear existing items
+            self.queue_tree.delete(*self.queue_tree.get_children())
+            
+            for sample_name, data in self.queue_samples.items():
+                try:
+                    # Insert sample with file count and first seen time
+                    files = data.get('files', [])
+                    first_seen = data.get('first_seen', '')
+                    
+                    sample_id = self.queue_tree.insert(
+                        "", "end",
+                        text=sample_name,
+                        values=(f"{len(files)} files", first_seen)
+                    )
+                    
+                    # Insert each file as child
+                    for file_path in files:
+                        try:
+                            self.queue_tree.insert(
+                                sample_id, "end",
+                                text=os.path.basename(file_path),
+                                values=("", "")
+                            )
+                        except Exception as e:
+                            print(f"Error inserting queue file {file_path}: {e}")
+                
+                except Exception as e:
+                    print(f"Error processing queue sample {sample_name}: {e}")
+            
+            # Update queue count label
+            queue_count = len(self.queue_samples)
+            total_files = sum(len(data.get('files', [])) for data in self.queue_samples.values())
+            self.queue_count.configure(text=f"({queue_count} samples, {total_files} files)")
+            
+        except Exception as e:
+            print(f"Error updating queue tree: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def create_control_buttons(self, container):
+        """Create control buttons with all required functionality"""
+        button_frame = ctk.CTkFrame(container, fg_color="transparent")
+        button_frame.pack(fill="x", pady=5)
+        
+        # Left side controls
+        left_controls = ctk.CTkFrame(button_frame, fg_color="transparent")
+        left_controls.pack(side="left", padx=5)
+        
+        # Analyze Selected button
+        self.analyze_button = ctk.CTkButton(
+            left_controls,
+            text="Analyze Selected",
+            command=self.analyze_selected
+        )
+        self.analyze_button.pack(side="left", padx=5)
+        create_tooltip(self.analyze_button, "Analyze selected samples (Shift+Click for multiple)")
+        
+        # Right side controls
+        right_controls = ctk.CTkFrame(button_frame, fg_color="transparent")
+        right_controls.pack(side="right", padx=5)
+        
+        # Auto-analyze checkbox
+        self.auto_analyze_checkbox = ctk.CTkCheckBox(
+            right_controls,
+            text="Auto-analyze new samples",
+            variable=self.auto_analyze_var,
+            onvalue=True,
+            offvalue=False
+        )
+        self.auto_analyze_checkbox.pack(side="left", padx=5)
+        
+        # Run Queue button
+        self.run_queue_button = ctk.CTkButton(
+            right_controls,
+            text="Run Queue",
+            command=self.run_queue
+        )
+        self.run_queue_button.pack(side="left", padx=5)
+
+    def analyze_selected(self):
+        """Analyze selected samples from the file tree using threading"""
+        selected_items = self.file_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("No Selection", "Please select at least one sample to analyze")
+            return
+        
+        # Create a thread for each selected sample
+        for item in selected_items:
+            # Get the parent item if a file is selected
+            parent = self.file_tree.parent(item)
+            sample_item = parent if parent else item
+            sample_name = self.file_tree.item(sample_item)['text']
+            
+            if sample_name in self.all_samples:
+                # Create and start analysis thread
+                analysis_thread = threading.Thread(
+                    target=self._analyze_sample_thread,
+                    args=(sample_name, sample_item),
+                    daemon=True
+                )
+                analysis_thread.start()
+
+    def _analyze_sample_thread(self, sample_name, tree_item):
+        """Thread function to run analysis for a single sample"""
+        try:
+            print(f"Starting analysis for sample: {sample_name}")
+            
+            # Update status in GUI thread
+            self.after(0, lambda: self.update_sample_status(sample_name, "Analyzing..."))
+            
+            # Get sample files
+            files = self.all_samples[sample_name]['files']
+            
+            # Get project information
+            project_info = {
+                'project': self.project_entry.get() or "default_project",
+                'subproject': self.subproject_entry.get() or "default_subproject",
+                'date': self.date_entry.get()
+            }
+            
+            # Initialize MMonitorCMD
+            cmd_runner = MMonitorCMD()
+            cmd_runner.offline_mode = self.offline_mode
+            cmd_runner.logged_in = self.logged_in
+            cmd_runner.current_user = self.current_user
+            
+            # Load config file
+            with open(self.config_file, 'r') as f:
+                config = json.load(f)
+            
+            analysis_type = config.get('analysis_type', 'taxonomy-wgs')
+            print(f"Analysis type from config: {analysis_type}")
+            
+            # Set up arguments with proper database paths
+            args = argparse.Namespace(
+                analysis=analysis_type,
+                config=self.config_file,
+                threads=config.get('threads', 4),
+                sample=sample_name,
+                project=project_info['project'],
+                subproject=project_info['subproject'],
+                date=datetime.datetime.strptime(project_info['date'], '%Y-%m-%d').date(),
+                input=files,
+                multicsv=None,
+                centrifuger_db=os.path.abspath(config.get('centrifuger_db')),
+                emu_db=os.path.abspath(config.get('emu_db')),
+                min_length=config.get('min_length', 1000),
+                min_quality=config.get('min_quality', 10.0),
+                min_abundance=config.get('min_abundance', 0.01),
+                overwrite=True,
+                qc=True,
+                update=False,
+                verbose=True,
+                loglevel='INFO'
+            )
+            
+            # Initialize and run analysis
+            cmd_runner.initialize_from_args(args)
+            success = cmd_runner.run()
+            
+            if success:
+                # Upload results based on analysis type
+                if analysis_type == 'taxonomy-wgs':
+                    # Path to centrifuger report
+                    report_file = os.path.join(
+                        cmd_runner.pipeline_out,
+                        sample_name,
+                        f"{sample_name}_centrifuger_report.tsv"
+                    )
+                    
+                    # Upload centrifuger results
+                    if os.path.exists(report_file):
+                        cmd_runner.django_db.send_nanopore_record_centrifuge(
+                            kraken_out_path=report_file,
+                            sample_name=sample_name,
+                            project_id=project_info['project'],
+                            subproject_id=project_info['subproject'],
+                            date=project_info['date'],
+                            overwrite=True
+                        )
+                else:  # taxonomy-16s
+                    # Path to EMU output
+                    emu_out_path = os.path.join(cmd_runner.pipeline_out, sample_name)
+                    
+                    # Upload EMU results using the correct method name
+                    cmd_runner.django_db.update_django_with_emu_out(
+                        emu_out_path=emu_out_path,
+                        tax_rank="species",
+                        sample_name=sample_name,
+                        project_name=project_info['project'],
+                        sample_date=project_info['date'],
+                        subproject_name=project_info['subproject'],
+                        overwrite=True
+                    )
+            
+            # Update GUI in main thread
+            def update_gui():
+                if success:
+                    self.update_sample_status(sample_name, "Completed")
+                    messagebox.showinfo("Success", f"Analysis completed for sample {sample_name}")
+                else:
+                    self.update_sample_status(sample_name, "Failed")
+                    messagebox.showerror("Error", f"Analysis failed for sample {sample_name}")
+                
+                # Remove from queue if present
+                if sample_name in self.queue_samples:
+                    del self.queue_samples[sample_name]
+                    self.update_queue_display()
+            
+            self.after(0, update_gui)
+            
+        except Exception as e:
+            error_msg = f"Error analyzing sample {sample_name}: {str(e)}"
+            print(error_msg)
+            traceback.print_exc()
+            
+            # Update GUI in main thread
+            self.after(0, lambda: [
+                self.update_sample_status(sample_name, "Error"),
+                messagebox.showerror("Error", error_msg)
+            ])
+
+    def run_queue(self):
+        """Run all samples in the queue"""
+        if not self.queue_samples:
+            messagebox.showinfo("Queue Empty", "No samples in the queue to analyze")
+            return
+        
+        try:
+            # Get project information
+            project_info = {
+                'project': self.project_entry.get(),
+                'subproject': self.subproject_entry.get(),
+                'date': self.date_entry.get()
+            }
+            
+            # Process each sample in the queue
+            for sample_name in list(self.queue_samples.keys()):
+                try:
+                    print(f"Processing queued sample: {sample_name}")
+                    
+                    # Get all files for this sample (including new ones)
+                    all_files = self.all_samples[sample_name]['files']
+                    
+                    # Update status
+                    self.update_sample_status(sample_name, "Analyzing...")
+                    
+                    # Run the analysis
+                    cmd_runner = MMonitorCMD(
+                        files=all_files,
+                        sample_name=sample_name,
+                        config=self.config,
+                        project_info=project_info
+                    )
+                    cmd_runner.run()
+                    
+                    # Update status and remove from queue
+                    self.update_sample_status(sample_name, "Analyzed")
+                    del self.queue_samples[sample_name]
+                    
+                except Exception as e:
+                    print(f"Error processing queued sample {sample_name}: {e}")
+                    self.update_sample_status(sample_name, "Failed")
+                    messagebox.showerror("Queue Error", f"Error processing sample {sample_name}: {str(e)}")
+            
+            self.needs_update = True
+            
+        except Exception as e:
+            print(f"Error in run_queue: {e}")
+            messagebox.showerror("Error", f"Error processing queue: {str(e)}")
+
+    def update_sample_status(self, sample_name, status):
+        """Update the status of a sample in the file tree"""
+        try:
+            # Update status in all_samples
+            if sample_name in self.all_samples:
+                self.all_samples[sample_name]['status'] = status
+            
+            # Find and update the item in the tree
+            for item in self.file_tree.get_children():
+                if self.file_tree.item(item)['text'] == sample_name:
+                    self.file_tree.set(item, "status", status)
+                    break
+            
+        except Exception as e:
+            print(f"Error updating sample status: {e}")
+
+    def on_file_change(self, event):
+        """Handle file system events"""
+        try:
+            if event.is_directory:
+                return
+                
+            file_path = event.src_path
+            if not any(file_path.endswith(ext) for ext in ['.fastq', '.fastq.gz', '.fq', '.fq.gz']):
+                return
+                
+            sample_name = self.get_sample_name(file_path)
+            if not sample_name:
+                return
+                
+            # Add to all_samples
+            if sample_name not in self.all_samples:
+                self.all_samples[sample_name] = {'files': [], 'status': 'New'}
+            if file_path not in self.all_samples[sample_name]['files']:
+                self.all_samples[sample_name]['files'].append(file_path)
+                
+            # Add to queue if watching
+            if self.watching and self.watch_start_time:
+                file_time = datetime.datetime.fromtimestamp(os.path.getctime(file_path))
+                if file_time > self.watch_start_time:
+                    self.add_to_queue(sample_name)
+                    if self.auto_analyze_var.get():
+                        self.run_queue()
+            
+            self.needs_update = True
+            
+        except Exception as e:
+            print(f"Error handling file change: {e}")
 
 
 

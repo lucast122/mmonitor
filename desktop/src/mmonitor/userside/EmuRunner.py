@@ -46,7 +46,17 @@ class EmuRunner:
             print(f"Emu script not found at {self.emu_path}")
 
     def run_emu(self, input_file, output_dir, db_dir, threads, N=50, K="500M", minimap_type="map-ont"):
+        """Run EMU analysis with proper parameter handling"""
         self.emu_out = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Convert K to numeric format if given as string with M/G suffix
+        if isinstance(K, str):
+            if K.endswith('M'):
+                K = str(int(K[:-1]) * 1000000)
+            elif K.endswith('G'):
+                K = str(int(K[:-1]) * 1000000000)
+        
         cmd = [
             sys.executable,
             self.emu_path,
@@ -63,15 +73,36 @@ class EmuRunner:
         ]
 
         try:
-            print(f"Running emu with {threads} threads")
-            print("Full Emu command:", ' '.join(cmd))
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            print(f"Running EMU analysis:")
+            print(f"Input file: {input_file}")
+            print(f"Output directory: {output_dir}")
+            print(f"Database: {db_dir}")
+            print(f"Threads: {threads}")
+            print("Full EMU command:", ' '.join(cmd))
+            
+            result = subprocess.run(
+                cmd, 
+                check=True, 
+                capture_output=True, 
+                text=True
+            )
+            
+            print("\nEMU stdout:")
             print(result.stdout)
-            print("Emu analysis completed successfully")
+            
+            if result.stderr:
+                print("\nEMU stderr:")
+                print(result.stderr)
+            
+            print("EMU analysis completed successfully")
             return True
+            
         except subprocess.CalledProcessError as e:
-            print(f"Emu analysis failed with return code {e.returncode}")
+            print(f"EMU analysis failed with return code {e.returncode}")
             print(f"Error output: {e.stderr}")
+            return False
+        except Exception as e:
+            print(f"Unexpected error running EMU: {e}")
             return False
 
     def get_files_from_folder(self, folder_path):

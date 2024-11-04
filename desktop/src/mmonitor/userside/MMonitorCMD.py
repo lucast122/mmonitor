@@ -11,6 +11,7 @@ from datetime import datetime
 import tempfile
 import shutil
 import traceback
+import keyring
 
 from build_mmonitor_pyinstaller import ROOT
 from mmonitor.userside.FastqStatistics import FastqStatistics
@@ -53,17 +54,17 @@ class MMonitorCMD:
     def __init__(self):
         self.use_multiplexing = None
         self.multi_sample_input = None
-        self.emu_runner = None  # Initialize to None
+        self.emu_runner = None
         self.centrifuger_runner = CentrifugerRunner()  
         self.functional_runner = FunctionalRunner()
         self.db_config = {}
         self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
         self.args = None
         self.django_db = None
-        self.centrifuger_db = None  # Changed from centrifuge_db
-        self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")  # Changed from db_config.json
-        self.output_dir = None  # We'll set this in the initialize_from_args method
-        self.config = {}  # Initialize config as an empty dictionary
+        self.centrifuger_db = None
+        self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.output_dir = None
+        self.config = {}
         self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
         self.offline_mode = False
         self.logged_in = False
@@ -72,9 +73,35 @@ class MMonitorCMD:
         # Add minimap2 from lib folder to PATH
         minimap2_path = os.path.join(ROOT, "lib", "minimap2")
         os.environ['PATH'] = f"{minimap2_path}:{os.environ['PATH']}"
-
-        # Optionally, you can print the updated PATH for debugging
         print(f"Updated PATH: {os.environ['PATH']}")
+
+        # Use separate config files
+        self.db_config_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.pipeline_config_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        
+        # Load database config for authentication with error handling
+        try:
+            if os.path.exists(self.db_config_path):
+                with open(self.db_config_path, 'r') as f:
+                    content = f.read().strip()  # Remove any whitespace
+                    try:
+                        self.db_config = json.loads(content)
+                    except json.JSONDecodeError as e:
+                        print(f"Error parsing db_config.json: {e}")
+                        print(f"Content causing error: {content}")
+                        # Initialize with empty config
+                        self.db_config = {}
+        except Exception as e:
+            print(f"Error loading db_config: {e}")
+            self.db_config = {}
+        
+        # Initialize Django DB interface with proper config
+        self.django_db = DjangoDBInterface(self.db_config_path)
+        
+        # Pass authentication info to Django DB interface
+        if self.db_config:
+            self.django_db.username = self.db_config.get('user')
+            self.django_db.password = keyring.get_password("MMonitor", self.db_config.get('user'))
 
     def initialize_from_args(self, args):
         """Initialize with proper offline mode handling"""
@@ -86,10 +113,12 @@ class MMonitorCMD:
         try:
             with open(args.config, 'r') as f:
                 self.config = json.load(f)
+                print(f"Loaded config: {self.config}")
         except Exception as e:
             print(f"Error loading config file: {e}")
             self.config = {}
         
+        # Initialize EMU runner with proper database path
         if self.args.emu_db:
             self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
         else:
@@ -104,12 +133,16 @@ class MMonitorCMD:
                 sys.exit(1)
         
         # Set centrifuger_db path with proper fallback chain
-        self.centrifuger_db = (
-            self.args.centrifuger_db or  # Command line argument
-            self.config.get('centrifuger_db') or  # From config file
-            os.path.join(ROOT, "src", "resources", "centrifuger_db")  # Default path
-        )
-        print(f"Using Centrifuger database: {self.centrifuger_db}")
+        if hasattr(self.args, 'centrifuger_db') and self.args.centrifuger_db:
+            self.centrifuger_db = os.path.abspath(self.args.centrifuger_db)
+        elif 'centrifuger_db' in self.config:
+            self.centrifuger_db = os.path.abspath(self.config['centrifuger_db'])
+        else:
+            self.centrifuger_db = os.path.abspath(os.path.join(ROOT, "src", "resources", "centrifuger_db"))
+        
+        print(f"Initializing MMonitorCMD with args:")
+        print(f"Centrifuger DB: {self.centrifuger_db}")
+        print(f"EMU DB: {self.args.emu_db}")
 
     def valid_file(self, path):
         if not os.path.isfile(path):
@@ -465,61 +498,45 @@ class MMonitorCMD:
         """Run the analysis with proper authentication handling"""
         logger.info(f"Starting run with analysis type: {self.args.analysis}")
         
-        # Skip authentication check if in offline mode
-        if not self.offline_mode:
-            # Only check credentials if not in offline mode
-            if not self.logged_in:
-                logger.error("Error: Not logged in or invalid credentials.")
-                return False
-        else:
-            logger.info("Running in offline mode - skipping authentication check")
-
-        logger.info(f"Current PATH: {os.environ['PATH']}")
-
         try:
             if self.args.analysis == "taxonomy-16s":
-                self.emu_runner = EmuRunner(self.emu_runner.custom_db_path)
-                with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                    self.emu_runner.concatenate_fastq_files(self.args.input, temp_file.name)
+                # Create temporary concatenated file for EMU
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
+                    self.centrifuger_runner.concatenate_gzipped_files(self.args.input, temp_file.name)
+                    
+                    # Run EMU analysis with correct parameters
                     success = self.emu_runner.run_emu(
                         input_file=temp_file.name,
-                        output_dir=self.output_dir,
-                        db_dir=self.emu_runner.custom_db_path,
+                        output_dir=os.path.join(self.pipeline_out, self.args.sample),
+                        db_dir=self.args.emu_db,
                         threads=self.args.threads,
-                        N=50,
-                        K="500M",
+                        N=50,  # Default EMU parameters
+                        K="500000000",  # Default EMU parameters
+                        
                         minimap_type="map-ont"
                     )
-                os.unlink(temp_file.name)
-
-                if not success:
-                    logger.error("Emu analysis failed")
-                    return False
+                    os.unlink(temp_file.name)
+                    
+                    if not success:
+                        logger.error("EMU analysis failed")
+                        return False
 
             elif self.args.analysis == "taxonomy-wgs":
                 # Concatenate input files first
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
-                    # Use concatenate_gzipped_files from centrifuger_runner
                     self.centrifuger_runner.concatenate_gzipped_files(self.args.input, temp_file.name)
                     
-                    print(f"Using Centrifuger database path: {self.centrifuger_db}")
                     # Run Centrifuger with concatenated file
                     success = self.centrifuger_runner.run_centrifuger(
                         input_file=temp_file.name,
                         sample_name=self.args.sample,
-                        db_path=self.centrifuger_db  # Make sure this is passed correctly
+                        db_path=self.centrifuger_db
                     )
                     os.unlink(temp_file.name)
                     
                     if not success:
                         logger.error("Centrifuger analysis failed")
                         return False
-
-            elif self.args.analysis in ["assembly", "functional"]:
-                self.functional_runner.run(self.args.input, self.output_dir, self.args.threads)
-            else:
-                logger.error(f"Unsupported analysis type: {self.args.analysis}")
-                return False
 
             logger.info("Analysis completed successfully")
             return True
@@ -555,9 +572,29 @@ class MMonitorCMD:
 
     def run_emu(self, files, sample_name, min_abundance):
         print(f"Running Emu for sample {sample_name}")
-        # ... (rest of the method)
-        # Replace any sys.stdout.write() or sys.stderr.write() with print()
-        print(f"Emu analysis complete for sample {sample_name}")
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Initialize the EMU runner
+        emu_runner = EmuRunner(
+            input_files=files,
+            output_dir=self.output_dir,
+            sample_name=sample_name,
+            min_abundance=min_abundance,
+            threads=self.args.threads,
+            db_path=self.emu_db
+        )
+        
+        # Run EMU analysis
+        success = emu_runner.run()
+        
+        if success:
+            print(f"Emu analysis complete for sample {sample_name}")
+            return True
+        else:
+            print(f"Emu analysis failed for sample {sample_name}")
+            return False
 
     # Apply similar changes to other methods that might be writing directly to stdout/stderr
 

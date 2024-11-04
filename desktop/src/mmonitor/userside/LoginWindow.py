@@ -3,42 +3,39 @@ from mmonitor.database.django_db_interface import DjangoDBInterface
 from CTkMessagebox import CTkMessagebox
 import threading
 import time
+import os
+import keyring
+import sys
+import subprocess
+import requests
+import webbrowser
+import io
+import fcntl
+import os
+
+from build_mmonitor_pyinstaller import ROOT
 
 # Define colors here as well for consistency
 COLORS = {
     "primary": "#2B6CB0",        # Deep blue
     "primary_hover": "#2C5282",  # Darker blue
-    "secondary": "#718096",      # Slate gray
-    "background": "#FFFFFF",     # White
-    "surface": "#F7FAFC",        # Light gray background
-    "border": "#E2E8F0",        # Light border color
-    "text": "#2D3748",          # Dark gray text
-    "text_secondary": "#4A5568", # Secondary text color
-    "button_text": "#FFFFFF"    # White text for buttons
+    "background": "#ffffff",     # White
+    "text": "#1A202C",          # Dark text
+    "button_text": "#FFFFFF"     # White text for buttons
 }
 
 class LoginWindow(ctk.CTkFrame):
     def __init__(self, parent, db_path):
         super().__init__(parent)
+        # Use db_config.json for login settings
+        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
         self.parent = parent
-        self.db_path = db_path
         
         # Get the main window dimensions from parent
         main_window = self.winfo_toplevel()
         
         # Modern styling
         self.configure(fg_color=COLORS["background"])
-        
-        # Create centered container
-        container = ctk.CTkFrame(
-            self,
-            fg_color=COLORS["surface"],
-            corner_radius=10,
-            width=600,  # Fixed width
-            height=500  # Fixed height
-        )
-        container.place(relx=0.5, rely=0.5, anchor="center")
-        container.pack_propagate(False)
         
         # Variables
         self.username_var = ctk.StringVar()
@@ -51,62 +48,59 @@ class LoginWindow(ctk.CTkFrame):
         self.logged_in = False
         self.db_interface = DjangoDBInterface(self.db_path)
 
+        # Store reference to main window
+        self.main_window = self.winfo_toplevel()
+
         self.create_widgets()
 
     def create_widgets(self):
-        # Main container with padding
-        container = ctk.CTkFrame(self)
-        container.pack(expand=True, padx=20, pady=20)
-        
-        # Center the content
-        content_frame = ctk.CTkFrame(container)
-        content_frame.pack(expand=True, padx=40, pady=20)
+        # Single clean container
+        container = ctk.CTkFrame(self, fg_color=COLORS["background"])
+        container.pack(expand=True, padx=60, pady=40)
 
         # Title
-        title_label = ctk.CTkLabel(content_frame, 
+        title_label = ctk.CTkLabel(container, 
                                  text="MMonitor Login",
                                  font=("Helvetica", 24, "bold"))
         title_label.pack(pady=(0, 30))
 
         # Server details
-        server_frame = ctk.CTkFrame(content_frame)
-        server_frame.pack(fill="x", pady=(0, 15))
-        
-        ctk.CTkLabel(server_frame, text="Server:", 
+        ctk.CTkLabel(container, text="Server:", 
                     font=("Helvetica", 12)).pack(anchor="w")
-        server_entry = ctk.CTkEntry(server_frame, textvariable=self.server_var,
-                                  height=32, placeholder_text="mmonitor.org")
-        server_entry.pack(fill="x", pady=(2, 8))
+        server_entry = ctk.CTkEntry(container, textvariable=self.server_var,
+                                  height=32, placeholder_text="mmonitor.org",
+                                  width=300)
+        server_entry.pack(fill="x", pady=(2, 15))
 
-        ctk.CTkLabel(server_frame, text="Port:", 
+        ctk.CTkLabel(container, text="Port:", 
                     font=("Helvetica", 12)).pack(anchor="w")
-        port_entry = ctk.CTkEntry(server_frame, textvariable=self.port_var,
-                                height=32, placeholder_text="443")
-        port_entry.pack(fill="x", pady=(2, 0))
+        port_entry = ctk.CTkEntry(container, textvariable=self.port_var,
+                                height=32, placeholder_text="443",
+                                width=300)
+        port_entry.pack(fill="x", pady=(2, 15))
 
         # Login details
-        login_frame = ctk.CTkFrame(content_frame)
-        login_frame.pack(fill="x", pady=15)
-        
-        ctk.CTkLabel(login_frame, text="Username:", 
+        ctk.CTkLabel(container, text="Username:", 
                     font=("Helvetica", 12)).pack(anchor="w")
-        username_entry = ctk.CTkEntry(login_frame, textvariable=self.username_var,
-                                    height=32, placeholder_text="Enter username")
-        username_entry.pack(fill="x", pady=(2, 8))
+        username_entry = ctk.CTkEntry(container, textvariable=self.username_var,
+                                    height=32, placeholder_text="Enter username",
+                                    width=300)
+        username_entry.pack(fill="x", pady=(2, 15))
 
-        ctk.CTkLabel(login_frame, text="Password:", 
+        ctk.CTkLabel(container, text="Password:", 
                     font=("Helvetica", 12)).pack(anchor="w")
-        self.password_entry = ctk.CTkEntry(login_frame, textvariable=self.password_var,
+        self.password_entry = ctk.CTkEntry(container, textvariable=self.password_var,
                                          show="*", height=32, 
-                                         placeholder_text="Enter password")
-        self.password_entry.pack(fill="x", pady=(2, 0))
+                                         placeholder_text="Enter password",
+                                         width=300)
+        self.password_entry.pack(fill="x", pady=(2, 15))
 
         # Options
-        options_frame = ctk.CTkFrame(content_frame)
+        options_frame = ctk.CTkFrame(container, fg_color="transparent")
         options_frame.pack(fill="x", pady=15)
         
         # Show password and Remember me in same row
-        checkbox_frame = ctk.CTkFrame(options_frame)
+        checkbox_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
         checkbox_frame.pack(fill="x")
         
         ctk.CTkCheckBox(checkbox_frame, text="Show Password",
@@ -121,11 +115,11 @@ class LoginWindow(ctk.CTkFrame):
                        height=20).pack(side="right", padx=5)
 
         # Buttons
-        button_frame = ctk.CTkFrame(content_frame)
+        button_frame = ctk.CTkFrame(container, fg_color="transparent")
         button_frame.pack(fill="x", pady=(20, 0))
         
         # Button container for equal spacing
-        btn_container = ctk.CTkFrame(button_frame)
+        btn_container = ctk.CTkFrame(button_frame, fg_color="transparent")
         btn_container.pack(expand=True)
         
         self.login_button = ctk.CTkButton(btn_container, text="Login",
@@ -143,23 +137,128 @@ class LoginWindow(ctk.CTkFrame):
         self.offline_button.pack(side="left", padx=10)
 
         # Status label
-        self.status_label = ctk.CTkLabel(content_frame, text="",
+        self.status_label = ctk.CTkLabel(container, text="",
                                        font=("Helvetica", 11))
         self.status_label.pack(pady=(15, 0))
 
     def enter_offline_mode(self):
-        """Handle offline mode login"""
-        if isinstance(self.parent, ctk.CTk):  # Main window
-            main_window = self.parent
-        else:  # Content frame
-            main_window = self.parent.winfo_toplevel()
+        """Handle offline mode setup and server initialization"""
+        print("Entering offline mode...")
         
-        main_window.logged_in = True
-        main_window.offline_mode = True
-        main_window.current_user = "Offline"
-        main_window.update_login_status()
-        main_window.show_home()
-        print("Entered offline mode")
+        def show_error(error_msg):
+            CTkMessagebox(
+                title="Error",
+                message=f"Failed to enter offline mode: {error_msg}",
+                icon="cancel"
+            )
+        
+        def start_server():
+            # Check if server is already running
+            try:
+                response = requests.get("http://127.0.0.1:8000/admin/", timeout=1)
+                if response.status_code in [200, 302, 404]:
+                    print("Server already running, proceeding to setup...")
+                    self.after(0, setup_and_configure)
+                    return
+            except requests.RequestException:
+                pass
+                
+            try:
+                python_interpreter = sys.executable
+                server_path = os.path.join("/Users/timo/Downloads/home/minion-computer/mmonitor_production/MMonitor/server")
+                manage_py = os.path.join(server_path, "manage.py")
+                
+                if not os.path.exists(manage_py):
+                    raise FileNotFoundError(f"Django manage.py not found at {manage_py}")
+                
+                # Start server process with unbuffered output
+                env = os.environ.copy()
+                env['PYTHONUNBUFFERED'] = '1'
+                env['DJANGO_EMAIL_BACKEND'] = 'django.core.mail.backends.dummy.EmailBackend'
+                
+                print(f"Starting Django server at {server_path}")
+                self.main_window.django_process = subprocess.Popen(
+                    [python_interpreter, manage_py, "runserver", "127.0.0.1:8000"],
+                    cwd=server_path,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    env=env
+                )
+                
+                def monitor_output():
+                    while self.main_window.django_process and self.main_window.django_process.poll() is None:
+                        output = self.main_window.django_process.stdout.readline()
+                        if output:
+                            print("Server output:", output.strip())
+                            if "Starting development server at" in output:
+                                print("Server detected as running!")
+                                time.sleep(2)  # Give it a moment to fully initialize
+                                self.after(0, setup_and_configure)
+                                return
+                                    
+                        error = self.main_window.django_process.stderr.readline()
+                        if error:
+                            print("Server error:", error.strip())
+                        
+                # Start output monitoring in background
+                threading.Thread(target=monitor_output, daemon=True).start()
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"Error starting server: {error_msg}")
+                self.after(0, lambda msg=error_msg: show_error(msg))
+        
+        def setup_and_configure():
+            """Configure application for offline mode"""
+            try:
+                print("Setting up offline mode...")
+                # Update application state in the main window
+                self.main_window.logged_in = True
+                self.main_window.offline_mode = True
+                self.main_window.current_user = "offlinemode"
+                
+                if hasattr(self.main_window, 'django_db'):
+                    print("\nUpdating database connection...")
+                    self.main_window.django_db.base_url = "http://127.0.0.1:8000"
+                    self.main_window.django_db.username = "offlinemode"
+                    self.main_window.django_db.password = "offline123"
+                    self.main_window.django_db.token = None  # Reset token
+                    
+                    # Force re-authentication
+                    print("Authenticating with offline credentials...")
+                    success = self.main_window.django_db.authenticate("offlinemode", "offline123")
+                    if not success:
+                        print("WARNING: Failed to authenticate with offline server")
+                
+                print("Updating UI...")
+                
+                # Ask user about browser
+                dialog = CTkMessagebox(
+                    title="Local Server Ready",
+                    message="Would you like to view the results in your browser?\n"
+                           "The local server is running at http://127.0.0.1:8000",
+                    icon="question",
+                    option_1="Yes",
+                    option_2="No"
+                )
+                
+                if dialog.get() == "Yes":
+                    webbrowser.open("http://127.0.0.1:8000")
+                
+                # Update UI state and show home screen
+                self.main_window.update_login_status()
+                self.main_window.show_home()
+                
+                print("Offline mode setup complete!")
+                
+            except Exception as e:
+                print(f"Error setting up offline mode: {e}")
+                show_error(str(e))
+        
+        print("Starting server thread...")
+        threading.Thread(target=start_server, daemon=True).start()
 
     def toggle_password_visibility(self):
         if self.show_password_var.get():
@@ -175,6 +274,8 @@ class LoginWindow(ctk.CTkFrame):
     def _login_thread(self):
         try:
             start_time = time.time()
+            # Initialize DjangoDBInterface with the correct config file
+            self.db_interface = DjangoDBInterface(self.db_path)  # Use db_config.json
             success = self.db_interface.login(
                 self.username_var.get(),
                 self.password_var.get(),
@@ -190,22 +291,50 @@ class LoginWindow(ctk.CTkFrame):
             self.after(0, self._login_callback, False)
 
     def _login_callback(self, success):
-        if isinstance(self.parent, ctk.CTk):  # Main window
-            main_window = self.parent
-        else:  # Content frame
-            main_window = self.parent.winfo_toplevel()
-        
-        if success:
-            main_window.logged_in = True
-            main_window.offline_mode = False
-            main_window.current_user = self.username_var.get()
-            main_window.update_login_status()
-            self.status_label.configure(text="Login successful.")
-            main_window.show_home()
-        else:
-            self.status_label.configure(text="Login failed. Please try again.")
-            CTkMessagebox(master=main_window, title="Login Failed", 
-                         message="Invalid credentials or server unreachable.")
+        """Handle login callback"""
+        try:
+            # Get the main window instance
+            if isinstance(self.parent, ctk.CTk):  # Main window
+                main_window = self.parent
+            else:  # Content frame
+                main_window = self.parent.winfo_toplevel()
+            
+            if success:
+                # Update main window state
+                if hasattr(main_window, 'logged_in'):
+                    main_window.logged_in = True
+                    main_window.offline_mode = False
+                    main_window.current_user = self.username_var.get()
+                    
+                    # Update login status if method exists
+                    if hasattr(main_window, 'update_login_status'):
+                        main_window.update_login_status()
+                    
+                    self.status_label.configure(text="Login successful.")
+                    
+                    # Show home if method exists
+                    if hasattr(main_window, 'show_home'):
+                        main_window.show_home()
+                    
+            else:
+                self.status_label.configure(text="Login failed. Please try again.")
+                CTkMessagebox(
+                    title="Login Failed", 
+                    message="Invalid credentials or server unreachable.",
+                    icon="cancel"
+                )
+                self.login_button.configure(state="normal", text="Login")
+
+            print(f"Login {'succeeded' if success else 'failed'}")
+            
+        except Exception as e:
+            print(f"Error in login callback: {e}")
+            self.status_label.configure(text="Login error occurred.")
             self.login_button.configure(state="normal", text="Login")
 
-        print(f"Login {'succeeded' if success else 'failed'}")
+    def offline_button_click(self):
+        """Handle offline mode button click"""
+        print("Switching to offline mode...")
+        if self.parent:
+            self.enter_offline_mode()  # Call the method we just implemented
+        self.destroy()

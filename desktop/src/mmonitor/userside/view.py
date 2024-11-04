@@ -12,14 +12,18 @@ import subprocess
 import csv
 import io
 import threading
+import webbrowser
 import gzip
 from requests import post
 from tkcalendar import DateEntry
 import datetime
 import queue
+from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
 from build_mmonitor_pyinstaller import ROOT, IMAGES_PATH
 from mmonitor.dashapp.index import Index
+import requests
+
 from mmonitor.database.DBConfigForm import DataBaseConfigForm
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.database.mmonitor_db import MMonitorDBInterface
@@ -35,6 +39,7 @@ from mmonitor.userside.LoginWindow import LoginWindow
 import multiprocessing
 from mmonitor.userside.utils import create_tooltip
 import json
+import time
 
 VERSION = "v0.1.0"
 MAIN_WINDOW_X, MAIN_WINDOW_Y = 1500, 1000  # Standard window size
@@ -165,17 +170,34 @@ class GUI(ctk.CTk):
 
         self.show_login()  # Show login screen by default
 
+        # Bind cleanup to window close
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def on_closing(self):
+        """Clean up resources before closing"""
+        try:
+            if hasattr(self, 'django_process'):
+                print("Shutting down Django server...")
+                self.django_process.terminate()
+                self.django_process.wait(timeout=5)  # Wait up to 5 seconds for clean shutdown
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+        finally:
+            self.quit()
+
     def setup_variables(self):
-        print("Setting up variables...")
-        self.centrifuge_index_path = f"{ROOT}/src/resources/dec22"
-        self.analysis_var = tk.StringVar(value="taxonomy-wgs")
-        self.sample_files = {}
-        self.pipeline_popup = None
-        self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
-        self.db = None
-        self.dashapp = None
-        self.monitor_thread = None
-        print("Variables setup complete.")
+        """Initialize variables and configurations"""
+        # Use separate config files for different purposes
+        self.db_config_file = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.pipeline_config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        
+        # Initialize database interface with login config
+        self.django_db = DjangoDBInterface(self.db_config_file)
+        
+        # Initialize other variables
+        self.logged_in = False
+        self.offline_mode = False
+        self.current_user = None
 
     def setup_runners(self):
         print("Setting up runners...")
@@ -331,7 +353,7 @@ class GUI(ctk.CTk):
                 text_color=self.theme_colors["text"],
                 hover_color=self.theme_colors["button_hover"],
                 border_width=2,
-                border_color=self.theme_colors["button_secondary"],
+                border_color=self.theme_colors["button"],
                 compound="left"
             )
             btn.pack(fill="x", padx=5)
@@ -364,6 +386,25 @@ class GUI(ctk.CTk):
             font=("Helvetica", 12)
         )
         self.login_status_label.pack(fill="x")
+        
+        # Add logout button
+        self.logout_button = ctk.CTkButton(
+            status_frame,
+            text="Logout",
+            command=self.logout,
+            height=35,
+            corner_radius=8,
+            font=("Helvetica", 12),
+            fg_color=self.theme_colors["button"],
+            hover_color=self.theme_colors["button_hover"],
+            border_width=1,
+            border_color=self.theme_colors["button"]
+        )
+        self.logout_button.pack(fill="x", pady=(10, 0))
+        
+        # Initially hide logout button
+        if not self.logged_in:
+            self.logout_button.pack_forget()
         
         # Modern toggle console button
         self.toggle_console_button = ctk.CTkButton(
@@ -423,11 +464,7 @@ class GUI(ctk.CTk):
         self.wait_window(db_config_form)
         print(f"Database configuration updated: {db_config_form.last_config}")
 
-    def checkbox_popup(self):
-        print("Opening analysis pipeline configuration...")
-        self.pipeline_popup = PipelinePopup(self, self)
-        self.wait_window(self.pipeline_popup)
-
+    
     def run_pipeline(self, analysis_type, emu_db, centrifuge_db):
         print(f"Starting pipeline for analysis type: {analysis_type}")
         input_window = InputWindow(self, self.emu_runner)
@@ -758,101 +795,6 @@ class GUI(ctk.CTk):
         if self.console_expanded:
             self.console_frame.pack(side="right", fill="y")
 
-    def enter_offline_mode(self):
-        self.logged_in = True
-        self.offline_mode = True
-        self.current_user = "Offline"
-        
-        # Start the local Django server
-        self.start_local_server()
-        
-        # Update the configuration for the local server
-        self.django_db.set_offline_mode(True)
-        
-        self.update_login_status()
-        self.show_home()
-        print("Entered offline mode")
-
-    def start_local_server(self):
-        def run_server():
-            django_dir = '/Users/timo/Downloads/home/minion-computer/mmonitor_production/MMonitor/server'
-            manage_py_path = os.path.join(django_dir, 'manage.py')
-            python_interpreter = '/Users/timo/miniconda3/bin/python'
-            
-            if not os.path.exists(manage_py_path):
-                print(f"Error: manage.py not found at {manage_py_path}")
-                return
-
-            if not os.path.exists(python_interpreter):
-                print(f"Error: Python interpreter not found at {python_interpreter}")
-                return
-
-            os.chdir(django_dir)
-            try:
-                result = subprocess.run(
-                    [python_interpreter, "manage.py", "runserver", "127.0.0.1:8000"],
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                print("Server output:", result.stdout)
-            except subprocess.CalledProcessError as e:
-                print(f"Error starting Django server: {e}")
-                print("Error output:", e.output)
-                print("Standard output:", e.stdout)
-                print("Standard error:", e.stderr)
-            except Exception as e:
-                print(f"Unexpected error starting Django server: {e}")
-
-        # Run the server in a separate thread
-        server_thread = threading.Thread(target=run_server, daemon=True)
-        server_thread.start()
-        print("Local server thread started")
-
-    def update_login_status(self):
-        if self.offline_mode:
-            self.login_status_label.configure(text="Offline Mode")
-        elif self.logged_in:
-            self.login_status_label.configure(text=f"Logged in as {self.current_user}")
-        else:
-            self.login_status_label.configure(text="Not logged in")
-
-    def perform_login(self):
-        self.login_button.configure(state="disabled", text="Logging in...")
-        self.offline_button.configure(state="disabled")
-        self.login_status.configure(text="Attempting to log in...")
-        
-        threading.Thread(target=self._login_thread, daemon=True).start()
-
-    def _login_thread(self):
-        try:
-            success = self.django_db.login(
-                self.username_entry.get(),
-                self.password_entry.get(),
-                self.server_entry.get(),
-                self.port_entry.get(),
-                self.remember_var.get()
-            )
-            self.after(0, self._login_callback, success)
-        except Exception as e:
-            print(f"Exception during login: {e}")
-            self.after(0, self._login_callback, False)
-
-    def _login_callback(self, success):
-        if success:
-            self.logged_in = True
-            self.offline_mode = False
-            self.current_user = self.username_entry.get()
-            self.update_login_status()
-            self.login_status.configure(text="Login successful.")
-            self.after(1000, self.show_home)
-        else:
-            self.login_status.configure(text="Login failed. Please try again.")
-            self.login_button.configure(state="normal", text="Login")
-            self.offline_button.configure(state="normal")
-
-        print(f"Login {'succeeded' if success else 'failed'}")
-
     def logout(self):
         self.logged_in = False
         self.current_user = None
@@ -1072,7 +1014,7 @@ class GUI(ctk.CTk):
         return frame
 
     def show_sequencing_monitor(self):
-        """Show the sequencing monitor (renamed from folder_watcher)"""
+        
         self.clear_content_frame()
         self.folder_watcher_window = FolderWatcherWindow(self.content_frame, self)
         self.folder_watcher_window.pack(fill="both", expand=True)
@@ -1084,7 +1026,7 @@ class GUI(ctk.CTk):
             results_url = f"{base_url}/results/"  # Adjust this URL as needed
             
             # Open the results page in the default browser
-            import webbrowser
+            
             webbrowser.open(results_url)
             
             print(f"Opened results page: {results_url}")
@@ -1188,6 +1130,39 @@ class GUI(ctk.CTk):
             messagebox.showwarning("Invalid Configuration", "Please set up analysis parameters in the Analysis tab first.")
             self.show_analysis()
 
+    def update_login_status(self):
+        """Update login status display"""
+        if self.offline_mode:
+            self.login_status_label.configure(text="Offline Mode")
+            self.logout_button.configure(state="normal")
+            self.logout_button.pack(side="bottom", pady=(10, 0))
+            browser_icon = self.load_icon(os.path.join(ROOT,'src','resources','images','open_dashboard.png'), size=(16, 16))
+            if browser_icon:
+                self.browser_button = ctk.CTkButton(
+                    self.login_status_label.master,
+                    image=browser_icon,
+                    text="",
+                    width=25,
+                    height=25,
+                    
+                    command=lambda: webbrowser.open("http://127.0.0.1:8000/dash/"),
+                    fg_color="transparent",
+                    hover_color=self.theme_colors["button_hover"]
+                )
+                self.browser_button.pack(side="left", padx=5)
+                create_tooltip(self.browser_button, "Open Dashboard in Browser")
+            else:
+                print("Warning: Browser icon not found")
+        elif self.logged_in:
+            self.login_status_label.configure(text=f"Logged in as {self.current_user}")
+            self.logout_button.configure(state="normal")
+            self.logout_button.pack(side="bottom",  pady=(10, 0))
+        else:
+            self.login_status_label.configure(text="Not logged in")
+            self.logout_button.pack_forget()
+
+            
+            
 class CustomDatePicker(ctk.CTkToplevel):
     def __init__(self, parent, callback):
         super().__init__(parent)

@@ -30,9 +30,12 @@ class PipelineConfig(ctk.CTkFrame):
         
         # Default database paths
         self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
-        self.centrifuger_db_path = os.path.join(ROOT, "src", "resources", "centrifuger_db")
+        self.centrifuger_db_path = os.path.join(ROOT, "src", "resources", "custom_centrifuger_db")
         
+        # Use a different config file for pipeline settings
         self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        
+        # Load existing config if available
         self.load_config()
         self.create_widgets()
         self.search_available_databases()
@@ -86,46 +89,95 @@ class PipelineConfig(ctk.CTkFrame):
         section_frame.pack(pady=5, fill="x")
         ctk.CTkLabel(section_frame, text=title, font=("Helvetica", 14, "bold")).pack(pady=2)
 
-        for field in fields:
-            field_frame = ctk.CTkFrame(section_frame)
-            field_frame.pack(fill="x", pady=1)
+        # Group fields that should appear on the same line
+        if title == "General Parameters":
+            # Create a frame for the first line (Analysis Type)
+            line_frame = ctk.CTkFrame(section_frame, fg_color="transparent")
+            line_frame.pack(fill="x", pady=1)
             
-            # Update Centrifuge to Centrifuger in the label
-            label_text = "Centrifuger Database:" if field[0] == "Centrifuge Database:" else field[0]
-            label = ctk.CTkLabel(field_frame, text=label_text, width=100, anchor="w")
+            # Analysis Type (full width)
+            label = ctk.CTkLabel(line_frame, text="Analysis Type:", width=100, anchor="w")
             label.pack(side="left", padx=2)
+            widget = ctk.CTkOptionMenu(line_frame, variable=fields[0][1], values=fields[0][2])
+            widget.pack(side="left", padx=2)
             
-            if field[0] in ["Emu Database:", "Centrifuge Database:"]:
-                # Create a frame for database selection
-                db_frame = ctk.CTkFrame(field_frame)
-                db_frame.pack(side="left", expand=True, fill="x", padx=2)
-                
-                # Entry widget
-                widget = ctk.CTkEntry(db_frame, textvariable=field[1])
-                widget.pack(side="left", expand=True, fill="x")
-                
-                # Browse button
-                browse_btn = ctk.CTkButton(db_frame, text="Browse", 
-                                         command=lambda f=field[0]: self.browse_database(f))
-                browse_btn.pack(side="right", padx=2)
-                
-            elif len(field) > 3 and field[3] == "option":
-                widget = ctk.CTkOptionMenu(field_frame, variable=field[1], values=field[2])
-                widget.pack(side="left", expand=True, fill="x", padx=2)
-            elif len(field) > 3 and field[3] == "checkbox":
-                widget = ctk.CTkCheckBox(field_frame, text="", variable=field[1])
-                widget.pack(side="left", expand=True, fill="x", padx=2)
-            else:
-                widget = ctk.CTkEntry(field_frame, textvariable=field[1])
-                widget.pack(side="left", expand=True, fill="x", padx=2)
+            # Create a frame for the second line (CPU, Length, Quality)
+            line_frame = ctk.CTkFrame(section_frame, fg_color="transparent")
+            line_frame.pack(fill="x", pady=1)
             
-            create_tooltip(widget, f"Set the {field[0].lower()[:-1]}")
+            # Pack CPU cores, Min length, and Min quality on one line
+            for field in fields[1:4]:  # CPU cores, min length, min quality
+                field_container = ctk.CTkFrame(line_frame, fg_color="transparent")
+                field_container.pack(side="left", expand=True, fill="x", padx=5)
+                
+                label = ctk.CTkLabel(field_container, text=field[0], anchor="w")
+                label.pack(side="left")
+                widget = ctk.CTkEntry(field_container, textvariable=field[1], width=80)
+                widget.pack(side="left", padx=2)
+                create_tooltip(widget, f"Set the {field[0].lower()[:-1]}")
 
-            # Store references to the database entry widgets
-            if field[0] == "Emu Database:":
-                self.emu_db_entry = widget
-            elif field[0] == "Centrifuge Database:":
-                self.centrifuger_db_entry = widget
+        elif title == "Assembly Parameters":
+            # First line: Assembly mode, Medaka model
+            line_frame = ctk.CTkFrame(section_frame, fg_color="transparent")
+            line_frame.pack(fill="x", pady=1)
+            
+            # Assembly mode
+            label = ctk.CTkLabel(line_frame, text=fields[0][0], width=100, anchor="w")
+            label.pack(side="left", padx=2)
+            widget = ctk.CTkOptionMenu(line_frame, variable=fields[0][1], values=fields[0][2])
+            widget.pack(side="left", padx=(2, 15))
+            
+            # Medaka model
+            label = ctk.CTkLabel(line_frame, text=fields[1][0], width=100, anchor="w")
+            label.pack(side="left", padx=2)
+            widget = ctk.CTkOptionMenu(line_frame, variable=fields[1][1], values=fields[1][2])
+            widget.pack(side="left", padx=2)
+            
+            # Second line: Isolate Mode, Min contig length
+            line_frame = ctk.CTkFrame(section_frame, fg_color="transparent")
+            line_frame.pack(fill="x", pady=1)
+            
+            # Isolate Mode
+            label = ctk.CTkLabel(line_frame, text=fields[2][0], width=100, anchor="w")
+            label.pack(side="left", padx=2)
+            widget = ctk.CTkCheckBox(line_frame, text="", variable=fields[2][1])
+            widget.pack(side="left", padx=(2, 15))
+            
+            # Min contig length
+            label = ctk.CTkLabel(line_frame, text=fields[3][0], width=100, anchor="w")
+            label.pack(side="left", padx=2)
+            widget = ctk.CTkEntry(line_frame, textvariable=fields[3][1], width=80)
+            widget.pack(side="left", padx=2)
+
+        else:  # Taxonomy Parameters
+            for field in fields:
+                field_frame = ctk.CTkFrame(section_frame)
+                field_frame.pack(fill="x", pady=1)
+                
+                label_text = "Centrifuger Database:" if field[0] == "Centrifuge Database:" else field[0]
+                label = ctk.CTkLabel(field_frame, text=label_text, width=100, anchor="w")
+                label.pack(side="left", padx=2)
+                
+                if field[0] in ["Emu Database:", "Centrifuge Database:"]:
+                    db_frame = ctk.CTkFrame(field_frame)
+                    db_frame.pack(side="left", expand=True, fill="x", padx=2)
+                    
+                    widget = ctk.CTkEntry(db_frame, textvariable=field[1])
+                    widget.pack(side="left", expand=True, fill="x")
+                    
+                    browse_btn = ctk.CTkButton(db_frame, text="Browse", 
+                                           command=lambda f=field[0]: self.browse_database(f))
+                    browse_btn.pack(side="right", padx=2)
+                    
+                    if field[0] == "Emu Database:":
+                        self.emu_db_entry = widget
+                    else:
+                        self.centrifuger_db_entry = widget
+                else:
+                    widget = ctk.CTkEntry(field_frame, textvariable=field[1], width=80)
+                    widget.pack(side="left", padx=2)
+                
+                create_tooltip(widget, f"Set the {field[0].lower()[:-1]}")
 
     def browse_database(self, db_type):
         """Browse for database directory and check for valid database files"""
@@ -136,12 +188,15 @@ class PipelineConfig(ctk.CTkFrame):
             if db_type == "Emu Database:":
                 self.emu_db.set(db_path)
                 self.save_parameters()
+                print(f"Set Emu database path to: {db_path}")
             elif db_type == "Centrifuger Database:":
                 # First check if the selected directory itself contains index files
                 prefix = self.find_database_prefix(db_path)
+                print(f"Checking for prefix in {db_path}, found: {prefix}")
                 
                 if not prefix:
                     # If no index files found, check subdirectories
+                    found = False
                     for subdir in os.listdir(db_path):
                         subdir_path = os.path.join(db_path, subdir)
                         if os.path.isdir(subdir_path):
@@ -150,35 +205,43 @@ class PipelineConfig(ctk.CTkFrame):
                             if prefix:
                                 # Found index files in subdirectory
                                 full_path = os.path.join(subdir_path, prefix)
+                                print(f"Found Centrifuger database with prefix: {prefix}")
+                                print(f"Setting full path to: {full_path}")
+                                
                                 # Update both the variable and the entry widget
                                 self.centrifuger_db.set(full_path)
                                 if hasattr(self, 'centrifuger_db_entry'):
                                     self.centrifuger_db_entry.delete(0, 'end')
                                     self.centrifuger_db_entry.insert(0, full_path)
-                                print(f"Found Centrifuger database with prefix: {prefix}")
-                                print(f"Full path: {full_path}")
+                                
+                                # Save to config file
                                 self.save_parameters()
-                                return
+                                found = True
+                                break
                 
-                    # If we get here, no index files were found
+                if not found:
                     messagebox.showerror("Error", 
                         "No valid Centrifuger database found in selected directory or its subdirectories.\n"
                         "Expected files: prefix.1.cfr, prefix.2.cfr, etc.")
                 else:
                     # Found index files in selected directory
                     full_path = os.path.join(db_path, prefix)
+                    print(f"Found Centrifuger database with prefix: {prefix}")
+                    print(f"Setting full path to: {full_path}")
+                    
                     # Update both the variable and the entry widget
                     self.centrifuger_db.set(full_path)
                     if hasattr(self, 'centrifuger_db_entry'):
                         self.centrifuger_db_entry.delete(0, 'end')
                         self.centrifuger_db_entry.insert(0, full_path)
-                    print(f"Found Centrifuger database with prefix: {prefix}")
-                    print(f"Full path: {full_path}")
+                    
+                    # Save to config file
                     self.save_parameters()
 
     def find_database_prefix(self, directory):
         """
-        Scan directory for database index files and determine the prefix.
+        Scan directory for Centrifuger index files and determine the prefix.
+        Returns the prefix if found, None otherwise.
         """
         if not os.path.exists(directory):
             print(f"Directory does not exist: {directory}")
@@ -226,22 +289,43 @@ class PipelineConfig(ctk.CTkFrame):
         self.parent.database_window.lift()
 
     def load_config(self):
+        """Load existing configuration"""
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r') as f:
-                    self.config = json.load(f)
-                
-                # Update database paths
-                if 'emu_db' in self.config:
-                    self.emu_db.set(self.config['emu_db'])
-                if 'centrifuger_db' in self.config:
-                    self.centrifuger_db.set(self.config['centrifuger_db'])       
-                self.update_widgets_from_config()
+                    config = json.load(f)
+                    print(f"Loading pipeline config: {config}")
+                    
+                    # Update variables from config
+                    if 'analysis_type' in config:
+                        self.analysis_type.set(config['analysis_type'])
+                    if 'threads' in config:
+                        self.threads.set(config['threads'])
+                    if 'min_length' in config:
+                        self.min_length.set(config['min_length'])
+                    if 'min_quality' in config:
+                        self.min_quality.set(config['min_quality'])
+                    if 'emu_db' in config:
+                        self.emu_db.set(config['emu_db'])
+                    if 'centrifuger_db' in config:
+                        self.centrifuger_db.set(config['centrifuger_db'])
+                    if 'min_abundance' in config:
+                        self.min_abundance.set(config['min_abundance'])
+                    if 'assembly_mode' in config:
+                        self.assembly_mode.set(config['assembly_mode'])
+                    if 'medaka_model' in config:
+                        self.medaka_model.set(config['medaka_model'])
+                    if 'is_isolate' in config:
+                        self.is_isolate.set(config['is_isolate'])
+                    if 'min_contig_length' in config:
+                        self.min_contig_length.set(config['min_contig_length'])
+                    
             except Exception as e:
-                print(f"Error loading config: {e}")
-                self.config = {}
+                print(f"Error loading pipeline config: {e}")
+                # Initialize with defaults if loading fails
+                self.save_parameters()
         else:
-            self.config = {}
+            self.save_parameters()
 
     def update_widgets_from_config(self):
         for key, value in self.config.items():
@@ -249,14 +333,14 @@ class PipelineConfig(ctk.CTkFrame):
                 getattr(self, key).set(value)
 
     def save_parameters(self):
-        """Save parameters to config file and update GUI"""
+        """Save parameters to pipeline config file"""
         config = {
             'analysis_type': self.analysis_type.get(),
             'threads': self.threads.get(),
             'min_length': self.min_length.get(),
             'min_quality': self.min_quality.get(),
             'emu_db': self.emu_db.get(),
-            'centrifuger_db': self.centrifuger_db.get(),
+            'centrifuger_db': os.path.abspath(self.centrifuger_db.get()),  # Convert to absolute path
             'min_abundance': self.min_abundance.get(),
             'assembly_mode': self.assembly_mode.get(),
             'medaka_model': self.medaka_model.get(),
@@ -273,9 +357,11 @@ class PipelineConfig(ctk.CTkFrame):
                 return
         
         try:
-            with open(self.config_file, 'w') as f:
+            # Make sure we're using pipeline_config.json
+            pipeline_config_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+            with open(pipeline_config_path, 'w') as f:
                 json.dump(config, f, indent=4)
-            print(f"Saved configuration to {self.config_file}")
+            print(f"Saved pipeline configuration to {pipeline_config_path}")
             print(f"Current Centrifuger DB path: {config['centrifuger_db']}")
             
             # Update GUI elements

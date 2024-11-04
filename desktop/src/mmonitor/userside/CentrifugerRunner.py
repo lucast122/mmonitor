@@ -80,17 +80,18 @@ class CentrifugerRunner:
             return False
 
     def run_centrifuger(self, input_file, sample_name, db_path):
-        """Run Centrifuger analysis on input file with detailed logging"""
+        """Run Centrifuger analysis on input file"""
         os.makedirs(self.pipeline_out, exist_ok=True)
         
         # Create sample-specific output directory
         sample_out_dir = os.path.join(self.pipeline_out, sample_name)
         os.makedirs(sample_out_dir, exist_ok=True)
         
+        
         # Output files
-        output_file = os.path.join(sample_out_dir, "centrifuger_classifications.txt")
-        report_file = os.path.join(sample_out_dir, "centrifuger_report.tsv")
-        log_file = os.path.join(sample_out_dir, "centrifuger.log")
+        output_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_classifications.txt")
+        report_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_report.tsv")
+        log_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger.log")
         
         print(f"\nStarting Centrifuger analysis for sample: {sample_name}")
         print(f"Database path: {db_path}")
@@ -135,15 +136,42 @@ class CentrifugerRunner:
                 print("\nCentrifuger STDERR:")
                 print(process.stderr)
             
-            # Generate report using centrifuger-kreport
+            # Generate report using centrifuger-kreport and capture its output
             print("\nGenerating Kraken-style report...")
-            self.make_kraken_report(output_file, db_path, report_file)
+            kreport_cmd = [
+                "centrifuger-kreport",
+                "-x", db_path,
+                output_file
+            ]
             
-            
-            print("Centrifuger analysis completed successfully")
-            print(f"Results saved to: {sample_out_dir}")
-            return True
-            
+            try:
+                kreport_result = subprocess.run(
+                    kreport_cmd,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                
+                # Write kreport output to file
+                with open(report_file, 'w') as f:
+                    f.write(kreport_result.stdout)
+                
+                # Append kreport logs
+                with open(log_file, 'a') as log:
+                    log.write("\n=== KREPORT STDOUT ===\n")
+                    log.write(kreport_result.stdout)
+                    log.write("\n=== KREPORT STDERR ===\n")
+                    log.write(kreport_result.stderr)
+                
+                print("Centrifuger analysis completed successfully")
+                print(f"Results saved to: {sample_out_dir}")
+                return True
+                
+            except subprocess.CalledProcessError as e:
+                print(f"Error generating Kraken-style report: {e}")
+                print(f"kreport stderr: {e.stderr}")
+                return False
+                
         except subprocess.CalledProcessError as e:
             print(f"Error running Centrifuger: {e}")
             print(f"Centrifuger stderr: {e.stderr}")
