@@ -18,30 +18,57 @@ class SequencerFileHandler(FileSystemEventHandler):
             self.folder_monitor.add_new_file(event.src_path)
 
 class FolderMonitor:
-    def __init__(self, folders, watcher_window):
+    def __init__(self, folders, callback):
         self.folders = folders
-        self.watcher_window = watcher_window
-        self.observer = Observer()
-        self.handler = SequencerFileHandler(self)
-        print(f"FolderMonitor: Initialized with folders: {self.folders}")
+        self.callback = callback
+        self.observer = None
+        self.active_watches = set()  # Track active watches
+        print(f"FolderMonitor: Initialized with folders: {folders}")
 
     def start(self):
+        """Start monitoring folders"""
+        if self.observer is not None:
+            print("FolderMonitor: Observer already running, stopping first")
+            self.stop()
+        
+        self.observer = Observer()
+        
         for folder in self.folders:
-            # Changed recursive to True to monitor subdirectories
-            self.observer.schedule(self.handler, folder, recursive=True)
-            print(f"FolderMonitor: Scheduled observer for folder: {folder} (including subdirectories)")
-        self.observer.start()
-        print("FolderMonitor: Observer started")
+            if folder not in self.active_watches:
+                try:
+                    self.observer.schedule(
+                        FileSystemEventHandler(self.callback),
+                        folder,
+                        recursive=True
+                    )
+                    self.active_watches.add(folder)
+                    print(f"FolderMonitor: Scheduled observer for folder: {folder} (including subdirectories)")
+                except Exception as e:
+                    print(f"FolderMonitor: Error scheduling watch for {folder}: {e}")
+        
+        try:
+            self.observer.start()
+            print("FolderMonitor: Observer started")
+        except Exception as e:
+            print(f"FolderMonitor: Error starting observer: {e}")
 
     def stop(self):
-        print("FolderMonitor: Stopping observer")
-        self.observer.stop()
-        self.observer.join()
-        print("FolderMonitor: Observer stopped")
+        """Stop monitoring folders"""
+        if self.observer is not None:
+            print("FolderMonitor: Stopping observer")
+            self.observer.stop()
+            self.observer.join()
+            self.observer = None
+            self.active_watches.clear()
+            print("FolderMonitor: Observer stopped")
+
+    def __del__(self):
+        """Ensure observer is stopped when object is destroyed"""
+        self.stop()
 
     def add_new_file(self, file_path):
         print(f"FolderMonitor: Adding new file: {file_path}")
-        self.watcher_window.add_new_file(file_path)
+        self.callback.add_new_file(file_path)
 
 class FileHandler(FileSystemEventHandler):
     def __init__(self, folder_monitor):
