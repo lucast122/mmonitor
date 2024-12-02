@@ -131,7 +131,7 @@ class FunctionalRunner:
         env = os.environ.copy()
         env["PATH"] = f"{os.path.dirname(self.minimap2_path)}:{env['PATH']}"
 
-        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
+        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--meta", "--out-dir", flye_out, "--threads", str(threads)]
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
             print(f"Flye stdout: {result.stdout}")

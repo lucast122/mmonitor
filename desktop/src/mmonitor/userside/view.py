@@ -406,7 +406,6 @@ class GUI(ctk.CTk):
         if not self.logged_in:
             self.logout_button.pack_forget()
         
-        # Modern toggle console button
         self.toggle_console_button = ctk.CTkButton(
             status_frame, 
             text="Toggle Console",
@@ -731,6 +730,24 @@ class GUI(ctk.CTk):
     def update_db_config_path(self):
         self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
 
+
+    def create_browser_button(self):
+        self.browser_button = ctk.CTkButton(
+                    self.login_status_label.master,
+                    
+                    text="Open Dashboard",
+                    height=35,
+                    corner_radius=8,
+                    font=("Helvetica", 12),
+                    fg_color=self.theme_colors["button"],
+                    hover_color=self.theme_colors["button_hover"],
+                    border_width=1,
+                    border_color=self.theme_colors["button"],
+                    command=lambda: webbrowser.open("http://127.0.0.1:8000/dash/"),
+                    
+                    
+                )
+
     def open_folder_watcher(self):
         if self.check_valid_config():
             self.clear_content_frame()
@@ -1023,7 +1040,7 @@ class GUI(ctk.CTk):
         if self.logged_in:
             # Construct the URL with login credentials
             base_url = f"https://{self.django_db.host}:{self.django_db.port}"
-            results_url = f"{base_url}/results/"  # Adjust this URL as needed
+            results_url = f"{base_url}/dash/"  
             
             # Open the results page in the default browser
             
@@ -1136,30 +1153,24 @@ class GUI(ctk.CTk):
             self.login_status_label.configure(text="Offline Mode")
             self.logout_button.configure(state="normal")
             self.logout_button.pack(side="bottom", pady=(10, 0))
-            browser_icon = self.load_icon(os.path.join(ROOT,'src','resources','images','open_dashboard.png'), size=(16, 16))
-            if browser_icon:
-                self.browser_button = ctk.CTkButton(
-                    self.login_status_label.master,
-                    image=browser_icon,
-                    text="",
-                    width=25,
-                    height=25,
-                    
-                    command=lambda: webbrowser.open("http://127.0.0.1:8000/dash/"),
-                    fg_color="transparent",
-                    hover_color=self.theme_colors["button_hover"]
-                )
-                self.browser_button.pack(side="left", padx=5)
-                create_tooltip(self.browser_button, "Open Dashboard in Browser")
-            else:
-                print("Warning: Browser icon not found")
+            
+            
+            self.create_browser_button()    
+            self.browser_button.pack(fill="x", pady=(10,0))
+            create_tooltip(self.browser_button, "Open Dashboard in Browser")
         elif self.logged_in:
             self.login_status_label.configure(text=f"Logged in as {self.current_user}")
+            self.create_browser_button()    
+            
+            self.browser_button.configure(command=lambda: self.view_results())
+            self.browser_button.pack(fill="x", pady=(10,0))
+            
             self.logout_button.configure(state="normal")
             self.logout_button.pack(side="bottom",  pady=(10, 0))
         else:
             self.login_status_label.configure(text="Not logged in")
             self.logout_button.pack_forget()
+            self.browser_button.pack_forget()
 
             
             

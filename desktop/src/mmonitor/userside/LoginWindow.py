@@ -12,6 +12,7 @@ import webbrowser
 import io
 import fcntl
 import os
+import tkinter.messagebox as messagebox
 
 from build_mmonitor_pyinstaller import ROOT
 
@@ -141,124 +142,136 @@ class LoginWindow(ctk.CTkFrame):
                                        font=("Helvetica", 11))
         self.status_label.pack(pady=(15, 0))
 
-    def enter_offline_mode(self):
-        """Handle offline mode setup and server initialization"""
-        print("Entering offline mode...")
+    def show_error(self, message):
+        """Show error message in a dialog"""
+        messagebox.showerror("Error", message)
+
+    def start_local_server(self):
+        """Start the local Django server"""
+        try:
+            # Get server path from main window
+            server_path = os.path.join("/Users", "timo", "Downloads", "home", "minion-computer", "mmonitor_production", "MMonitor", "server")
         
-        def show_error(error_msg):
-            CTkMessagebox(
-                title="Error",
-                message=f"Failed to enter offline mode: {error_msg}",
-                icon="cancel"
+            if not os.path.exists(server_path):
+                raise FileNotFoundError(f"Server directory not found at {server_path}")
+            
+            print(f"Starting Django server at {server_path}")
+            
+            # Change to server directory
+            os.chdir(server_path)
+            
+            # Start server process
+            cmd = [sys.executable, "manage.py", "runserver", "127.0.0.1:8000"]
+            self.server_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1
             )
-        
-        def start_server():
-            # Check if server is already running
+            
+            # Start thread to monitor server output
+            threading.Thread(target=self._monitor_server_output, daemon=True).start()
+            
+            # Wait for server to start
+            self._wait_for_server()
+            
+        except Exception as e:
+            print(f"Error starting server: {e}")
+            raise
+
+    def _monitor_server_output(self):
+        """Monitor server output in a separate thread"""
+        while True:
+            output = self.server_process.stdout.readline()
+            if output:
+                print("Server output:", output.strip())
+            
+            error = self.server_process.stderr.readline()
+            if error:
+                print("Server error:", error.strip())
+            
+            if self.server_process.poll() is not None:
+                break
+
+    def _wait_for_server(self):
+        """Wait for server to start"""
+        max_attempts = 30
+        attempt = 0
+        while attempt < max_attempts:
             try:
-                response = requests.get("http://127.0.0.1:8000/admin/", timeout=1)
-                if response.status_code in [200, 302, 404]:
-                    print("Server already running, proceeding to setup...")
-                    self.after(0, setup_and_configure)
+                response = requests.get("http://127.0.0.1:8000", timeout=1)
+                if response.status_code == 200:
+                    print("Server detected as running!")
                     return
-            except requests.RequestException:
-                pass
-                
-            try:
-                python_interpreter = sys.executable
-                server_path = os.path.join("/Users/timo/Downloads/home/minion-computer/mmonitor_production/MMonitor/server")
-                manage_py = os.path.join(server_path, "manage.py")
-                
-                if not os.path.exists(manage_py):
-                    raise FileNotFoundError(f"Django manage.py not found at {manage_py}")
-                
-                # Start server process with unbuffered output
-                env = os.environ.copy()
-                env['PYTHONUNBUFFERED'] = '1'
-                env['DJANGO_EMAIL_BACKEND'] = 'django.core.mail.backends.dummy.EmailBackend'
-                
-                print(f"Starting Django server at {server_path}")
-                self.main_window.django_process = subprocess.Popen(
-                    [python_interpreter, manage_py, "runserver", "127.0.0.1:8000"],
-                    cwd=server_path,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    bufsize=1,
-                    env=env
-                )
-                
-                def monitor_output():
-                    while self.main_window.django_process and self.main_window.django_process.poll() is None:
-                        output = self.main_window.django_process.stdout.readline()
-                        if output:
-                            print("Server output:", output.strip())
-                            if "Starting development server at" in output:
-                                print("Server detected as running!")
-                                time.sleep(2)  # Give it a moment to fully initialize
-                                self.after(0, setup_and_configure)
-                                return
-                                    
-                        error = self.main_window.django_process.stderr.readline()
-                        if error:
-                            print("Server error:", error.strip())
-                        
-                # Start output monitoring in background
-                threading.Thread(target=monitor_output, daemon=True).start()
-                
-            except Exception as e:
-                error_msg = str(e)
-                print(f"Error starting server: {error_msg}")
-                self.after(0, lambda msg=error_msg: show_error(msg))
+            except requests.exceptions.RequestException:
+                attempt += 1
+                time.sleep(1)
         
-        def setup_and_configure():
-            """Configure application for offline mode"""
-            try:
-                print("Setting up offline mode...")
-                # Update application state in the main window
-                self.main_window.logged_in = True
-                self.main_window.offline_mode = True
-                self.main_window.current_user = "offlinemode"
-                
-                if hasattr(self.main_window, 'django_db'):
-                    print("\nUpdating database connection...")
-                    self.main_window.django_db.base_url = "http://127.0.0.1:8000"
-                    self.main_window.django_db.username = "offlinemode"
-                    self.main_window.django_db.password = "offline123"
-                    self.main_window.django_db.token = None  # Reset token
+        raise TimeoutError("Server failed to start within timeout period")
+
+    def enter_offline_mode(self):
+        """Enter offline mode with proper server setup"""
+        try:
+            # Start local server
+            self.start_local_server()
+            
+            def setup_and_configure():
+                """Configure application for offline mode"""
+                try:
+                    print("Setting up offline mode...")
+                    # Update application state in the main window
+                    self.main_window.logged_in = True
+                    self.main_window.offline_mode = True
+                    self.main_window.current_user = "offlinemode"
                     
-                    # Force re-authentication
-                    print("Authenticating with offline credentials...")
-                    success = self.main_window.django_db.authenticate("offlinemode", "offline123")
-                    if not success:
-                        print("WARNING: Failed to authenticate with offline server")
-                
-                print("Updating UI...")
-                
-                # Ask user about browser
-                dialog = CTkMessagebox(
-                    title="Local Server Ready",
-                    message="Would you like to view the results in your browser?\n"
-                           "The local server is running at http://127.0.0.1:8000",
-                    icon="question",
-                    option_1="Yes",
-                    option_2="No"
-                )
-                
-                if dialog.get() == "Yes":
-                    webbrowser.open("http://127.0.0.1:8000")
-                
-                # Update UI state and show home screen
-                self.main_window.update_login_status()
-                self.main_window.show_home()
-                
-                print("Offline mode setup complete!")
-                
-            except Exception as e:
-                print(f"Error setting up offline mode: {e}")
-                show_error(str(e))
-        
-        print("Starting server thread...")
-        threading.Thread(target=start_server, daemon=True).start()
+                    if hasattr(self.main_window, 'django_db'):
+                        print("\nUpdating database connection...")
+                        # First set offline mode
+                        self.main_window.django_db.set_offline_mode(True)
+                        
+                        # Then update connection details
+                        self.main_window.django_db.base_url = "http://127.0.0.1:8000"
+                        self.main_window.django_db.username = "offlinemode"
+                        self.main_window.django_db.password = "offline123"
+                        self.main_window.django_db.token = None  # Reset token
+                        
+                        # Force re-authentication with offline credentials
+                        print("Authenticating with offline credentials...")
+                        success = self.main_window.django_db.verify_credentials()
+                        if not success:
+                            print("WARNING: Failed to authenticate with offline server")
+                    
+                    print("Updating UI...")
+                    
+                    # Ask user about browser
+                    dialog = CTkMessagebox(
+                        title="Local Server Ready",
+                        message="Would you like to view the results in your browser?\n"
+                               "The local server is running at http://127.0.0.1:8000",
+                        icon="question",
+                        option_1="Yes",
+                        option_2="No"
+                    )
+                    
+                    if dialog.get() == "Yes":
+                        webbrowser.open("http://127.0.0.1:8000")
+                    
+                    # Update UI state and show home screen
+                    self.main_window.update_login_status()
+                    self.main_window.show_home()
+                    
+                    print("Offline mode setup complete!")
+                    
+                except Exception as e:
+                    print(f"Error setting up offline mode: {e}")
+                    self.show_error(str(e))
+            
+            setup_and_configure()
+            
+        except Exception as e:
+            print(f"Error entering offline mode: {e}")
+            self.show_error(str(e))
 
     def toggle_password_visibility(self):
         if self.show_password_var.get():
@@ -274,8 +287,12 @@ class LoginWindow(ctk.CTkFrame):
     def _login_thread(self):
         try:
             start_time = time.time()
-            # Initialize DjangoDBInterface with the correct config file
-            self.db_interface = DjangoDBInterface(self.db_path)  # Use db_config.json
+            self.db_interface = DjangoDBInterface(self.db_path)
+            
+            # Set credentials before login attempt
+            self.db_interface.username = self.username_var.get()
+            self.db_interface.password = self.password_var.get()
+            
             success = self.db_interface.login(
                 self.username_var.get(),
                 self.password_var.get(),
