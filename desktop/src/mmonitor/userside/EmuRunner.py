@@ -50,6 +50,9 @@ class EmuRunner:
         self.emu_out = output_dir
         os.makedirs(output_dir, exist_ok=True)
         
+        # Get sample name from output directory
+        sample_name = os.path.basename(output_dir)
+        
         # Convert K to numeric format if given as string with M/G suffix
         if isinstance(K, str):
             if K.endswith('M'):
@@ -69,6 +72,7 @@ class EmuRunner:
             "--keep-files",
             "--N", str(N),
             "--K", str(K),
+            "--output-basename", sample_name,
             str(input_file)
         ]
 
