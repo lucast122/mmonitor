@@ -1,44 +1,40 @@
-import argparse
-import csv
-import gzip
-import json
 import os
 import sys
-import numpy as np
-import logging
-import subprocess
-from datetime import datetime
-import tempfile
+import json
+import gzip
 import shutil
 import traceback
+import argparse
+import logging
+import numpy as np
 import keyring
 import requests
-import time
-import getpass
-
-from build_mmonitor_pyinstaller import ROOT
-from mmonitor.userside.FastqStatistics import FastqStatistics
-# from mmonitor.userside.CentrifugeRunner import CentrifugeRunner  # Update import
-from src.mmonitor.database.django_db_interface import DjangoDBInterface
-from src.mmonitor.userside.FunctionalRunner import FunctionalRunner
-from src.mmonitor.userside.CentrifugerRunner import CentrifugerRunner
-from src.mmonitor.userside.EmuRunner import EmuRunner
-from Bio import SeqIO
-import gzip
+from datetime import datetime, date
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
-from datetime import date, datetime
-import argparse
-import csv
-import gzip
-import json
-import os
-import sys
-import numpy as np
+from Bio import SeqIO
+from Bio.SeqIO import FastaIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+import subprocess
+import getpass
+import time
+import tempfile
 
-from datetime import date, datetime
+# Add the parent directory of 'src' to sys.path
+src_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+sys.path.insert(0, src_parent_dir)
+src_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, src_parent_dir)
 
-logger = logging.getLogger(__name__)
+from build_mmonitor_pyinstaller import ROOT
+from ..database.django_db_interface import DjangoDBInterface
+from .FastqStatistics import FastqStatistics
+from .AssemblyPipeline import AssemblyPipeline
+from .CentrifugerRunner import CentrifugerRunner
+from .EmuRunner import EmuRunner
+from .FunctionalRunner import FunctionalRunner
 
 class NumpyEncoder(json.JSONEncoder):
     """ Custom encoder for numpy data types """
@@ -233,10 +229,6 @@ class MMonitorCMD:
 
         return parsed_args
 
-    import argparse
-    import os
-
-    
     def concatenate_fastq_files(self, file_paths, output_file):
         """
         Concatenate all FASTQ files from the provided list into a single file.
@@ -893,11 +885,3 @@ if __name__ == "__main__":
     args = cmd_runner.parse_arguments()
     cmd_runner.initialize_from_args(args)
     cmd_runner.run()
-
-
-
-
-
-
-
-
