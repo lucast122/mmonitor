@@ -1,0 +1,12 @@
+[M::mm_idx_gen::0.424*1.00] collected minimizers
+[M::mm_idx_gen::0.472*1.87] sorted minimizers
+[M::main::0.472*1.87] loaded/built the index for 35 target sequence(s)
+[M::mm_mapopt_update::0.508*1.81] mid_occ = 37
+[M::mm_idx_stat] kmer size: 15; skip: 10; is_hpc: 0; #seq: 35
+[M::mm_idx_stat::0.534*1.77] distinct minimizers: 2076953 (94.39% are singletons); average occurrences: 1.121; average spacing: 5.337; total length: 12423406
+[M::worker_pipeline::253.949*10.51] mapped 106446 sequences
+[M::worker_pipeline::276.820*10.45] mapped 11079 sequences
+[M::main] Version: 2.24-r1155-dirty
+[M::main] CMD: /Users/timo/PycharmProjects/MMonitor/desktop/lib/Flye-2.9.5/lib/minimap2/minimap2 -x map-ont -t 12 -a -p 0.5 -N 10 --sam-hit-only -L -K 1G -z 1000 -Q --secondary-seq -I 64G /Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/reads/flye_out/00-assembly/draft_assembly.fasta /Users/timo/PycharmProjects/MMonitor/test_data/reads/test_sample.fastq.gz
+[M::main] Real time: 276.913 sec; CPU: 2893.646 sec; Peak RSS: 6.992 GB
+[bam_sort_core] merging from 0 files and 4 in-memory blocks...
