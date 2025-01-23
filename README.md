@@ -23,12 +23,11 @@
 - **🖥️ User-friendly Interface**: Offers both a graphical user interface (GUI) and a command-line interface (CLI) for flexibility.
 - **🔧 Customizable Pipelines**: Allows users to configure analysis pipelines and use custom reference databases.
 - **📊 Visualization Dashboard**: Provides dynamic insights into taxonomic composition over time, quality scores, diversity indices, and taxonomy-metadata correlations.
-- **📝 Automated Reporting**: Generates comprehensive reports and visualizations for easy interpretation.
 - **🖱️ Cross-platform Support**: Available for macOS, Linux, and Windows (limited functionality on Windows).
 
 ### Intended Audience
 
-MMonitor is designed for researchers, bioinformaticians, and scientists working in microbiology, environmental biotechnology, clinical microbiology, and related fields who need to analyze microbial communities using nanopore sequencing (taxonomy and function) in real-time.
+MMonitor is designed for researchers in biology related fields who need to analyze microbial communities using nanopore sequencing (taxonomy and function) in real-time.
 
 ---
 
