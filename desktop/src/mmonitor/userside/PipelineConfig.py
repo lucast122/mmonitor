@@ -9,36 +9,37 @@ from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from build_mmonitor_pyinstaller import ROOT
 
 class PipelineConfig(ctk.CTkFrame):
-    def __init__(self, parent, gui_ref):
+    def __init__(self, parent, main_window=None):
         super().__init__(parent)
-        ctk.set_default_color_theme("blue")
         self.parent = parent
-        self.gui = gui_ref
+        self.main_window = main_window
         
-        # Initialize variables
-        self.analysis_type = tk.StringVar(value="taxonomy-wgs")
-        self.threads = tk.StringVar(value=str(multiprocessing.cpu_count()))
-        self.min_length = tk.StringVar(value="1000")
-        self.min_quality = tk.StringVar(value="10")
-        self.emu_db = tk.StringVar(value="")
-        self.centrifuger_db = tk.StringVar(value="")
-        self.min_abundance = tk.StringVar(value="0.01")
-        self.assembly_mode = tk.StringVar(value="nano-raw")
-        self.medaka_model = tk.StringVar(value="r1041_e82_400bps_sup_v5.0.0")
-        self.is_isolate = tk.BooleanVar(value=False)
-        self.min_contig_length = tk.StringVar(value="1000")
+        # Initialize configuration dictionary
+        self.pipeline_config = {}
         
-        # Default database paths
-        self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
-        self.centrifuger_db_path = os.path.join(ROOT, "src", "resources", "custom_centrifuger_db")
-        
-        # Use a different config file for pipeline settings
+        # Load configuration
         self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
         
-        # Load existing config if available
+        # Initialize variables first
+        self.analysis_type = ctk.StringVar(value='taxonomy-wgs')  # Default value
+        self.threads = ctk.StringVar(value='4')
+        self.min_length = ctk.StringVar(value='1000')
+        self.min_quality = ctk.StringVar(value='10')
+        self.emu_db = ctk.StringVar(value='')
+        self.centrifuger_db = ctk.StringVar(value='')
+        self.min_abundance = ctk.StringVar(value='0.01')
+        
+        # Initialize assembly variables
+        self.assembly_mode = ctk.StringVar(value='nano-raw')
+        self.medaka_model = ctk.StringVar(value='r1041_e82_400bps_sup_v5.0.0')
+        self.is_isolate = ctk.BooleanVar(value=False)
+        self.min_contig_length = ctk.StringVar(value='1000')
+        
+        # Now load config and update variables
         self.load_config()
+        
+        # Create widgets
         self.create_widgets()
-        self.search_available_databases()
 
     def create_widgets(self):
         main_frame = ctk.CTkFrame(self)
@@ -67,7 +68,7 @@ class PipelineConfig(ctk.CTkFrame):
         # Taxonomy parameters
         self.create_section(content_frame, "Taxonomy Parameters", [
             ("Emu Database:", self.emu_db),
-            ("Centrifuge Database:", self.centrifuger_db),
+            ("Centrifuger Database:", self.centrifuger_db),
             ("Min abundance:", self.min_abundance)
         ])
 
@@ -154,11 +155,12 @@ class PipelineConfig(ctk.CTkFrame):
                 field_frame = ctk.CTkFrame(section_frame)
                 field_frame.pack(fill="x", pady=1)
                 
-                label_text = "Centrifuger Database:" if field[0] == "Centrifuge Database:" else field[0]
+                label_text = "Centrifuger Database:" if "Centrifuger" in field[0] else "Emu Database:" if "Emu" in field[0] else "Min Abundance:" if "abundance" in field[0] else field[0]
+            
                 label = ctk.CTkLabel(field_frame, text=label_text, width=100, anchor="w")
                 label.pack(side="left", padx=2)
                 
-                if field[0] in ["Emu Database:", "Centrifuge Database:"]:
+                if field[0] in ["Emu Database:", "Centrifuger Database:"]:
                     db_frame = ctk.CTkFrame(field_frame)
                     db_frame.pack(side="left", expand=True, fill="x", padx=2)
                     
@@ -181,103 +183,110 @@ class PipelineConfig(ctk.CTkFrame):
 
     def browse_database(self, db_type):
         """Browse for database directory and check for valid database files"""
-        db_path = filedialog.askdirectory(title=f"Select {db_type} Directory")
+        print("\n=== Database Selection Debug ===")
+        print(f"Opening file dialog for {db_type} database selection...")
+        
+        db_path = filedialog.askdirectory(title=f"Select {db_type} Database Directory")
         print(f"Selected database path: {db_path}")
         
         if db_path:
-            if db_type == "Emu Database:":
-                self.emu_db.set(db_path)
-                self.save_parameters()
-                print(f"Set Emu database path to: {db_path}")
-            elif db_type == "Centrifuger Database:":
-                # First check if the selected directory itself contains index files
-                prefix = self.find_database_prefix(db_path)
-                print(f"Checking for prefix in {db_path}, found: {prefix}")
+            if db_type == "Centrifuger Database:":  # Match the exact string from create_section
+                print(f"Looking for Centrifuger database files in: {db_path}")
                 
-                if not prefix:
-                    # If no index files found, check subdirectories
-                    found = False
-                    for subdir in os.listdir(db_path):
-                        subdir_path = os.path.join(db_path, subdir)
-                        if os.path.isdir(subdir_path):
-                            print(f"Checking subdirectory: {subdir_path}")
-                            prefix = self.find_database_prefix(subdir_path)
-                            if prefix:
-                                # Found index files in subdirectory
-                                full_path = os.path.join(subdir_path, prefix)
-                                print(f"Found Centrifuger database with prefix: {prefix}")
-                                print(f"Setting full path to: {full_path}")
-                                
-                                # Update both the variable and the entry widget
-                                self.centrifuger_db.set(full_path)
-                                if hasattr(self, 'centrifuger_db_entry'):
-                                    self.centrifuger_db_entry.delete(0, 'end')
-                                    self.centrifuger_db_entry.insert(0, full_path)
-                                
-                                # Save to config file
-                                self.save_parameters()
-                                found = True
-                                break
+                # Find all .cfr files recursively
+                cfr_files = []
+                for root, _, files in os.walk(db_path):
+                    for file in files:
+                        if file.endswith('.cfr'):
+                            cfr_files.append(os.path.join(root, file))
                 
-                if not found:
-                    messagebox.showerror("Error", 
-                        "No valid Centrifuger database found in selected directory or its subdirectories.\n"
-                        "Expected files: prefix.1.cfr, prefix.2.cfr, etc.")
-                else:
-                    # Found index files in selected directory
-                    full_path = os.path.join(db_path, prefix)
-                    print(f"Found Centrifuger database with prefix: {prefix}")
-                    print(f"Setting full path to: {full_path}")
+                print(f"Found {len(cfr_files)} .cfr files: {cfr_files}")
+                
+                if cfr_files:
+                    # Get the common prefix from the first file
+                    first_file = cfr_files[0]
+                    prefix = '.'.join(first_file.split('.')[:-2])  # Remove .N.cfr
+                    print(f"Extracted prefix: {prefix}")
                     
-                    # Update both the variable and the entry widget
-                    self.centrifuger_db.set(full_path)
+                    # Update both the StringVar and the Entry widget
+                    self.centrifuger_db.set(prefix)
                     if hasattr(self, 'centrifuger_db_entry'):
-                        self.centrifuger_db_entry.delete(0, 'end')
-                        self.centrifuger_db_entry.insert(0, full_path)
+                        print("Updating entry widget with prefix...")
+                        self.centrifuger_db_entry.delete(0, tk.END)
+                        self.centrifuger_db_entry.insert(0, prefix)
+                        print(f"Entry widget updated with: {prefix}")
+                        
+                        # Update config and save
+                        self.pipeline_config['centrifuger_db'] = prefix  # Changed from self.config
+                        self.save_parameters()
+                        print("Configuration saved")
+                    else:
+                        print("Error: centrifuger_db_entry widget not found!")
+                else:
+                    print("No .cfr files found!")
+                    messagebox.showerror("Error", 
+                        "No valid Centrifuger database found in selected directory.\n"
+                        "Directory should contain .cfr files with a common prefix.")
+            
+            elif db_type == "Emu Database:":
+                self.emu_db.set(db_path)
+                if hasattr(self, 'emu_db_entry'):
+                    print("Updating EMU entry widget...")
+                    self.emu_db_entry.delete(0, tk.END)
+                    self.emu_db_entry.insert(0, db_path)
+                    print(f"Entry widget updated with: {db_path}")
                     
-                    # Save to config file
+                    # Update config and save
+                    self.pipeline_config['emu_db'] = db_path  # Changed from self.config
                     self.save_parameters()
-
-    def find_database_prefix(self, directory):
-        """
-        Scan directory for Centrifuger index files and determine the prefix.
-        Returns the prefix if found, None otherwise.
-        """
-        if not os.path.exists(directory):
-            print(f"Directory does not exist: {directory}")
-            return None
+                    print("Configuration saved")
+                else:
+                    print("Error: emu_db_entry widget not found!")
+        else:
+            print("No directory selected")
         
+        print("=== Database Selection Complete ===\n")
+
+    def find_database_prefix(self, db_dir):
+        """Find Centrifuger database prefix from .cfr files"""
+        print(f"Scanning directory: {db_dir}")
         try:
-            files = os.listdir(directory)
-            print(f"Scanning directory: {directory}")
+            # List all files in directory
+            files = os.listdir(db_dir)
             print(f"Files found: {files}")
             
-            # Look for .cfr files
+            # Find all .cfr files
             cfr_files = [f for f in files if f.endswith('.cfr')]
             if not cfr_files:
-                print(f"No .cfr files found in {directory}")
+                print("No .cfr files found in", db_dir)
                 return None
             
-            # Extract prefixes from files (remove .N.cfr)
+            # Extract common prefix from .cfr files
+            # Example: if files are ['centrifuger.1.cfr', 'centrifuger.2.cfr'],
+            # prefix should be 'centrifuger'
             prefixes = set()
-            for file in cfr_files:
-                # Split on last occurrence of '.' to handle prefixes containing dots
-                parts = file.rsplit('.', 2)  # Split into [prefix, number, 'cfr']
-                if len(parts) == 3 and parts[1].isdigit():
-                    prefixes.add(parts[0])
+            for cfr_file in cfr_files:
+                # Split by dots and take all parts except the last two (number and extension)
+                parts = cfr_file.split('.')
+                if len(parts) >= 3:  # Ensure we have at least prefix.number.cfr
+                    prefix = '.'.join(parts[:-2])  # Join all parts except last two
+                    if prefix:
+                        prefixes.add(prefix)
             
-            # Verify that we have a complete set of index files for at least one prefix
-            for prefix in prefixes:
-                # Check for files 1 through 4
-                if all(f"{prefix}.{i}.cfr" in cfr_files for i in range(1, 5)):
-                    print(f"Found valid index prefix: {prefix}")
-                    return prefix
-                
-            print(f"No complete set of index files found in {directory}")
-            return None
+            if len(prefixes) == 1:
+                prefix = prefixes.pop()
+                full_path = os.path.join(db_dir, prefix)
+                print(f"Found database prefix: {full_path}")
+                return full_path
+            elif len(prefixes) > 1:
+                print(f"Multiple database prefixes found: {prefixes}")
+                return None
+            else:
+                print("No valid database prefix found")
+                return None
             
         except Exception as e:
-            print(f"Error scanning directory {directory}: {e}")
+            print(f"Error scanning directory: {e}")
             return None
 
     def show_database_window(self):
@@ -333,45 +342,25 @@ class PipelineConfig(ctk.CTkFrame):
                 getattr(self, key).set(value)
 
     def save_parameters(self):
-        """Save parameters to pipeline config file"""
-        config = {
+        """Save parameters to config file"""
+        # Update pipeline_config with current values
+        self.pipeline_config.update({  # Changed from self.config
             'analysis_type': self.analysis_type.get(),
             'threads': self.threads.get(),
             'min_length': self.min_length.get(),
             'min_quality': self.min_quality.get(),
             'emu_db': self.emu_db.get(),
-            'centrifuger_db': os.path.abspath(self.centrifuger_db.get()),  # Convert to absolute path
+            'centrifuger_db': self.centrifuger_db.get(),
             'min_abundance': self.min_abundance.get(),
             'assembly_mode': self.assembly_mode.get(),
             'medaka_model': self.medaka_model.get(),
             'is_isolate': self.is_isolate.get(),
             'min_contig_length': self.min_contig_length.get()
-        }
+        })
         
-        # Validate the Centrifuger database path
-        if config['centrifuger_db']:
-            db_dir = os.path.dirname(config['centrifuger_db'])
-            if not self.find_database_prefix(db_dir):
-                messagebox.showerror("Error", 
-                    "Invalid Centrifuger database path. No valid database files found.")
-                return
-        
-        try:
-            # Make sure we're using pipeline_config.json
-            pipeline_config_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
-            with open(pipeline_config_path, 'w') as f:
-                json.dump(config, f, indent=4)
-            print(f"Saved pipeline configuration to {pipeline_config_path}")
-            print(f"Current Centrifuger DB path: {config['centrifuger_db']}")
-            
-            # Update GUI elements
-            if hasattr(self, 'centrifuger_db_entry'):
-                self.centrifuger_db_entry.delete(0, 'end')
-                self.centrifuger_db_entry.insert(0, config['centrifuger_db'])
-            
-            messagebox.showinfo("Success", "Parameters saved successfully!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
+        # Save to file
+        with open(self.config_file, 'w') as f:
+            json.dump(self.pipeline_config, f, indent=4)  # Changed from self.config
 
     def search_available_databases(self):
         """Search for available databases in default locations"""

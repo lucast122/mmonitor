@@ -135,6 +135,18 @@ class FolderWatcherWindow(ctk.CTkFrame):
                                          command=self.toggle_watching)
         self.watch_button.pack(side="left", padx=5)
         
+        # Analysis type selector
+        self.analysis_type_var = ctk.StringVar(value="taxonomy-wgs")
+        self.analysis_type_menu = ctk.CTkOptionMenu(
+            folder_frame,
+            values=["taxonomy-wgs", "taxonomy-16s", "assembly", "functional"],
+            variable=self.analysis_type_var,
+            width=150,
+            height=32
+        )
+        self.analysis_type_menu.pack(side="left", padx=5)
+        create_tooltip(self.analysis_type_menu, "Select analysis type to perform")
+        
         # Create trees
         self.create_file_trees(self.main_container)
         
@@ -1273,12 +1285,13 @@ class FolderWatcherWindow(ctk.CTkFrame):
             with open(self.config_file, 'r') as f:
                 config = json.load(f)
             
-            analysis_type = config.get('analysis_type', 'taxonomy-wgs')
-            print(f"Analysis type from config: {analysis_type}")
+            # Use selected analysis type instead of config
+            analysis_type = self.analysis_type_var.get()
+            print(f"Using selected analysis type: {analysis_type}")
             
             # Set up arguments with proper database paths
             args = argparse.Namespace(
-                analysis=analysis_type,
+                analysis=analysis_type,  # Use selected analysis type
                 config=self.config_file,
                 threads=config.get('threads', 4),
                 sample=sample_name,
@@ -1304,7 +1317,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
             success = cmd_runner.run()
             
             if success:
-                # Upload results based on analysis type
+                # Upload results based on selected analysis type
                 if analysis_type == 'taxonomy-wgs':
                     # Path to centrifuger report
                     report_file = os.path.join(
@@ -1323,11 +1336,11 @@ class FolderWatcherWindow(ctk.CTkFrame):
                             date=project_info['date'],
                             overwrite=True
                         )
-                else:  # taxonomy-16s
+                elif analysis_type == 'taxonomy-16s':
                     # Path to EMU output
                     emu_out_path = os.path.join(cmd_runner.pipeline_out, sample_name)
                     
-                    # Upload EMU results using the correct method name
+                    # Upload EMU results
                     cmd_runner.django_db.update_django_with_emu_out(
                         emu_out_path=emu_out_path,
                         tax_rank="species",

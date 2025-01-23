@@ -56,77 +56,47 @@ def convert_date_format(date_str):
 
 class DjangoDBInterface:
 
-    def __init__(self, config_path=None):
+    def __init__(self, config_path):
         self.config_path = config_path
         self.username = None
         self.password = None
-        self.user_id = None
-        self.base_url = "http://127.0.0.1:8000"  # Default to localhost
+        self.host = "127.0.0.1"  # Default to localhost
+        self.port = "8000"  # Default port
         self.offline_mode = False
+        self.base_url = None
+        self.load_config()
         
-        if config_path:
-            self.load_config()
+        # Set base URL based on mode
+        self.update_base_url()
 
-    def set_offline_mode(self, enabled=True):
-        """Configure interface for offline mode"""
-        self.offline_mode = enabled
-        if enabled:
-            self.base_url = "http://127.0.0.1:8000"
+    def update_base_url(self):
+        """Update base URL based on offline mode"""
+        if self.offline_mode:
+            self.host = "127.0.0.1"
+            self.port = "8000"
+            self.base_url = f"http://{self.host}:{self.port}"
+        else:
+            protocol = "https"
+            self.base_url = f"{protocol}://{self.host}"
+            if self.port:
+                self.base_url += f":{self.port}"
+
+    def set_offline_mode(self, offline=True):
+        """Set offline mode and update URLs accordingly"""
+        self.offline_mode = offline
+        if offline:
             self.username = "offlinemode"
             self.password = "offline123"
-            # Try to authenticate with these credentials
-            self.authenticate(self.username, self.password)
-        
-    def authenticate(self, username, password):
-        """Authenticate with the Django server"""
-        auth_url = f"{self.base_url}/users/get_user_id/"  # Added trailing slash
-        print(f"Attempting authentication with {username} at {auth_url}")
-        
-        try:
-            # Create form-data exactly as expected
-            form_data = {
-                "username": username,
-                "password": password,
-                "csrfmiddlewaretoken": ""  # Add if needed
-            }
-            
-            response = requests.post(
-                auth_url,
-                data=form_data,
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "Accept": "application/json"
-                }
-            )
-            
-            print(f"Auth response status: {response.status_code}")
-            if response.status_code == 200:
-                try:
-                    response_data = response.json()
-                    self.user_id = response_data.get('user_id')
-                    self.username = username
-                    self.password = password
-                    print(f"Successfully authenticated as {username} (user_id: {self.user_id})")
-                    return True
-                except Exception as e:
-                    print(f"Failed to parse authentication response: {e}")
-                    return False
-            else:
-                print(f"Authentication failed with status {response.status_code}")
-                print(f"Response content: {response.content}")
-                return False
-                
-        except Exception as e:
-            print(f"Authentication error: {e}")
-            return False
+            self.host = "127.0.0.1"
+            self.port = "8000"
+        self.update_base_url()
 
     def load_config(self):
         """Load configuration from file with proper error handling"""
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r') as file:
-                    # Read the file content first
-                    content = file.read().strip()  # Remove any trailing whitespace
+                    content = file.read().strip()
                     if not content:
                         print("Config file is empty")
                         return
@@ -134,38 +104,21 @@ class DjangoDBInterface:
                     try:
                         config = json.loads(content)
                         self.username = config.get('user')
-                        self.host = config.get('host')
-                        self.port = config.get('port', 443)
+                        self.host = config.get('host', self.host)
+                        self.port = config.get('port', self.port)
                         self.offline_mode = config.get('offline_mode', False)
                         
-                        # Get password from keyring if available
-                        if self.username:
-                            stored_password = keyring.get_password("MMonitor", self.username)
-                            if stored_password:
-                                self.password = stored_password
-                            else:
-                                self.password = config.get('password')
-                                
+                        # Update base URL after loading config
+                        self.update_base_url()
+                        
                         print(f"Loaded config: host={self.host}, port={self.port}, offline_mode={self.offline_mode}")
                         
                     except json.JSONDecodeError as e:
                         print(f"Error parsing JSON config: {e}")
                         print(f"Content causing error: {content}")
-                        # Initialize with default values
-                        self.username = None
-                        self.password = None
-                        self.host = 'mmonitor.org'
-                        self.port = '443'
-                        self.offline_mode = False
                         
             except Exception as e:
                 print(f"Error reading config file: {e}")
-                # Initialize with default values
-                self.username = None
-                self.password = None
-                self.host = 'mmonitor.org'
-                self.port = '443'
-                self.offline_mode = False
 
     def save_config(self, remember=False):
         config = {
@@ -203,13 +156,24 @@ class DjangoDBInterface:
         return False
 
     def verify_credentials(self):
-        user_id = self.get_user_id(self.username, self.password)
-        print(f"Received user_id: {user_id}")
+        """Verify credentials with proper offline mode handling"""
+        if self.offline_mode:
+            # In offline mode, use offline credentials directly
+            user_id = self.get_user_id("offlinemode", "offline123")
+        else:
+            # In online mode, use provided credentials
+            user_id = self.get_user_id(self.username, self.password)
+        
+        print(f"Verifying credentials: offline_mode={self.offline_mode}, user_id={user_id}")
         return user_id is not None
 
     def get_user_id(self, username: str, password: str):
+        """Get user ID with proper offline mode handling"""
         protocol = 'http' if self.offline_mode else 'https'
         django_url = f"{protocol}://{self.host}:{self.port}/users/get_user_id/"
+        
+        print(f"Attempting authentication with {username} at {django_url}")
+        
         try:
             response = requests.post(
                 django_url, 
@@ -243,16 +207,26 @@ class DjangoDBInterface:
             return None
 
     def get_unique_sample_ids(self):
-        protocol = 'http' if self.offline_mode else 'https'
-        django_url = f"{protocol}://{self.host}:{self.port}/users/get_unique_sample_ids/"
-        response = requests.post(
-            django_url,
-            data={'username': self.username, 'password': self.password},
-            verify=not self.offline_mode
-        )
-        if response.status_code == 200:
-            return response.json().get('sample_ids', [])
-        else:
+        """Get list of unique sample IDs from server"""
+        try:
+            url = f"{self.base_url}/users/get_unique_sample_ids/"
+            auth = HTTPBasicAuth(
+                "offlinemode" if self.offline_mode else self.username,
+                "offline123" if self.offline_mode else self.password
+            )
+            
+            response = requests.post(
+                url,
+                auth=auth,
+                verify=not self.offline_mode
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            return None
+            
+        except Exception as e:
+            print(f"Error getting unique sample IDs: {e}")
             return None
 
     def query_to_dataframe(self, query: str) -> pd.DataFrame:
@@ -265,7 +239,7 @@ class DjangoDBInterface:
 
     def update_django_with_emu_out(self, emu_out_path: str, tax_rank: str, sample_name: str, project_name: str,
                                    sample_date: str, subproject_name: str, overwrite: bool):
-        """Send EMU results to the database with proper error handling and threading"""
+        """Send EMU results to the database with proper error handling"""
         print("\n=== Debug Upload Process ===")
         print(f"Base URL: {self.base_url}")
         print(f"EMU output path: {emu_out_path}")
@@ -274,44 +248,57 @@ class DjangoDBInterface:
         if self.offline_mode:
             self.username = "offlinemode"
             self.password = "offline123"
+            url = "http://127.0.0.1:8000/users/overwrite_nanopore_record/"
+        else:
+            url = f"{self.base_url}/users/overwrite_nanopore_record/"
         
         print(f"Username: {self.username}")
         print(f"Has password: {bool(self.password)}")
         print(f"Offline mode: {self.offline_mode}")
+        print(f"Using URL: {url}")
         
         try:
             # Check for existing samples
-            sample_ids = self.get_unique_sample_ids()
+            sample_ids = self.get_unique_sample_ids() or []  # Return empty list if None
             if sample_name in sample_ids and not overwrite:
                 print(f"Skipping sample {sample_name} as it is already in the database. Select overwrite to reprocess a sample.")
                 return False
 
-            # Prepare the URL with trailing slash
-            url = f"{self.base_url}/users/overwrite_nanopore_record/"
-            
             # Find the abundance file
-            abundance_file = os.path.join(emu_out_path, f"{sample_name}_rel-abundance-threshold.tsv")
+            abundance_file = os.path.join(emu_out_path, f"{sample_name}_rel-abundance.tsv")
             if not os.path.exists(abundance_file):
-                abundance_file = os.path.join(emu_out_path, f"{sample_name}_rel-abundance.tsv")
-                if not os.path.exists(abundance_file):
-                    print(f"No abundance file found at {abundance_file}")
-                    return False
+                print(f"No abundance file found at {abundance_file}")
+                return False
             
-            # Read and process the EMU output
+            # First read the header to determine available columns
+            with open(abundance_file, 'r') as f:
+                header = f.readline().strip().split('\t')
+                print(f"Found columns: {header}")
+            
+            # Read and process the EMU output with proper data types
             df = pd.read_csv(
                 abundance_file,
                 sep='\t',
-                header=None,
-                usecols=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13],
-                names=['Taxid', 'Abundance', 'Species', 'Genus', 'Family', 'Order', 
-                      'Class', 'Phylum', 'Superkingdom', 'Clade', 'Subspecies', "count"]
+                dtype={
+                    'abundance': float,  # Ensure abundance is read as float
+                    'tax_id': str,
+                    'species': str,
+                    'genus': str,
+                    'family': str,
+                    'order': str,
+                    'class': str,
+                    'phylum': str,
+                    'clade': str,
+                    'superkingdom': str,
+                    'subspecies': str
+                }
             )
             print(f"Read {len(df)} records from file")
             
             # Process data
             df.fillna("empty", inplace=True)
-            df.sort_values('Abundance', ascending=False, inplace=True)
-            df = df[df['Abundance'] > 0.01]  # Filter by abundance threshold
+            df.sort_values('abundance', ascending=False, inplace=True)
+            df = df[df['abundance'] > 0.01]  # Filter by abundance threshold
             print(f"Filtered to {len(df)} records above threshold")
             
             # Convert date to string if it's a datetime object
@@ -328,19 +315,19 @@ class DjangoDBInterface:
                     "project_id": project_name,
                     "subproject_id": subproject_name,
                     "date": date_str,
-                    "taxonomy": row['Species'],
-                    "abundance": float(row['Abundance']),
-                    "count": int(row['count']),
+                    "taxonomy": row['species'],
+                    "abundance": float(row['abundance']),
+                    "count": 1,  # EMU doesn't provide count
                     "project_id": project_name,
                     "subproject": subproject_name,
-                    "tax_genus": row['Genus'],
-                    "tax_family": row['Family'],
-                    "tax_order": row['Order'],
-                    "tax_class": row['Class'],
-                    "tax_phylum": row['Phylum'],
-                    "tax_superkingdom": row['Superkingdom'],
-                    "tax_clade": row['Clade'],
-                    "tax_subspecies": row['Subspecies']
+                    "tax_genus": row['genus'],
+                    "tax_family": row['family'],
+                    "tax_order": row['order'],
+                    "tax_class": row['class'],
+                    "tax_phylum": row['phylum'],
+                    "tax_superkingdom": row['superkingdom'],
+                    "tax_clade": row.get('clade', 'empty'),
+                    "tax_subspecies": row.get('subspecies', 'empty')
                 }
                 records.append(record_data)
                 print(f"Prepared record: {record_data}")
@@ -358,8 +345,8 @@ class DjangoDBInterface:
                     
                     # Send the request
                     response = requests.post(
-                        url,
-                        json=records,  # Send records directly as a list
+                        url,  # Now url is defined for both offline and online modes
+                        json=records,
                         auth=auth,
                         verify=not self.offline_mode,
                         timeout=30

@@ -1,3 +1,6 @@
+ desktop/pipeline_out/
+ desktop/pipeline_out/reads/medaka/calls_to_draft.bam
+
 desktop/lib/
 lib/
 desktop/src/resources/centrifuge_db/
