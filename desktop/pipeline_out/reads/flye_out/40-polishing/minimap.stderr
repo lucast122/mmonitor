@@ -1,0 +1,10 @@
+[M::mm_idx_gen::0.411*1.01] collected minimizers
+[M::mm_idx_gen::0.451*1.88] sorted minimizers
+[M::main::0.451*1.88] loaded/built the index for 39 target sequence(s)
+[M::mm_mapopt_update::0.487*1.82] mid_occ = 27
+[M::mm_idx_stat] kmer size: 15; skip: 10; is_hpc: 0; #seq: 39
+[M::mm_idx_stat::0.513*1.78] distinct minimizers: 2071953 (95.71% are singletons); average occurrences: 1.087; average spacing: 5.337; total length: 12019775
+[M::worker_pipeline::2.242*4.96] mapped 52 sequences
+[M::main] Version: 2.24-r1155-dirty
+[M::main] CMD: /Users/timo/PycharmProjects/MMonitor/desktop/lib/Flye-2.9.5/lib/minimap2/minimap2 -x map-ont -t 12 -a -p 0.5 -N 10 --sam-hit-only -L -K 1G -z 1000 -Q --secondary-seq -I 64G /Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/reads/flye_out/40-polishing/filtered_contigs.fasta /Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/reads/flye_out/30-contigger/graph_final.fasta
+[M::main] Real time: 2.262 sec; CPU: 11.144 sec; Peak RSS: 0.482 GB

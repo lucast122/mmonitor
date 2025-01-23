@@ -1,0 +1,19 @@
+{
+  "steps_completed": [
+    "FLYE_ASSEMBLY",
+    "MEDAKA_POLISH",
+    "METABAT_BINNING",
+    "CHECKM2_QUALITY"
+  ],
+  "current_step": null,
+  "step_outputs": {
+    "FLYE_ASSEMBLY": "/Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/reads/flye/assembly.fasta",
+    "MEDAKA_POLISH": "/Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/reads/medaka/consensus.fasta",
+    "METABAT_BINNING": {
+      "bins_dir": "/Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/metabat2",
+      "depth_file": "/Users/timo/PycharmProjects/MMonitor/desktop/pipeline_out/metabat2/depth.txt"
+    }
+  },
+  "failed_step": null,
+  "error_message": null
+}
