@@ -1,0 +1,214 @@
+#!/bin/bash
+set -eou pipefail
+
+function follow_link {
+  python -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' $1
+}
+
+OUTPUT="medaka"
+THREADS=1
+
+medaka_version=$(medaka --version)
+modeldata=()
+while read -r line; do
+    modeldata+=("$line")
+done < <(medaka tools list_models)
+# 0: Available models
+# 1: default consensus model
+# 2: default variant model
+MODEL=${modeldata[1]##* }
+MODELS=$(
+    echo ${modeldata[0]} | sed 's/Available://' | python -c \
+        "import sys; import itertools; mods=[f'{x[:-1]}' for x in sys.stdin.readline().split() if ('variant' not in x and 'snp' not in x)]; print(' '.join(mods))"
+)
+
+BATCH_SIZE=100
+FORCE=false
+NOFILLGAPS=false
+GAPFILLCHAR=""
+QUALITIES=false
+MIN_MAPQ=""
+BACTERIA=""
+
+iflag=false
+dflag=false
+xflag=false
+mflag=false
+
+usage="
+${medaka_version}
+------------
+
+Assembly polishing via neural networks. Medaka is optimized
+to work with the Flye assembler.
+
+$(basename "$0") [-h] -i <fastx> -d <fasta>
+
+    -h  show this help text.
+    -i  fastx input basecalls (required).
+    -d  fasta input assembly (required).
+    -o  output folder (default: medaka).
+    -g  don't fill gaps in consensus with draft sequence.
+    -r  use gap-filling character instead of draft sequence (default: None)
+    -m  medaka model, (default: ${MODEL}).
+        Choices: ${MODELS}
+        Alternatively a .tar.gz/.hdf file from 'medaka train'.
+        If not provided, and automatic choice will be attempted based on
+        the contents of the input file.
+    -f  Force overwrite of outputs (default will reuse existing outputs).
+    -x  Force recreation of alignment index.
+    -t  number of threads with which to create features (default: 1).
+    -b  batchsize, controls memory use (default: ${BATCH_SIZE}).
+    -q  Output consensus with per-base quality scores (fastq).
+    -M  Minimum mapQ (default: None).
+    --bacteria automatically select best model for bacteria
+               and plasmid sequencing. "
+
+
+while getopts ':hi::d:o:gr:m:fxt:b:qM:-:' option; do
+  case "$option" in
+    h  ) echo "$usage" >&2; exit;;
+    i  ) iflag=true; BASECALLS=$(follow_link $OPTARG);;
+    d  ) dflag=true; DRAFT=$(follow_link $OPTARG);;
+    o  ) OUTPUT=$OPTARG;;
+    g  ) NOFILLGAPS=true;;
+    r  ) GAPFILLCHAR=$OPTARG;;
+    m  ) mflag=true; MODEL=$(medaka tools resolve_model --model $OPTARG);;
+    f  ) FORCE=true;;
+    x  ) xflag=true;;
+    t  ) THREADS=$OPTARG;;
+    b  ) BATCH_SIZE=$OPTARG;;
+    q  ) QUALITIES=true;;
+    M  ) MIN_MAPQ=$OPTARG;;
+    -  )
+	case "${OPTARG}" in
+	    bacteria ) BACTERIA="_bacteria";;  # Handle the long option --bacteria
+	    * ) echo "Invalid option: --${OPTARG}." >&2; exit 1;;
+	esac
+	;;
+    \? ) echo "Invalid option: -${OPTARG}." >&2; exit 1;;
+    :  ) echo "Option -$OPTARG requires an argument." >&2; exit 1;;
+  esac
+done
+shift $(($OPTIND - 1))
+
+if ! $iflag; then
+  echo "$usage" >&2;
+  echo "" >&2;
+  echo "-i must be specified." >&2;
+  exit 1;
+fi
+
+if ! $dflag; then
+  echo "$usage" >&2;
+  echo "" >&2;
+  echo "-d must be specified." >&2;
+  exit 1;
+fi
+
+if ! $mflag; then
+    echo "Attempting to automatically select model version."
+    model=$(medaka tools resolve_model --auto_model consensus"${BACTERIA}" "${BASECALLS}" 2>/dev/null || true)
+    if [[ "${model}" == "" ]] ; then
+        echo "WARNING: Failed to detect a model version, will use default: '${MODEL}'"
+    else
+        echo "SUCCESS: Automatic model selection chose model: '${model}'"
+        MODEL=${model}
+    fi
+fi
+
+echo "Checking program versions"
+echo "This is ${medaka_version}"
+medaka_version_report || exit 1
+
+if [[ ! -e "${OUTPUT}" ]]; then
+  mkdir -p "${OUTPUT}"
+elif ${FORCE}; then
+  echo "WARNING: Output will be overwritten (-f flag)"
+else
+  echo "WARNING: Output ${OUTPUT} already exists, may use old results."
+fi
+
+cd "${OUTPUT}"
+
+rflag=$(medaka tools is_rle_model --model $MODEL)
+[[ $rflag == "True" ]] && rflag=true || rflag=false
+
+if $rflag; then
+  COMPRESSED_BASECALLS="basecalls.fastrle.gz"
+  COMPRESSED_DRAFT="draft.fastrle.gz"
+  if [[ ! -e "${COMPRESSED_BASECALLS}" ]] ||  [[ ! -e "${COMPRESSED_DRAFT}" ]] || ${FORCE}; then
+    echo "Compressing draft and basecalls."
+
+    medaka fastrle "${BASECALLS}" | bgzip > "${COMPRESSED_BASECALLS}"
+    medaka fastrle "${DRAFT}" | bgzip > "${COMPRESSED_DRAFT}"
+
+    BASECALLS="${COMPRESSED_BASECALLS}"
+    DRAFT="${COMPRESSED_DRAFT}"
+    FORCE=true
+  else
+    echo "Not compressing basecalls and draft, ${COMPRESSED_BASECALLS} and ${COMPRESSED_DRAFT} exist."
+  fi
+fi
+
+CALLS2DRAFT="calls_to_draft"
+ALIGN_PARAMS=$(medaka tools get_alignment_params --model $MODEL)
+if $xflag; then
+    ALIGN_PARAMS="-f ${ALIGN_PARAMS}"
+fi
+if [[ ! -e "${CALLS2DRAFT}.bam" ]] || ${FORCE}; then
+    echo "Aligning basecalls to draft"
+    BAM_TAG_PARAMS=""
+    if [[ ${BASECALLS} == */merged_tagged.bam ]]; then
+        BAM_TAG_PARAMS="-T DT"
+    fi
+    mini_align -i "${BASECALLS}" -r "${DRAFT}" -p "${CALLS2DRAFT}" -t "${THREADS}" -m ${ALIGN_PARAMS} ${BAM_TAG_PARAMS} \
+      || { echo "Failed to run alignment of reads to draft."; exit 1; } 
+    FORCE=true
+else
+    echo "Not aligning basecalls to draft, ${CALLS2DRAFT}.bam exists."
+fi
+
+CONSENSUSPROBS="consensus_probs.hdf"
+if [[ ! -e "${CONSENSUSPROBS}" ]] || ${FORCE}; then
+    echo "Running medaka consensus"
+    rm -rf "${CONSENSUSPROBS}"
+    MAPQ_OPTS=""
+    if [ -n "${MIN_MAPQ}" ]; then
+        MAPQ_OPTS="--min_mapq ${MIN_MAPQ}"
+    fi
+    medaka inference "${CALLS2DRAFT}.bam" "${CONSENSUSPROBS}" \
+        --model "${MODEL}" --batch_size "${BATCH_SIZE}" --threads "${THREADS}" \
+        ${MAPQ_OPTS} \
+        || { echo "Failed to run medaka consensus."; exit 1; }
+    FORCE=true
+else
+    echo "Not running medaka consensus, ${CONSENSUSPROBS} exists."
+fi
+
+if "${QUALITIES}"; then
+    suffix="fastq"
+else
+    suffix="fasta"
+fi
+CONSENSUS="consensus.${suffix}"
+if [[ ! -e "${CONSENSUS}" ]] || ${FORCE}; then
+    STITCH_OPTS=""
+    QUALITIES_OPT=""
+    if $rflag || ${NOFILLGAPS}; then
+        STITCH_OPTS="--no-fillgaps"
+    fi
+    if [ -n "${GAPFILLCHAR}" ]; then
+        STITCH_OPTS="${STITCH_OPTS} --fill_char ${GAPFILLCHAR}"
+    fi
+    if "${QUALITIES}"; then
+        QUALITIES_OPT="--qualities"
+    fi
+    medaka sequence "${CONSENSUSPROBS}" "${DRAFT}" "${CONSENSUS}" \
+        --threads "${THREADS}" ${STITCH_OPTS} ${QUALITIES_OPT} \
+        || { echo "Failed to stitch consensus chunks."; exit 1; }
+    echo "Polished assembly written to ${OUTPUT}/${CONSENSUS}, have a nice day."
+    FORCE=true
+else
+    echo "Consensus ${OUTPUT}/${CONSENSUS} exists, remove ${OUTPUT} and try again."
+fi
