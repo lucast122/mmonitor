@@ -128,14 +128,22 @@ class FunctionalRunner:
         flye_out = os.path.join(output_dir, "flye_out")
         os.makedirs(flye_out, exist_ok=True)
 
-        env = os.environ.copy()
-        env["PATH"] = f"{os.path.dirname(self.minimap2_path)}:{env['PATH']}"
+        # Add minimap2 directory to PATH
+        minimap2_dir = os.path.dirname(self.minimap2_path)
+        os.environ['PATH'] = f"{minimap2_dir}:{os.environ['PATH']}"
+        print(f"Updated PATH to include minimap2: {os.environ['PATH']}")
 
-        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--meta", "--out-dir", flye_out, "--threads", str(threads)]
+        # Check which minimap2 is being used
         try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
-            print(f"Flye stdout: {result.stdout}")
-            print(f"Flye stderr: {result.stderr}")
+            minimap2_path = subprocess.check_output(["which", "minimap2"]).decode().strip()
+            print(f"Using minimap2 from: {minimap2_path}")
+        except subprocess.CalledProcessError:
+            print("minimap2 not found in PATH")
+
+        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
+        try:
+            # Pass the updated environment to the subprocess
+            subprocess.run(cmd, check=True, capture_output=True, text=True, env=os.environ)
         except subprocess.CalledProcessError as e:
             print(f"Error running Flye: {e}")
             print(f"Flye stderr: {e.stderr}")
