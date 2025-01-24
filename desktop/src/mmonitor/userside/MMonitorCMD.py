@@ -21,6 +21,7 @@ import subprocess
 import getpass
 import time
 import tempfile
+import multiprocessing
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -237,8 +238,8 @@ class MMonitorCMD:
 
     def concatenate_fastq_files(self, file_paths, output_file):
         """
-        Concatenate all FASTQ files from the provided list into a single file.
-
+        Concatenate FASTQ files in parallel using multiprocessing.
+        
         :param file_paths: List of paths to FASTQ files.
         :param output_file: Path to the output concatenated FASTQ file.
         """
@@ -247,20 +248,65 @@ class MMonitorCMD:
             return
 
         # Use a set to track unique files to avoid duplication
-        unique_files = set(file_paths)
+        unique_files = list(set(file_paths))
+        
+        # Determine chunk size for parallel processing
+        num_cores = os.cpu_count()
+        chunk_size = max(1, len(unique_files) // (num_cores * 2))  # Smaller chunks for better load balancing
+        
+        # Create temporary directory for chunks
+        temp_dir = os.path.join(os.path.dirname(output_file), ".temp_chunks")
+        os.makedirs(temp_dir, exist_ok=True)
 
-        with gzip.open(output_file, 'wb') as outfile:
-            for fastq_file in unique_files:
-                try:
-                    if fastq_file.endswith(".gz"):
-                        with gzip.open(fastq_file, 'rb') as infile:
-                            outfile.write(infile.read())
-                    else:
-                        with open(fastq_file, 'rb') as infile:
-                            outfile.write(infile.read())
-                except Exception as e:
-                    print(f"Error processing file {fastq_file}: {e}")
-                    continue
+        def process_file_chunk(chunk_info):
+            """Process a chunk of files and save to a temporary file"""
+            chunk_files, chunk_id = chunk_info
+            chunk_output = os.path.join(temp_dir, f"chunk_{chunk_id}.gz")
+            
+            try:
+                with gzip.open(chunk_output, 'wb') as outfile:
+                    for fastq_file in chunk_files:
+                        try:
+                            if fastq_file.endswith(".gz"):
+                                with gzip.open(fastq_file, 'rb') as infile:
+                                    shutil.copyfileobj(infile, outfile, length=1024*1024)  # 1MB buffer
+                            else:
+                                with open(fastq_file, 'rb') as infile:
+                                    shutil.copyfileobj(infile, outfile, length=1024*1024)
+                        except Exception as e:
+                            print(f"Error processing file {fastq_file}: {e}")
+                            continue
+                return chunk_output
+            except Exception as e:
+                print(f"Error creating chunk {chunk_id}: {e}")
+                return None
+
+        # Split files into chunks
+        file_chunks = []
+        for i in range(0, len(unique_files), chunk_size):
+            chunk = unique_files[i:i + chunk_size]
+            file_chunks.append((chunk, i // chunk_size))
+
+        # Process chunks in parallel
+        with multiprocessing.Pool(processes=num_cores) as pool:
+            chunk_files = list(pool.map(process_file_chunk, file_chunks))
+            chunk_files = [f for f in chunk_files if f is not None]
+
+        # Concatenate chunks into final output
+        try:
+            with gzip.open(output_file, 'wb') as outfile:
+                for chunk_file in chunk_files:
+                    with gzip.open(chunk_file, 'rb') as infile:
+                        shutil.copyfileobj(infile, outfile, length=1024*1024)
+                    os.remove(chunk_file)  # Clean up chunk file
+        except Exception as e:
+            print(f"Error concatenating chunks: {e}")
+        finally:
+            # Clean up temporary directory
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                print(f"Error cleaning up temporary directory: {e}")
 
         print(f"Concatenated {len(unique_files)} files into {output_file}")
 
