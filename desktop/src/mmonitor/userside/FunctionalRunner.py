@@ -128,10 +128,27 @@ class FunctionalRunner:
         flye_out = os.path.join(output_dir, "flye_out")
         os.makedirs(flye_out, exist_ok=True)
 
-        # Add minimap2 directory to PATH
+        # Ensure minimap2 is accessible
         minimap2_dir = os.path.dirname(self.minimap2_path)
-        os.environ['PATH'] = f"{minimap2_dir}:{os.environ['PATH']}"
-        print(f"Updated PATH to include minimap2: {os.environ['PATH']}")
+        if not os.path.exists(self.minimap2_path):
+            print(f"minimap2 not found at {self.minimap2_path}")
+            return
+        
+        # Make minimap2 executable
+        os.chmod(self.minimap2_path, 0o755)
+        
+        # Create symlink in /usr/local/bin if it doesn't exist
+        usr_local_minimap2 = "/usr/local/bin/minimap2"
+        try:
+            if not os.path.exists(usr_local_minimap2):
+                subprocess.run(["sudo", "ln", "-s", self.minimap2_path, usr_local_minimap2], check=True)
+                print(f"Created symlink: {self.minimap2_path} -> {usr_local_minimap2}")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create symlink: {e}")
+
+        # Add minimap2 directory to PATH
+        os.environ['PATH'] = f"{minimap2_dir}:/usr/local/bin:{os.environ['PATH']}"
+        print(f"Updated PATH: {os.environ['PATH']}")
 
         # Check which minimap2 is being used
         try:
@@ -143,7 +160,9 @@ class FunctionalRunner:
         cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
         try:
             # Pass the updated environment to the subprocess
-            subprocess.run(cmd, check=True, capture_output=True, text=True, env=os.environ)
+            env = os.environ.copy()
+            env["PATH"] = f"{minimap2_dir}:/usr/local/bin:{env['PATH']}"
+            subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
         except subprocess.CalledProcessError as e:
             print(f"Error running Flye: {e}")
             print(f"Flye stderr: {e.stderr}")

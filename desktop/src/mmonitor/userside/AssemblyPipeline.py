@@ -257,12 +257,7 @@ class AssemblyPipeline:
                 else:
                     input_file = input_files[0]
                 
-                assembly_file = self.run_flye_assembly(
-                    input_file=input_file,
-                    output_dir=flye_output,
-                    threads=threads,
-                    assembly_mode=assembly_mode
-                )
+                assembly_file = self.run_flye(input_file, self.sample_name, flye_output, threads)
                 if not assembly_file:
                     raise RuntimeError("Flye assembly failed")
                 results["assembly"] = assembly_file
@@ -720,50 +715,52 @@ class AssemblyPipeline:
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
-    def run_flye_assembly(self, input_file, output_dir, threads=None, assembly_mode='nano-raw'):
-        """Run Flye assembly on input reads
+    def run_flye(self, input_files, sample_name, output_dir, threads):
+        """Run Flye assembly"""
+        flye_out = os.path.join(output_dir, "flye_out")
+        os.makedirs(flye_out, exist_ok=True)
+
+        # Ensure minimap2 is accessible
+        minimap2_dir = os.path.dirname(self.minimap2_path)
+        if not os.path.exists(self.minimap2_path):
+            print(f"minimap2 not found at {self.minimap2_path}")
+            return
         
-        Args:
-            input_file (str): Path to input FASTQ file
-            output_dir (str): Output directory for Flye
-            threads (int, optional): Number of threads to use. Defaults to None.
-            assembly_mode (str, optional): Assembly mode for Flye. Defaults to 'nano-raw'.
-            
-        Returns:
-            str: Path to assembled contigs file
-        """
-        # Check if assembly already exists
-        assembly_file = os.path.join(output_dir, 'assembly.fasta')
-        if os.path.exists(assembly_file):
-            print(f"Using existing assembly from {assembly_file}")
-            print("If you want to recompute, change sample name or delete assembly file")
-            return assembly_file
+        # Make minimap2 executable
+        os.chmod(self.minimap2_path, 0o755)
         
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Use default threads if none specified
-        if threads is None:
-            threads = self.default_threads
-            
-        # Build Flye command
-        cmd = [
-            'flye',
-            f'--{assembly_mode}', input_file,
-            '--out-dir', output_dir,
-            '--threads', str(threads)
-        ]
-        
-        # Run Flye
+        # Create symlink in /usr/local/bin if it doesn't exist
+        usr_local_minimap2 = "/usr/local/bin/minimap2"
         try:
-            subprocess.run(cmd, check=True)
+            if not os.path.exists(usr_local_minimap2):
+                subprocess.run(["sudo", "ln", "-s", self.minimap2_path, usr_local_minimap2], check=True)
+                print(f"Created symlink: {self.minimap2_path} -> {usr_local_minimap2}")
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Flye assembly failed: {e}")
-            
-        # Return path to assembly file
-        if not os.path.exists(assembly_file):
-            raise RuntimeError("Flye assembly completed but assembly file not found")
-            
-        return assembly_file
+            print(f"Failed to create symlink: {e}")
+
+        # Add minimap2 directory to PATH
+        os.environ['PATH'] = f"{minimap2_dir}:/usr/local/bin:{os.environ['PATH']}"
+        print(f"Updated PATH: {os.environ['PATH']}")
+
+        # Check which minimap2 is being used
+        try:
+            minimap2_path = subprocess.check_output(["which", "minimap2"]).decode().strip()
+            print(f"Using minimap2 from: {minimap2_path}")
+        except subprocess.CalledProcessError:
+            print("minimap2 not found in PATH")
+
+        cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
+        try:
+            # Pass the updated environment to the subprocess
+            env = os.environ.copy()
+            env["PATH"] = f"{minimap2_dir}:/usr/local/bin:{env['PATH']}"
+            subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
+        except subprocess.CalledProcessError as e:
+            print(f"Error running Flye: {e}")
+            print(f"Flye stderr: {e.stderr}")
+            raise
+
+        return os.path.join(flye_out, "assembly.fasta")
 
     def _check_required_tools(self):
         """Check for required tools and raise error if essential ones are missing"""
