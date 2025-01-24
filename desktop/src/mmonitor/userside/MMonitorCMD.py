@@ -22,6 +22,13 @@ import getpass
 import time
 import tempfile
 
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+
 # Add the src directory to Python path
 src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if src_dir not in sys.path:
@@ -181,7 +188,8 @@ class MMonitorCMD:
         group.add_argument('-i', '--input', nargs='+', help='Input files for single sample processing')
 
         # Sample information
-        parser.add_argument('-s', '--sample', type=str, help='Sample name.')
+        parser.add_argument('-s', '--sample', type=str, required='--multicsv' not in sys.argv,
+                          help='Sample name (required when not using --multicsv).')
         parser.add_argument('-d', '--date', type=MMonitorCMD.valid_date, help='Sample date in YYYY-MM-DD format.')
         parser.add_argument('-p', '--project', type=str, help='Project name.')
         parser.add_argument('-u', '--subproject', type=str, help='Subproject name.')
@@ -285,6 +293,7 @@ class MMonitorCMD:
             print(f"Concatenated file {concat_file_name} already exists. Skipping concatenation.")
 
         return concat_file_name
+
     def load_config(self):
         if os.path.exists(self.args.config):
             try:
@@ -489,6 +498,24 @@ class MMonitorCMD:
             logger.error(f"Error concatenating files: {str(e)}")
             raise
 
+    def load_config(self):
+        if os.path.exists(self.args.config):
+            try:
+                with open(self.args.config, "r") as f:
+                    self.db_config = json.load(f)
+                    print(f"DB config {self.args.config} loaded successfully.")
+            except json.JSONDecodeError:
+                print("Couldn't load DB config. Please make sure you provided the correct path to the file.")
+        else:
+            print(f"Config path doesn't exist")
+
+    def add_sample_to_databases(self, sample_name, project_name, subproject_name, sample_date):
+        # Add sample to Django DB
+        self.django_db.add_sample(sample_name, project_name, subproject_name, sample_date)
+        
+        # Add sample to Centrifuger DB
+        self.centrifuger_runner.add_sample_to_centrifuger_db(sample_name, self.centrifuger_db)
+
     def run(self):
         """Run the analysis with proper authentication handling"""
         logger.info(f"Starting run with analysis type: {self.args.analysis}")
@@ -544,7 +571,7 @@ class MMonitorCMD:
                         # Run Medaka for assembly correction
                         print("Running Medaka correction...")
                         corrected_assembly = runner.run_medaka(
-                            assembly=assembly_file,
+                            assembly_file,
                             reads=temp_file.name,  # Use concatenated file
                             output_dir=sample_output_dir,
                             threads=self.args.threads
@@ -690,7 +717,14 @@ class MMonitorCMD:
             print(f"Emu analysis failed for sample {sample_name}")
             return False
 
-    # Apply similar changes to other methods that might be writing directly to stdout/stderr
+    # method to check if a sample is already in the database, if user does not want to overwrite results
+    # returns true if sample_name is in db and false if not
+    def check_sample_in_db(self, sample_id):
+        samples_in_db = self.django_db.get_unique_sample_ids()
+        if samples_in_db is not None:
+            return sample_id in samples_in_db
+        else:
+            return []
 
     def run_pipeline(self, selected_steps, params):
         input_files = self.get_input_files()
