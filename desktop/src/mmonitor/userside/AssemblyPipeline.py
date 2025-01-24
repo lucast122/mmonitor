@@ -720,41 +720,39 @@ class AssemblyPipeline:
         flye_out = os.path.join(output_dir, "flye_out")
         os.makedirs(flye_out, exist_ok=True)
 
-        # Ensure minimap2 is accessible
-        minimap2_dir = os.path.dirname(self.minimap2_path)
-        if not os.path.exists(self.minimap2_path):
-            print(f"minimap2 not found at {self.minimap2_path}")
-            return
-        
-        # Make minimap2 executable
-        os.chmod(self.minimap2_path, 0o755)
-        
-        # Create symlink in /usr/local/bin if it doesn't exist
-        usr_local_minimap2 = "/usr/local/bin/minimap2"
+        # First check if minimap2 is available in system PATH
         try:
-            if not os.path.exists(usr_local_minimap2):
-                subprocess.run(["sudo", "ln", "-s", self.minimap2_path, usr_local_minimap2], check=True)
-                print(f"Created symlink: {self.minimap2_path} -> {usr_local_minimap2}")
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to create symlink: {e}")
-
-        # Add minimap2 directory to PATH
-        os.environ['PATH'] = f"{minimap2_dir}:/usr/local/bin:{os.environ['PATH']}"
-        print(f"Updated PATH: {os.environ['PATH']}")
-
-        # Check which minimap2 is being used
-        try:
-            minimap2_path = subprocess.check_output(["which", "minimap2"]).decode().strip()
-            print(f"Using minimap2 from: {minimap2_path}")
+            minimap2_system = subprocess.check_output(["which", "minimap2"]).decode().strip()
+            print(f"Found system minimap2 at: {minimap2_system}")
+            
+            # Test if minimap2 works
+            try:
+                subprocess.run([minimap2_system, "--version"], check=True, capture_output=True)
+                print("System minimap2 is working")
+                # Use system minimap2
+                os.environ['PATH'] = f"/usr/bin:{os.environ['PATH']}"
+            except subprocess.CalledProcessError:
+                print("System minimap2 not working, will try local version")
+                minimap2_system = None
         except subprocess.CalledProcessError:
-            print("minimap2 not found in PATH")
+            print("No system minimap2 found, will try local version")
+            minimap2_system = None
 
+        # If system minimap2 not available, try local version
+        if not minimap2_system:
+            minimap2_dir = os.path.dirname(self.minimap2_path)
+            if os.path.exists(self.minimap2_path):
+                print(f"Using local minimap2 at: {self.minimap2_path}")
+                os.chmod(self.minimap2_path, 0o755)
+                os.environ['PATH'] = f"{minimap2_dir}:{os.environ['PATH']}"
+            else:
+                print(f"Warning: No minimap2 found at {self.minimap2_path}")
+
+        # Run Flye with the configured environment
         cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
         try:
-            # Pass the updated environment to the subprocess
-            env = os.environ.copy()
-            env["PATH"] = f"{minimap2_dir}:/usr/local/bin:{env['PATH']}"
-            subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=os.environ)
+            print(f"Flye stdout: {result.stdout}")
         except subprocess.CalledProcessError as e:
             print(f"Error running Flye: {e}")
             print(f"Flye stderr: {e.stderr}")
