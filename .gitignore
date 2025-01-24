@@ -1,3 +1,5 @@
+desktop/src/mmonitor/userside/fastq_concat/target/
+desktop/src/mmonitor/userside/fastq_concat/Cargo.lock
  desktop/pipeline_out/
  desktop/pipeline_out/reads/medaka/calls_to_draft.bam
 

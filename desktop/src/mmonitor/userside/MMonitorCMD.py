@@ -238,7 +238,7 @@ class MMonitorCMD:
 
     def concatenate_fastq_files(self, file_paths, output_file):
         """
-        Concatenate FASTQ files in parallel using multiprocessing.
+        Concatenate FASTQ files using a fast Rust implementation.
         
         :param file_paths: List of paths to FASTQ files.
         :param output_file: Path to the output concatenated FASTQ file.
@@ -247,100 +247,57 @@ class MMonitorCMD:
             print("No FASTQ files provided.")
             return
 
-        # Use a set to track unique files to avoid duplication
-        unique_files = list(set(file_paths))
-        print(f"Number of unique files to process: {len(unique_files)}")
+        # Get path to Rust binary
+        rust_binary = os.path.join(os.path.dirname(__file__), "fastq_concat", "target", "release", "fastq_concat")
         
-        # Determine chunk size for parallel processing
-        num_cores = min(os.cpu_count(), len(unique_files))
-        chunk_size = max(1, len(unique_files) // num_cores)
-        print(f"Using {num_cores} CPU cores with chunk size of {chunk_size}")
-        
-        # Create temporary directory for chunks
-        temp_dir = os.path.join(os.path.dirname(output_file), ".temp_chunks")
-        os.makedirs(temp_dir, exist_ok=True)
-
-        def process_chunk(chunk_files, chunk_id):
-            """Process a chunk of files in a separate process"""
-            chunk_output = os.path.join(temp_dir, f"chunk_{chunk_id}.gz")
-            print(f"Process {os.getpid()} starting chunk {chunk_id} with {len(chunk_files)} files")
-            
+        # Build Rust binary if it doesn't exist
+        if not os.path.exists(rust_binary):
+            print("Building fast concatenation tool...")
+            rust_dir = os.path.join(os.path.dirname(__file__), "fastq_concat")
             try:
-                with gzip.open(chunk_output, 'wb') as outfile:
-                    for idx, fastq_file in enumerate(chunk_files, 1):
-                        try:
-                            if fastq_file.endswith(".gz"):
-                                with gzip.open(fastq_file, 'rb') as infile:
-                                    shutil.copyfileobj(infile, outfile, length=1024*1024)
-                            else:
-                                with open(fastq_file, 'rb') as infile:
-                                    shutil.copyfileobj(infile, outfile, length=1024*1024)
-                            print(f"Process {os.getpid()} completed file {idx}/{len(chunk_files)} in chunk {chunk_id}")
-                        except Exception as e:
-                            print(f"Error processing file {fastq_file}: {e}")
-                            continue
-            except Exception as e:
-                print(f"Error creating chunk {chunk_id}: {e}")
+                subprocess.run(["cargo", "build", "--release"], cwd=rust_dir, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error building concatenation tool: {e}")
+                print("Falling back to Python implementation")
+                self._concatenate_fastq_files_python(file_paths, output_file)
+                return
+            except FileNotFoundError:
+                print("Rust/Cargo not found. Please install Rust to use fast concatenation")
+                print("Falling back to Python implementation")
+                self._concatenate_fastq_files_python(file_paths, output_file)
+                return
 
-        # Split files into chunks and create processes
-        processes = []
-        for i in range(0, len(unique_files), chunk_size):
-            chunk = unique_files[i:i + chunk_size]
-            p = multiprocessing.Process(target=process_chunk, args=(chunk, i // chunk_size))
-            processes.append(p)
-
-        print(f"Created {len(processes)} processes for parallel processing")
-
-        # Start all processes
-        for p in processes:
-            p.start()
-            print(f"Started process {p.pid}")
-
-        # Wait for all processes to complete
-        for p in processes:
-            p.join()
-            print(f"Process {p.pid} completed")
-
-        # Get list of chunk files
-        chunk_files = sorted([os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("chunk_")])
-        print(f"Found {len(chunk_files)} chunk files")
-
+        # Use Rust binary for concatenation
         try:
-            # Concatenate chunks into final output
-            print("Concatenating chunks into final output...")
-            with gzip.open(output_file, 'wb') as outfile:
-                for chunk_file in chunk_files:
-                    if os.path.exists(chunk_file):  # Check if chunk file exists
-                        with gzip.open(chunk_file, 'rb') as infile:
-                            shutil.copyfileobj(infile, outfile, length=1024*1024)
-                        os.remove(chunk_file)  # Clean up chunk file
-                    else:
-                        print(f"Warning: Chunk file {chunk_file} not found")
-            print("Finished concatenating chunks")
-        except Exception as e:
-            print(f"Error in concatenating chunks: {e}")
-            print("Falling back to single-process mode")
-            # Fall back to single-process concatenation
-            with gzip.open(output_file, 'wb') as outfile:
-                for fastq_file in unique_files:
-                    try:
-                        if fastq_file.endswith(".gz"):
-                            with gzip.open(fastq_file, 'rb') as infile:
-                                shutil.copyfileobj(infile, outfile, length=1024*1024)
-                        else:
-                            with open(fastq_file, 'rb') as infile:
-                                shutil.copyfileobj(infile, outfile, length=1024*1024)
-                    except Exception as e:
-                        print(f"Error processing file {fastq_file}: {e}")
-                        continue
-        finally:
-            # Clean up temporary directory
-            try:
-                shutil.rmtree(temp_dir)
-            except Exception as e:
-                print(f"Error cleaning up temporary directory: {e}")
+            cmd = [rust_binary, "-o", output_file] + file_paths
+            subprocess.run(cmd, check=True)
+            print(f"Successfully concatenated {len(file_paths)} files into {output_file}")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running concatenation tool: {e}")
+            print("Falling back to Python implementation")
+            self._concatenate_fastq_files_python(file_paths, output_file)
 
-        print(f"Successfully concatenated {len(unique_files)} files into {output_file}")
+    def _concatenate_fastq_files_python(self, file_paths, output_file):
+        """
+        Fallback Python implementation for concatenating FASTQ files.
+        """
+        unique_files = list(set(file_paths))
+        print(f"Concatenating {len(unique_files)} files using Python implementation...")
+        
+        with gzip.open(output_file, 'wb') as outfile:
+            for fastq_file in unique_files:
+                try:
+                    if fastq_file.endswith(".gz"):
+                        with gzip.open(fastq_file, 'rb') as infile:
+                            shutil.copyfileobj(infile, outfile, length=1024*1024)
+                    else:
+                        with open(fastq_file, 'rb') as infile:
+                            shutil.copyfileobj(infile, outfile, length=1024*1024)
+                except Exception as e:
+                    print(f"Error processing file {fastq_file}: {e}")
+                    continue
+
+        print(f"Successfully concatenated files into {output_file}")
 
     def concatenate_files(self, files, sample_name):
         if not files:
