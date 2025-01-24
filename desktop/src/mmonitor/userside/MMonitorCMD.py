@@ -269,7 +269,10 @@ class MMonitorCMD:
 
         # Use Rust binary for concatenation
         try:
-            cmd = [rust_binary, "-o", output_file] + file_paths
+            # Get number of threads from args or use default
+            threads = getattr(self.args, 'threads', multiprocessing.cpu_count())
+            cmd = [rust_binary, "-o", output_file, "--buffer-size", "32", "--threads", str(threads)] + file_paths
+            print(f"Running fast concatenation with {threads} threads...")
             subprocess.run(cmd, check=True)
             print(f"Successfully concatenated {len(file_paths)} files into {output_file}")
         except subprocess.CalledProcessError as e:
