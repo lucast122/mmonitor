@@ -12,7 +12,7 @@ import customtkinter as ctk
 from .PipelineStateTracker import PipelineStateTracker, PipelineStep
 from .ToolInstaller import ToolInstaller
 from .MetaBatRunner import MetaBatRunner
-from ..paths import SRC_DIR, LIB_DIR
+from ..paths import SRC_DIR, LIB_DIR, RESOURCES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,9 @@ class AssemblyPipeline:
         
         # Set up tool paths
         self.lib_path = LIB_DIR
-        self.flye_path = os.path.join(self.lib_path, "flye", "bin", "flye")
+        self.flye_path = os.path.join(LIB_DIR, "Flye-2.9.5", "bin", "flye")
         self.tool_installer = ToolInstaller()
-        self.minimap2_path = self._check_and_install_tool('minimap2')
+        self.minimap2_path = os.path.join(LIB_DIR, "minimap2", "minimap2")
         self.metabat_path = self._check_and_install_tool('metabat2')
         self.checkm2_path = self._check_and_install_tool('checkm2')
         self.bakta_path = self._check_and_install_tool('bakta')
@@ -774,16 +774,3 @@ class AssemblyPipeline:
                 print(f"Tool {tool} not available, some pipeline steps may be skipped")
                 if tool in ['minimap2', 'flye']:  # These are essential
                     raise RuntimeError(f"Essential tool {tool} is not available")
-
-    def run_checkm2_quality(self, bins_dir, output_dir, threads=None):
-        """Run CheckM2 quality assessment on genome bins
-        
-        Args:
-            bins_dir (str): Directory containing genome bins
-            output_dir (str): Output directory for CheckM2 results
-            threads (int, optional): Number of threads to use. Defaults to None.
-            
-        Returns:
-            str: Path to quality report file
-        """
-        return self._run_checkm2(bins_dir, threads)
