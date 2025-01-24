@@ -273,10 +273,16 @@ class MMonitorCMD:
             threads = getattr(self.args, 'threads', multiprocessing.cpu_count())
             cmd = [rust_binary, "-o", output_file, "--buffer-size", "32", "--threads", str(threads)] + file_paths
             print(f"Running fast concatenation with {threads} threads...")
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if result.stdout:
+                print(result.stdout)
             print(f"Successfully concatenated {len(file_paths)} files into {output_file}")
         except subprocess.CalledProcessError as e:
             print(f"Error running concatenation tool: {e}")
+            if e.stdout:
+                print("Tool output:", e.stdout)
+            if e.stderr:
+                print("Tool error:", e.stderr)
             print("Falling back to Python implementation")
             self._concatenate_fastq_files_python(file_paths, output_file)
 
@@ -589,13 +595,10 @@ class MMonitorCMD:
                     
                     print(f"Starting assembly pipeline for {self.args.sample}")
                     
-                    # Create temporary concatenated file
+                    # Create temporary concatenated file using fast concatenation
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
                         print(f"Concatenating input files to {temp_file.name}")
-                        with gzip.open(temp_file.name, 'wb') as outfile:
-                            for filename in input_files:
-                                with gzip.open(filename, 'rb') as infile:
-                                    shutil.copyfileobj(infile, outfile)
+                        self.concatenate_fastq_files(input_files, temp_file.name)
                         
                         # Run Flye assembly with concatenated file
                         print("Running Flye assembly...")
