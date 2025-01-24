@@ -720,35 +720,31 @@ class AssemblyPipeline:
         flye_out = os.path.join(output_dir, "flye_out")
         os.makedirs(flye_out, exist_ok=True)
 
-        # First check if minimap2 is available in system PATH
+        # Get the Flye bin directory
+        flye_bin_dir = os.path.dirname(self.flye_path)
+        flye_lib_dir = os.path.dirname(os.path.dirname(flye_bin_dir))
+
+        # Create a symlink to minimap2 in Flye's bin directory
         try:
-            minimap2_system = subprocess.check_output(["which", "minimap2"]).decode().strip()
-            print(f"Found system minimap2 at: {minimap2_system}")
-            
-            # Test if minimap2 works
-            try:
-                subprocess.run([minimap2_system, "--version"], check=True, capture_output=True)
-                print("System minimap2 is working")
-                # Use system minimap2
-                os.environ['PATH'] = f"/usr/bin:{os.environ['PATH']}"
-            except subprocess.CalledProcessError:
-                print("System minimap2 not working, will try local version")
-                minimap2_system = None
+            minimap2_target = os.path.join(flye_bin_dir, "minimap2")
+            if not os.path.exists(minimap2_target):
+                os.symlink("/usr/bin/minimap2", minimap2_target)
+                print(f"Created symlink to minimap2 in Flye's bin directory: {minimap2_target}")
+        except Exception as e:
+            print(f"Warning: Could not create minimap2 symlink: {e}")
+
+        # Add both Flye's bin directory and system bin to PATH
+        os.environ['PATH'] = f"{flye_bin_dir}:/usr/bin:{os.environ['PATH']}"
+        print(f"Updated PATH: {os.environ['PATH']}")
+
+        # Try to locate minimap2
+        try:
+            minimap2_path = subprocess.check_output(["which", "minimap2"]).decode().strip()
+            print(f"Found minimap2 at: {minimap2_path}")
         except subprocess.CalledProcessError:
-            print("No system minimap2 found, will try local version")
-            minimap2_system = None
+            print("Warning: minimap2 not found in PATH")
 
-        # If system minimap2 not available, try local version
-        if not minimap2_system:
-            minimap2_dir = os.path.dirname(self.minimap2_path)
-            if os.path.exists(self.minimap2_path):
-                print(f"Using local minimap2 at: {self.minimap2_path}")
-                os.chmod(self.minimap2_path, 0o755)
-                os.environ['PATH'] = f"{minimap2_dir}:{os.environ['PATH']}"
-            else:
-                print(f"Warning: No minimap2 found at {self.minimap2_path}")
-
-        # Run Flye with the configured environment
+        # Run Flye
         cmd = [self.flye_path, "--nano-raw"] + input_files + ["--out-dir", flye_out, "--threads", str(threads)]
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True, env=os.environ)
