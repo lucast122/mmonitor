@@ -236,32 +236,6 @@ class MMonitorCMD:
 
         return parsed_args
 
-    def _process_file_chunk(self, chunk_info):
-        """Process a chunk of files and save to a temporary file"""
-        chunk_files, chunk_id, temp_dir = chunk_info
-        chunk_output = os.path.join(temp_dir, f"chunk_{chunk_id}.gz")
-        print(f"Process {os.getpid()} starting chunk {chunk_id} with {len(chunk_files)} files")
-        
-        try:
-            with gzip.open(chunk_output, 'wb') as outfile:
-                for idx, fastq_file in enumerate(chunk_files, 1):
-                    try:
-                        if fastq_file.endswith(".gz"):
-                            with gzip.open(fastq_file, 'rb') as infile:
-                                shutil.copyfileobj(infile, outfile, length=1024*1024)
-                        else:
-                            with open(fastq_file, 'rb') as infile:
-                                shutil.copyfileobj(infile, outfile, length=1024*1024)
-                        print(f"Process {os.getpid()} completed file {idx}/{len(chunk_files)} in chunk {chunk_id}")
-                    except Exception as e:
-                        print(f"Error processing file {fastq_file}: {e}")
-                        continue
-            print(f"Process {os.getpid()} completed chunk {chunk_id}")
-            return chunk_output
-        except Exception as e:
-            print(f"Error creating chunk {chunk_id}: {e}")
-            return None
-
     def concatenate_fastq_files(self, file_paths, output_file):
         """
         Concatenate FASTQ files in parallel using multiprocessing.
@@ -278,40 +252,73 @@ class MMonitorCMD:
         print(f"Number of unique files to process: {len(unique_files)}")
         
         # Determine chunk size for parallel processing
-        num_cores = os.cpu_count()
-        chunk_size = max(1, len(unique_files) // num_cores)  # One chunk per core
+        num_cores = min(os.cpu_count(), len(unique_files))
+        chunk_size = max(1, len(unique_files) // num_cores)
         print(f"Using {num_cores} CPU cores with chunk size of {chunk_size}")
         
         # Create temporary directory for chunks
         temp_dir = os.path.join(os.path.dirname(output_file), ".temp_chunks")
         os.makedirs(temp_dir, exist_ok=True)
 
-        # Split files into chunks
-        file_chunks = []
+        def process_chunk(chunk_files, chunk_id):
+            """Process a chunk of files in a separate process"""
+            chunk_output = os.path.join(temp_dir, f"chunk_{chunk_id}.gz")
+            print(f"Process {os.getpid()} starting chunk {chunk_id} with {len(chunk_files)} files")
+            
+            try:
+                with gzip.open(chunk_output, 'wb') as outfile:
+                    for idx, fastq_file in enumerate(chunk_files, 1):
+                        try:
+                            if fastq_file.endswith(".gz"):
+                                with gzip.open(fastq_file, 'rb') as infile:
+                                    shutil.copyfileobj(infile, outfile, length=1024*1024)
+                            else:
+                                with open(fastq_file, 'rb') as infile:
+                                    shutil.copyfileobj(infile, outfile, length=1024*1024)
+                            print(f"Process {os.getpid()} completed file {idx}/{len(chunk_files)} in chunk {chunk_id}")
+                        except Exception as e:
+                            print(f"Error processing file {fastq_file}: {e}")
+                            continue
+            except Exception as e:
+                print(f"Error creating chunk {chunk_id}: {e}")
+
+        # Split files into chunks and create processes
+        processes = []
         for i in range(0, len(unique_files), chunk_size):
             chunk = unique_files[i:i + chunk_size]
-            file_chunks.append((chunk, i // chunk_size, temp_dir))
+            p = multiprocessing.Process(target=process_chunk, args=(chunk, i // chunk_size))
+            processes.append(p)
 
-        print(f"Created {len(file_chunks)} chunks for parallel processing")
+        print(f"Created {len(processes)} processes for parallel processing")
 
-        # Process chunks in parallel
+        # Start all processes
+        for p in processes:
+            p.start()
+            print(f"Started process {p.pid}")
+
+        # Wait for all processes to complete
+        for p in processes:
+            p.join()
+            print(f"Process {p.pid} completed")
+
+        # Get list of chunk files
+        chunk_files = sorted([os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.startswith("chunk_")])
+        print(f"Found {len(chunk_files)} chunk files")
+
         try:
-            with multiprocessing.Pool(processes=num_cores) as pool:
-                print(f"Starting pool with {num_cores} processes")
-                chunk_files = list(pool.map(self._process_file_chunk, file_chunks))
-                chunk_files = [f for f in chunk_files if f is not None]
-                print(f"Completed processing {len(chunk_files)} chunks")
-
             # Concatenate chunks into final output
             print("Concatenating chunks into final output...")
             with gzip.open(output_file, 'wb') as outfile:
                 for chunk_file in chunk_files:
-                    with gzip.open(chunk_file, 'rb') as infile:
-                        shutil.copyfileobj(infile, outfile, length=1024*1024)
-                    os.remove(chunk_file)  # Clean up chunk file
+                    if os.path.exists(chunk_file):  # Check if chunk file exists
+                        with gzip.open(chunk_file, 'rb') as infile:
+                            shutil.copyfileobj(infile, outfile, length=1024*1024)
+                        os.remove(chunk_file)  # Clean up chunk file
+                    else:
+                        print(f"Warning: Chunk file {chunk_file} not found")
             print("Finished concatenating chunks")
         except Exception as e:
-            print(f"Error in parallel processing: {e}")
+            print(f"Error in concatenating chunks: {e}")
             print("Falling back to single-process mode")
             # Fall back to single-process concatenation
             with gzip.open(output_file, 'wb') as outfile:
