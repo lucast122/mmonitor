@@ -1,12 +1,13 @@
-import tkinter as tk
-import customtkinter as ctk
 import os
 import json
-from tkinter import filedialog, messagebox
+import customtkinter as ctk
+from tkinter import messagebox
+from ..paths import SRC_DIR, RESOURCES_DIR
+import tkinter as tk
+import filedialog
 import multiprocessing
 from mmonitor.userside.utils import create_tooltip
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
-from build_mmonitor_pyinstaller import ROOT
 
 class PipelineConfig(ctk.CTkFrame):
     def __init__(self, parent, main_window=None):
@@ -18,7 +19,7 @@ class PipelineConfig(ctk.CTkFrame):
         self.pipeline_config = {}
         
         # Load configuration
-        self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.config_file = os.path.join(SRC_DIR, "resources", "pipeline_config.json")
         
         # Initialize variables first
         self.analysis_type = ctk.StringVar(value='taxonomy-wgs')  # Default value
@@ -433,4 +434,3 @@ class PipelineConfig(ctk.CTkFrame):
             "medaka_model": self.medaka_model.get(),
         }
         self.gui.run_pipeline(analysis_type, params)
-

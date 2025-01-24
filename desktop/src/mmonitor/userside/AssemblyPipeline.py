@@ -12,7 +12,7 @@ import customtkinter as ctk
 from .PipelineStateTracker import PipelineStateTracker, PipelineStep
 from .ToolInstaller import ToolInstaller
 from .MetaBatRunner import MetaBatRunner
-from build_mmonitor_pyinstaller import ROOT
+from ..paths import SRC_DIR, LIB_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class AssemblyPipeline:
         self.default_threads = multiprocessing.cpu_count()
         
         # Set up tool paths
-        self.lib_path = os.path.join(ROOT, "lib")
+        self.lib_path = LIB_DIR
         self.flye_path = os.path.join(self.lib_path, "flye", "bin", "flye")
         self.tool_installer = ToolInstaller()
         self.minimap2_path = self._check_and_install_tool('minimap2')

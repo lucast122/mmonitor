@@ -34,3 +34,4 @@ which checkm2
 
 # Print path for Python to capture
 echo "CHECKM2_PATH=$(which checkm2)"
+

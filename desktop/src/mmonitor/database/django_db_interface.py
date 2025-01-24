@@ -12,13 +12,12 @@ import keyring
 from keyring.errors import PasswordDeleteError
 from requests.packages.urllib3.exceptions import InsecureRequestWarning # type: ignore
 from requests.exceptions import Timeout, RequestException
-from build_mmonitor_pyinstaller import ROOT
 import threading
 import traceback
 import datetime
 
-
-
+# Get the src directory path
+SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Disable the InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -551,11 +550,3 @@ class DjangoDBInterface:
             files['gff_file'].close()
             files['fasta_file'].close()
             files['fai_file'].close()
-
- 
-
-
-
-
-
-

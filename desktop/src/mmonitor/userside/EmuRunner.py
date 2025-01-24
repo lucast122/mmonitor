@@ -1,23 +1,31 @@
-import sys
-import gzip
-import logging
-import multiprocessing
 import os
 import subprocess
-import time
-from contextlib import redirect_stdout
-
 import pandas as pd
+import numpy as np
+from Bio import SeqIO
+import gzip
+import logging
+import sys
+from ..paths import SRC_DIR, LIB_DIR, RESOURCES_DIR
 
-from build_mmonitor_pyinstaller import ROOT
-from lib import emu
+# Add local-build/emu to Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+emu_path = os.path.join(project_root, 'local-build', 'emu')
+if emu_path not in sys.path:
+    sys.path.insert(0, emu_path)
+
+try:
+    from emu import emu
+except ImportError:
+    print(f"Warning: Could not import emu module from {emu_path}")
+    print("Make sure the emu module is installed in local-build/emu/")
 
 class EmuRunner:
 
     def __init__(self, custom_db_path=None):
         self.concat_file_name = None
         self.logger = logging.getLogger('timestamp')
-        self.emu_path = os.path.join(ROOT, "lib", "emu.py")
+        self.emu_path = os.path.join(emu_path, "emu")
         self.check_emu()
         self.emu_out = ""
         self.custom_db_path = custom_db_path or os.environ.get('EMU_DATABASE_DIR')

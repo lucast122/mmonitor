@@ -11,7 +11,7 @@ import os
 import pandas as pd
 import requests
 
-from build_mmonitor_pyinstaller import ROOT
+from ..paths import SRC_DIR, RESOURCES_DIR
 
 """
 This is a runner for a functional analysis pipeline. As input it takes raw nanopore reads, then assembles them with
@@ -31,9 +31,9 @@ class FunctionalRunner:
         self.working_directory = os.getcwd()
         # get absolute path of all tools used and safe as class variable
         # os.chdir("../../lib/")
-        self.flye_path = os.path.join(ROOT, "lib", "Flye-2.9.5", "bin", "flye")
-        self.resources_path = os.path.join(ROOT,"src","resources")
-        self.minimap2_path = os.path.join(ROOT, "lib", "minimap2", "minimap2")
+        self.flye_path = os.path.join(SRC_DIR, "lib", "Flye-2.9.5", "bin", "flye")
+        self.resources_path = RESOURCES_DIR
+        self.minimap2_path = os.path.join(SRC_DIR, "lib", "minimap2", "minimap2")
 
         print(self.flye_path)
         print(self.minimap2_path)
@@ -88,7 +88,7 @@ class FunctionalRunner:
 
     def check_software_avail(self):
         try:
-            subprocess.call([f'python3 {ROOT}/lib/Flye-2.9/bin/flye', '-h'], stdout=open(os.devnull, 'w'),
+            subprocess.call([f'python3 {SRC_DIR}/lib/Flye-2.9/bin/flye', '-h'], stdout=open(os.devnull, 'w'),
                             stderr=subprocess.STDOUT)
         except FileNotFoundError:
             self.logger.error("Flye executable not found.")
@@ -449,7 +449,7 @@ class FunctionalRunner:
 
     def run_keggcharter(self, kegg_out, keggcharter_input):
         # self.create_keggcharter_input(keggcharter_input)
-        cmd = f"python {ROOT}/lib/KEGGCharter-0.3.4/keggcharter.py -o {kegg_out} -f {keggcharter_input} -tc taxonomy -ecc EC_number --input-quantification -mm {self.kegg_ids}"
+        cmd = f"python {SRC_DIR}/lib/KEGGCharter-0.3.4/keggcharter.py -o {kegg_out} -f {keggcharter_input} -tc taxonomy -ecc EC_number --input-quantification -mm {self.kegg_ids}"
         os.system(cmd)
 
     def run_flye(self, input_files, sample_name, output_dir, threads):
