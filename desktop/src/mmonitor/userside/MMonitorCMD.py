@@ -22,19 +22,17 @@ import getpass
 import time
 import tempfile
 
-# Add the parent directory of 'src' to sys.path
-src_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-sys.path.insert(0, src_parent_dir)
-src_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, src_parent_dir)
+# Add the src directory to Python path
+src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
 
-from build_mmonitor_pyinstaller import ROOT
-from ..database.django_db_interface import DjangoDBInterface
-from .FastqStatistics import FastqStatistics
-from .AssemblyPipeline import AssemblyPipeline
-from .CentrifugerRunner import CentrifugerRunner
-from .EmuRunner import EmuRunner
-from .FunctionalRunner import FunctionalRunner
+from mmonitor.database.django_db_interface import DjangoDBInterface
+from mmonitor.userside.FastqStatistics import FastqStatistics
+from mmonitor.userside.AssemblyPipeline import AssemblyPipeline
+from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
+from mmonitor.userside.EmuRunner import EmuRunner
+from mmonitor.userside.FunctionalRunner import FunctionalRunner
 
 class NumpyEncoder(json.JSONEncoder):
     """ Custom encoder for numpy data types """
@@ -57,26 +55,26 @@ class MMonitorCMD:
         self.centrifuger_runner = CentrifugerRunner()  
         self.functional_runner = FunctionalRunner()
         self.db_config = {}
-        self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
+        self.pipeline_out = os.path.join(src_dir, "resources", "pipeline_out")
         self.args = None
         self.django_db = None
         self.centrifuger_db = None
-        self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.db_path = os.path.join(src_dir, "resources", "pipeline_config.json")
         self.output_dir = None
         self.config = {}
-        self.emu_db_path = os.path.join(ROOT, "src", "resources", "emu_db")
+        self.emu_db_path = os.path.join(src_dir, "resources", "emu_db")
         self.offline_mode = False
         self.logged_in = False
         self.current_user = None
 
         # Add minimap2 from lib folder to PATH
-        minimap2_path = os.path.join(ROOT, "lib", "minimap2")
+        minimap2_path = os.path.join(src_dir, "lib", "minimap2")
         os.environ['PATH'] = f"{minimap2_path}:{os.environ['PATH']}"
         print(f"Updated PATH: {os.environ['PATH']}")
 
         # Use separate config files
-        self.db_config_path = os.path.join(ROOT, "src", "resources", "db_config.json")
-        self.pipeline_config_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.db_config_path = os.path.join(src_dir, "resources", "db_config.json")
+        self.pipeline_config_path = os.path.join(src_dir, "resources", "pipeline_config.json")
         
         # Load database config for authentication with error handling
         try:
@@ -136,7 +134,7 @@ class MMonitorCMD:
             self.centrifuger_db = os.path.abspath(self.config['centrifuger_db'])
         else:
             # Use default path from config or fallback
-            default_db = os.path.join(ROOT, "src", "resources", "custom_centrifuger_db", 
+            default_db = os.path.join(src_dir, "resources", "custom_centrifuger_db", 
                                     "ncbi_build_20241030_090603", "cfr_ncbi")
             self.centrifuger_db = os.path.abspath(default_db)
         
@@ -390,7 +388,7 @@ class MMonitorCMD:
             print(f"Failed to update database with results for sample {sample_name}.")
 
     def update_database_16s(self, sample_name, project_name, subproject_name, sample_date):
-        emu_out_path = os.path.join(ROOT, "src", "resources", "pipeline_out", sample_name)
+        emu_out_path = os.path.join(self.pipeline_out, sample_name)
         if not os.path.exists(emu_out_path):
             print(f"No output directory found for sample {sample_name}. Skipping database update.")
             return False

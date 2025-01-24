@@ -4,7 +4,7 @@ import gzip
 import shutil
 import multiprocessing
 import logging
-from build_mmonitor_pyinstaller import ROOT
+from ..paths import SRC_DIR, RESOURCES_DIR
 from Bio import SeqIO
 from concurrent.futures import ThreadPoolExecutor
 import concurrent
@@ -19,8 +19,8 @@ class CentrifugerRunner:
     def __init__(self):
         self.centrifuger_path = "centrifuger"
         self.logger = logging.getLogger('timestamp')
-        self.pipeline_out = os.path.join(ROOT, "src", "resources", "pipeline_out")
-        self.temp_dir = os.path.join(ROOT, "src", "resources", "temp")
+        self.pipeline_out = os.path.join(SRC_DIR, "src", "resources", "pipeline_out")
+        self.temp_dir = os.path.join(SRC_DIR, "src", "resources", "temp")
         os.makedirs(self.temp_dir, exist_ok=True)
 
     def get_files_from_folder(self, folder):

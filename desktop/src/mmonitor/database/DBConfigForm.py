@@ -1,11 +1,11 @@
-import json
 import os
-import tkinter as tk
-from tkinter import messagebox
-
+import json
 import customtkinter as ctk
+from tkinter import messagebox
+import tkinter as tk
 
-from build_mmonitor_pyinstaller import ROOT
+# Get the src directory path
+SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 """
 Class DatabaseConfigForm
@@ -16,7 +16,7 @@ Host: Public IP adress of the mmonitor webserver instance (server part of softwa
 User: Username on mmonitor webserver (used for registration)
 Password: Password on mmonitor webserver (used for registration)
 
-save_config(): saves the config as a json file under f"{ROOT}/src/resources/db_config.json" 
+save_config(): saves the config as a json file under f"{SRC_DIR}/resources/db_config.json" 
 
 NOTE: After registration an admin has to unlock account first
 """
@@ -37,9 +37,9 @@ class DataBaseConfigForm(ctk.CTkToplevel):
 
         # Load last config if it exists
         self.last_config = {}
-        if os.path.exists(f"{ROOT}/src/resources/db_config.json"):
+        if os.path.exists(f"{SRC_DIR}/resources/db_config.json"):
             try:
-                with open(f"{ROOT}/src/resources/db_config.json", "r") as f:
+                with open(f"{SRC_DIR}/resources/db_config.json", "r") as f:
                     self.last_config = json.load(f)
             except json.JSONDecodeError:
                 messagebox.showerror("Error", "Couldn't load the previous DB configuration")
@@ -85,7 +85,7 @@ class DataBaseConfigForm(ctk.CTkToplevel):
         #     config["password"] = hashlib.sha256(config["password"].encode()).hexdigest()
         # try without hashing for now
 
-        with open(f"{ROOT}/src/resources/db_config.json", "w") as f:
+        with open(f"{SRC_DIR}/resources/db_config.json", "w") as f:
             json.dump(config, f)
 
         messagebox.showinfo("Success", "DB Config saved successfully")
@@ -93,4 +93,3 @@ class DataBaseConfigForm(ctk.CTkToplevel):
         print("Updated db_config path")
 
         self.destroy()
-

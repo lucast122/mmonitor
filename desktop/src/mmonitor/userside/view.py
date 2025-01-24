@@ -20,7 +20,7 @@ import datetime
 import queue
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
-from build_mmonitor_pyinstaller import ROOT, IMAGES_PATH
+from ..paths import ROOT, IMAGES_PATH
 from mmonitor.dashapp.index import Index
 import requests
 
@@ -1205,33 +1205,3 @@ class CustomDatePicker(ctk.CTkToplevel):
             self.destroy()
         except ValueError:
             messagebox.showerror("Invalid Date", "Please enter a valid date.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
