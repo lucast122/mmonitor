@@ -595,44 +595,51 @@ class MMonitorCMD:
                     
                     print(f"Starting assembly pipeline for {self.args.sample}")
                     
-                    # Create temporary concatenated file using fast concatenation
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
-                        print(f"Concatenating input files to {temp_file.name}")
-                        self.concatenate_fastq_files(input_files, temp_file.name)
+                    # Only concatenate if we have multiple files
+                    if len(input_files) > 1:
+                        # Create temporary concatenated file using fast concatenation
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
+                            print(f"Concatenating {len(input_files)} input files to {temp_file.name}")
+                            self.concatenate_fastq_files(input_files, temp_file.name)
+                            input_file = temp_file.name
+                    else:
+                        input_file = input_files[0]
+                        print(f"Single input file, skipping concatenation: {input_file}")
                         
-                        # Run Flye assembly with concatenated file
-                        print("Running Flye assembly...")
-                        assembly_file = runner.run_flye(
-                            input_files=[temp_file.name],  # Pass as list with single concatenated file
-                            sample_name=self.args.sample,
-                            output_dir=sample_output_dir,
-                            threads=self.args.threads
-                        )
+                    # Run Flye assembly with input file
+                    print("Running Flye assembly...")
+                    assembly_file = runner.run_flye(
+                        input_files=[input_file],  # Pass as list with single concatenated file
+                        sample_name=self.args.sample,
+                        output_dir=sample_output_dir,
+                        threads=self.args.threads
+                    )
+                    
+                    # Run Medaka for assembly correction
+                    print("Running Medaka correction...")
+                    corrected_assembly = runner.run_medaka(
+                        assembly_file,
+                        reads=input_file,  # Use concatenated file
+                        output_dir=sample_output_dir,
+                        threads=self.args.threads
+                    )
+                    
+                    # Run MetaBAT2 for binning
+                    print("Running MetaBAT2 binning...")
+                    bins_dir = runner.run_metabat2(
+                        assembly=corrected_assembly,
+                        reads=input_file,  # Use concatenated file
+                        output_dir=sample_output_dir,
+                        threads=self.args.threads
+                    )
+                    
+                    # Clean up temp file
+                    if len(input_files) > 1:
+                        os.unlink(input_file)
                         
-                        # Run Medaka for assembly correction
-                        print("Running Medaka correction...")
-                        corrected_assembly = runner.run_medaka(
-                            assembly_file,
-                            reads=temp_file.name,  # Use concatenated file
-                            output_dir=sample_output_dir,
-                            threads=self.args.threads
-                        )
-                        
-                        # Run MetaBAT2 for binning
-                        print("Running MetaBAT2 binning...")
-                        bins_dir = runner.run_metabat2(
-                            assembly=corrected_assembly,
-                            reads=temp_file.name,  # Use concatenated file
-                            output_dir=sample_output_dir,
-                            threads=self.args.threads
-                        )
-                        
-                        # Clean up temp file
-                        os.unlink(temp_file.name)
-                        
-                        success = True
-                        print(f"Assembly pipeline completed successfully for {self.args.sample}")
-                        
+                    success = True
+                    print(f"Assembly pipeline completed successfully for {self.args.sample}")
+                    
                 except Exception as e:
                     print(f"Error in assembly pipeline: {str(e)}")
                     traceback.print_exc()

@@ -241,16 +241,19 @@ class AssemblyPipeline:
             if not self.is_step_completed(PipelineStep.FLYE_ASSEMBLY):
                 print("Running Flye assembly...")
                 flye_output = os.path.join(self.sample_dir, "flye_out")
+                
                 # Handle multiple input files
                 if len(input_files) > 1:
                     # Use fast concatenation from MMonitorCMD
                     from .MMonitorCMD import MMonitorCMD
                     cmd = MMonitorCMD()
                     concat_file = os.path.join(self.sample_dir, f"{self.sample_name}_concatenated.fastq.gz")
+                    print(f"Concatenating {len(input_files)} input files to {concat_file}")
                     cmd.concatenate_fastq_files(input_files, concat_file)
                     input_file = concat_file
                 else:
                     input_file = input_files[0]
+                    print(f"Single input file, skipping concatenation: {input_file}")
                 
                 assembly_file = self.run_flye(input_file, self.sample_name, flye_output, threads)
                 if not assembly_file:
