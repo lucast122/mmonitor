@@ -243,16 +243,11 @@ class AssemblyPipeline:
                 flye_output = os.path.join(self.sample_dir, "flye_out")
                 # Handle multiple input files
                 if len(input_files) > 1:
-                    # Concatenate input files
-                    concat_file = os.path.join(self.sample_dir, f"{self.sample_name}_concatenated.fastq")
-                    with open(concat_file, 'wb') as outfile:
-                        for input_file in input_files:
-                            if input_file.endswith('.gz'):
-                                with gzip.open(input_file, 'rb') as infile:
-                                    outfile.write(infile.read())
-                            else:
-                                with open(input_file, 'rb') as infile:
-                                    outfile.write(infile.read())
+                    # Use fast concatenation from MMonitorCMD
+                    from .MMonitorCMD import MMonitorCMD
+                    cmd = MMonitorCMD()
+                    concat_file = os.path.join(self.sample_dir, f"{self.sample_name}_concatenated.fastq.gz")
+                    cmd.concatenate_fastq_files(input_files, concat_file)
                     input_file = concat_file
                 else:
                     input_file = input_files[0]
