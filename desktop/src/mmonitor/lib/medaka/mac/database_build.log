@@ -1,0 +1,219 @@
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Loaded config: host=mmonitor.org, port=443, offline_mode=False
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+GUI initialization complete.
+Starting MMonitor application...
+Starting local Django server...
+Killing existing Django process: 42518
+Killing existing Django process: 42520
+Killing existing Django process: 63522
+Killing existing Django process: 63526
+Killing existing Django process: 63740
+Killing existing Django process: 63742
+Killing existing Django process: 79980
+Killing existing Django process: 79982
+Killing existing Django process: 85852
+Killing existing Django process: 85854
+Killing existing Django process: 88235
+Killing existing Django process: 88237
+Killing existing Django process: 94433
+Killing existing Django process: 94434
+Error starting Django server: [Errno 2] No such file or directory: '/Users/timo/PycharmProjects/MMonitor/desktop/server'
+Error setting up offline mode: [Errno 2] No such file or directory: '/Users/timo/PycharmProjects/MMonitor/desktop/server'
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/tkinter/__init__.py", line 1968, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/tkinter/__init__.py", line 862, in callit
+    func(*args)
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/src/mmonitor/userside/LoginWindow.py", line 270, in <lambda>
+    self.after(0, lambda: self.show_error(f"Error setting up offline mode: {str(e)}"))
+                                                                                ^
+NameError: cannot access free variable 'e' where it is not associated with a value in enclosing scope
+Exception in thread Thread-1 (server_setup_thread):
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1073, in _bootstrap_inner
+    self.run()
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py", line 1010, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/src/mmonitor/userside/LoginWindow.py", line 245, in server_setup_thread
+    self.start_local_server()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/src/mmonitor/userside/LoginWindow.py", line 158, in start_local_server
+    os.chdir(django_dir)
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/timo/PycharmProjects/MMonitor/desktop/server'
+GUI initialization complete.
+Starting MMonitor application...
+Starting local Django server...
+GUI initialization complete.
+Starting MMonitor application...
+Starting local Django server...
+Killing existing Django process: 6665
+Killing existing Django process: 6666
+GUI initialization complete.
+Starting MMonitor application...
+Starting local Django server...
+Killing existing Django process: 6720
+Killing existing Django process: 6721
+GUI initialization complete.
+Starting MMonitor application...
+Starting local Django server...
+Killing existing Django process: 6903
+Killing existing Django process: 6904
+Error starting Django server: Server directory not found at /Users/timo/PycharmProjects/MMonitor/desktop/server
+Error setting up offline mode: Server directory not found at /Users/timo/PycharmProjects/MMonitor/desktop/server
+GUI initialization complete.
+Starting MMonitor application...
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server
+GUI initialization complete.
+Starting MMonitor application...
+Starting Django server at /Users/timo/PycharmProjects/MMonitor/server

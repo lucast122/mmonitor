@@ -11,7 +11,7 @@ import os
 import pandas as pd
 import requests
 
-from ..paths import SRC_DIR, RESOURCES_DIR
+from ..paths import SRC_DIR, LIB_DIR, RESOURCES_DIR
 
 """
 This is a runner for a functional analysis pipeline. As input it takes raw nanopore reads, then assembles them with
@@ -31,9 +31,9 @@ class FunctionalRunner:
         self.working_directory = os.getcwd()
         # get absolute path of all tools used and safe as class variable
         # os.chdir("../../lib/")
-        self.flye_path = os.path.join(SRC_DIR, "lib", "Flye-2.9.5", "bin", "flye")
+        self.flye_path = os.path.join(LIB_DIR, "Flye-2.9.5", "bin", "flye")
         self.resources_path = RESOURCES_DIR
-        self.minimap2_path = os.path.join(SRC_DIR, "lib", "minimap2", "minimap2")
+        self.minimap2_path = os.path.join(LIB_DIR, "minimap2", "minimap2")
 
         print(self.flye_path)
         print(self.minimap2_path)
