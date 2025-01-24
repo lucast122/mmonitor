@@ -20,11 +20,11 @@
 
 ### Key Features
 
-- ** Real-time Analysis**: Processes sequencing data as it is generated, enabling immediate insights.
-- ** GUI and CLI Interface for running pipelines**
-- ** Customizable Pipelines**: Allows users to configure analysis pipelines and use custom reference databases.
-- ** Visualization Dashboard**: Provides dynamic insights into taxonomic composition over time, quality scores, diversity indices, and taxonomy-metadata correlations.
-- ** Cross-platform Support**: Available for macOS, Linux, and Windows (Windows is limited to dashboard use, will implement pipeline support on windows in the future).
+- **Real-time Analysis**: Processes sequencing data as it is generated, enabling immediate insights.
+- **GUI and CLI Interface for running pipelines**
+- **Customizable Pipelines**: Allows users to configure analysis pipelines and use custom reference databases.
+- **Visualization Dashboard**: Provides dynamic insights into taxonomic composition over time, quality scores, diversity indices, and taxonomy-metadata correlations.
+- **Cross-platform Support**: Available for macOS, Linux, and Windows (Windows is limited to dashboard use, will implement pipeline support on windows in the future).
 ### Intended Audience
 
 MMonitor is designed for researchers in biology related fields who need to analyze microbial communities using nanopore sequencing (taxonomy and function) in real-time.
