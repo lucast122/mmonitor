@@ -7,12 +7,19 @@ import argparse
 import logging
 from datetime import datetime
 import keyring
-from .CentrifugerRunner import CentrifugerRunner
-from .FunctionalRunner import FunctionalRunner
-from .DjangoDBInterface import DjangoDBInterface
-from .EmuRunner import EmuRunner
-from .AssemblyPipeline import AssemblyPipeline
-from ..paths import src_dir
+
+# Add parent directory to Python path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
+from mmonitor.userside.FunctionalRunner import FunctionalRunner
+from mmonitor.userside.DjangoDBInterface import DjangoDBInterface
+from mmonitor.userside.EmuRunner import EmuRunner
+from mmonitor.userside.AssemblyPipeline import AssemblyPipeline
+from mmonitor.paths import src_dir
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -995,10 +1002,16 @@ class OutputLogger:
             pass
 
 
-# Example usage
+def main():
+    """Main entry point for the command line interface"""
+    try:
+        cmd = MMonitorCMD()
+        args = cmd.parse_arguments()
+        cmd.initialize_from_args(args)
+        cmd.run()
+    except Exception as e:
+        logger.error(f"Error running MMonitorCMD: {e}")
+        raise
 
 if __name__ == "__main__":
-    cmd_runner = MMonitorCMD()
-    args = cmd_runner.parse_arguments()
-    cmd_runner.initialize_from_args(args)
-    cmd_runner.run()
+    main()
