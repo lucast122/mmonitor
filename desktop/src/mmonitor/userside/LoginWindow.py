@@ -149,8 +149,8 @@ class LoginWindow(ctk.CTkFrame):
     def start_local_server(self):
         """Start the local Django server"""
         try:
-            # Get server path from main window
-            server_path = os.path.join("/Users", "timo", "Downloads", "home", "minion-computer", "mmonitor_production", "MMonitor", "server")
+            # Use local server path from root MMonitor directory
+            server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "server")
         
             if not os.path.exists(server_path):
                 raise FileNotFoundError(f"Server directory not found at {server_path}")

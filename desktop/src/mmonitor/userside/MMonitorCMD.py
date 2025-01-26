@@ -527,20 +527,35 @@ class MMonitorCMD:
 
         print("Functional analysis pipeline completed successfully.")
 
-    def concatenate_files(self, input_files, output_file):
-        try:
-            with open(output_file, 'wb') as outfile:
-                for filename in input_files:
-                    if filename.endswith('.gz'):
-                        with gzip.open(filename, 'rb') as infile:
-                            shutil.copyfileobj(infile, outfile)
-                    else:
-                        with open(filename, 'rb') as infile:
-                            shutil.copyfileobj(infile, outfile)
-            logger.info(f"Concatenated files saved to {output_file}")
-        except Exception as e:
-            logger.error(f"Error concatenating files: {str(e)}")
-            raise
+    def concatenate_files(self, files, sample_name):
+        if not files:
+            raise ValueError("The files list is empty.")
+
+        file_extension = ".fastq.gz" if files[0].endswith(".gz") else ".fastq"
+
+        # Ensure the first file has a valid directory path
+        first_file_dir = os.path.dirname(files[0])
+        if not first_file_dir:
+            raise ValueError("The directory of the first file is invalid.")
+
+        base_dir = first_file_dir
+        concat_file_name = os.path.join(base_dir, f"{sample_name}_concatenated{file_extension}")
+
+        # Debug: Print the directory and concatenated file path
+        print(f"Base directory: {base_dir}")
+        print(f"Concatenated file path: {concat_file_name}")
+
+        # Ensure the directory is writable
+        if not os.access(base_dir, os.W_OK):
+            raise PermissionError(f"Directory {base_dir} is not writable.")
+
+        # Check if the concatenated file already exists
+        if not os.path.exists(concat_file_name):
+            self.concatenate_fastq_files(files, concat_file_name)
+        else:
+            print(f"Concatenated file {concat_file_name} already exists. Skipping concatenation.")
+
+        return concat_file_name
 
     def load_config(self):
         if os.path.exists(self.args.config):
@@ -815,45 +830,41 @@ class MMonitorCMD:
     def authenticate_user(self, max_attempts=3):
         """Authenticate user before running analysis with multiple attempts"""
         if self.offline_mode:
-            # Start local server for offline mode
-            try:
-                server_path = "/Users/timo/Downloads/home/minion-computer/mmonitor_production/MMonitor/server"
-                if not os.path.exists(server_path):
-                    raise FileNotFoundError(f"Server directory not found at {server_path}")
-                
-                print(f"Starting Django server at {server_path}")
-                os.chdir(server_path)
-                
-                # Start server process
-                cmd = [sys.executable, "manage.py", "runserver", "127.0.0.1:8000"]
-                self.server_process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    bufsize=1
-                )
-                
-                # Wait for server to start
-                max_server_attempts = 30
-                attempt = 0
-                while attempt < max_server_attempts:
-                    try:
-                        response = requests.get("http://127.0.0.1:8000", timeout=1)
-                        if response.status_code == 200:
-                            print("Server detected as running!")
-                            break
-                    except requests.exceptions.RequestException:
-                        attempt += 1
-                        time.sleep(1)
-                
-                # Set up offline mode credentials
-                self.django_db.set_offline_mode(True)
-                return True
-                
-            except Exception as e:
-                print(f"Error starting offline server: {e}")
-                return False
+            # Use local server path from root MMonitor directory
+            server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "server")
+            if not os.path.exists(server_path):
+                raise FileNotFoundError(f"Server directory not found at {server_path}")
+            
+            print(f"Starting Django server at {server_path}")
+            os.chdir(server_path)
+            
+            # Start server process
+            cmd = [sys.executable, "manage.py", "runserver", "127.0.0.1:8000"]
+            self.server_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1
+            )
+            
+            # Wait for server to start
+            max_server_attempts = 30
+            attempt = 0
+            while attempt < max_server_attempts:
+                try:
+                    response = requests.get("http://127.0.0.1:8000", timeout=1)
+                    if response.status_code == 200:
+                        print("Server detected as running!")
+                        break
+                except requests.exceptions.RequestException:
+                    attempt += 1
+                    time.sleep(1)
+            
+            # Set up offline mode credentials
+            self.django_db.set_offline_mode(True)
+            return True
+            
         else:
             # Online mode authentication with multiple attempts
             attempts = 0

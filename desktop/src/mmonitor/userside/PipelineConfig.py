@@ -3,8 +3,9 @@ import json
 import customtkinter as ctk
 from tkinter import messagebox
 from ..paths import SRC_DIR, RESOURCES_DIR
+
 import tkinter as tk
-import filedialog
+from customtkinter import filedialog
 import multiprocessing
 from mmonitor.userside.utils import create_tooltip
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
@@ -19,7 +20,7 @@ class PipelineConfig(ctk.CTkFrame):
         self.pipeline_config = {}
         
         # Load configuration
-        self.config_file = os.path.join(SRC_DIR, "resources", "pipeline_config.json")
+        self.config_file = os.path.join(RESOURCES_DIR, "pipeline_config.json")
         
         # Initialize variables first
         self.analysis_type = ctk.StringVar(value='taxonomy-wgs')  # Default value
@@ -338,14 +339,17 @@ class PipelineConfig(ctk.CTkFrame):
             self.save_parameters()
 
     def update_widgets_from_config(self):
-        for key, value in self.config.items():
+        for key, value in self.pipeline_config.items():
             if hasattr(self, key):
                 getattr(self, key).set(value)
 
     def save_parameters(self):
         """Save parameters to config file"""
+        # Create resources directory if it doesn't exist
+        os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+        
         # Update pipeline_config with current values
-        self.pipeline_config.update({  # Changed from self.config
+        self.pipeline_config.update({  
             'analysis_type': self.analysis_type.get(),
             'threads': self.threads.get(),
             'min_length': self.min_length.get(),
@@ -359,9 +363,13 @@ class PipelineConfig(ctk.CTkFrame):
             'min_contig_length': self.min_contig_length.get()
         })
         
-        # Save to file
-        with open(self.config_file, 'w') as f:
-            json.dump(self.pipeline_config, f, indent=4)  # Changed from self.config
+        try:
+            # Save to file
+            with open(self.config_file, 'w') as f:
+                json.dump(self.pipeline_config, f, indent=4)
+        except Exception as e:
+            print(f"Error saving config file: {e}")
+            messagebox.showerror("Error", f"Failed to save configuration: {e}")
 
     def search_available_databases(self):
         """Search for available databases in default locations"""
