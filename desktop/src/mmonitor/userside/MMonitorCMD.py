@@ -3,25 +3,16 @@ import sys
 import json
 import gzip
 import shutil
-import traceback
 import argparse
 import logging
-import numpy as np
+from datetime import datetime
 import keyring
-import requests
-from datetime import datetime, date
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
-from Bio import SeqIO
-from Bio.SeqIO import FastaIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-import subprocess
-import getpass
-import time
-import tempfile
-import multiprocessing
+from .CentrifugerRunner import CentrifugerRunner
+from .FunctionalRunner import FunctionalRunner
+from .DjangoDBInterface import DjangoDBInterface
+from .EmuRunner import EmuRunner
+from .AssemblyPipeline import AssemblyPipeline
+from ..paths import src_dir
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -497,34 +488,69 @@ class MMonitorCMD:
             os.remove(concat_file_name)
 
     def assembly_pipeline(self):
+        """Run the assembly pipeline with checkpointing"""
         output_dir = os.path.join(self.pipeline_out, self.args.sample)
         os.makedirs(output_dir, exist_ok=True)
 
-        # Assembly with Flye
-        assembly_out = self.functional_runner.run_flye(self.args.input, self.args.sample, output_dir, self.args.threads)
-
-        # Correction with Medaka
-        corrected_assembly = self.functional_runner.run_medaka(assembly_out, self.args.input[0], output_dir, self.args.threads)
-
-        # Binning with MetaBAT2
-        bins_dir = self.functional_runner.run_metabat2(corrected_assembly, self.args.input[0], output_dir, self.args.threads)
-
-        print("Assembly pipeline completed successfully.")
+        # Initialize assembly pipeline with state tracking
+        pipeline = AssemblyPipeline(output_dir, self.args.sample, self.django_db)
+        
+        # Run assembly pipeline with proper checkpointing
+        success = pipeline.run_assembly(self.args.input, self.args.threads)
+        
+        if success:
+            print("Assembly pipeline completed successfully.")
+            # Upload results if we're not in offline mode
+            if not self.offline_mode and self.django_db:
+                try:
+                    self.django_db.upload_assembly_results(output_dir, self.args.sample)
+                    print("Assembly results uploaded successfully.")
+                except Exception as e:
+                    print(f"Failed to upload assembly results: {e}")
+        else:
+            print("Assembly pipeline failed. Check logs for details.")
 
     def functional_pipeline(self):
+        """Run the functional analysis pipeline with checkpointing"""
+        # First run assembly pipeline which has its own checkpointing
         self.assembly_pipeline()
+        
         output_dir = os.path.join(self.pipeline_out, self.args.sample)
-        bins_dir = os.path.join(output_dir, "metabat2_bins")
-
-        # CheckM2
-        checkm2_out = self.functional_runner.run_checkm2(bins_dir, output_dir, self.args.threads)
-
-        # Annotation with Bakta
-        bakta_out = self.functional_runner.run_bakta(bins_dir, output_dir, self.args.threads)
-
-        # Taxonomy with GTDB-TK
-        gtdbtk_out = self.functional_runner.run_gtdbtk(bins_dir, output_dir, self.args.threads)
-
+        pipeline = AssemblyPipeline(output_dir, self.args.sample, self.django_db)
+        
+        # Get bins directory from assembly pipeline state
+        bins_dir = pipeline.state_tracker.get_step_output("metabat_binning")
+        if not bins_dir or not os.path.exists(bins_dir):
+            print("No binned contigs found. Assembly pipeline may have failed.")
+            return
+            
+        # Run functional analysis steps with checkpointing
+        if not pipeline.state_tracker.is_step_complete("checkm2_quality"):
+            print("Running CheckM2 quality assessment...")
+            checkm2_out = self.functional_runner.run_checkm2(bins_dir, output_dir, self.args.threads)
+            if checkm2_out:
+                pipeline.state_tracker.mark_step_complete("checkm2_quality", checkm2_out)
+        
+        if not pipeline.state_tracker.is_step_complete("bakta_annotation"):
+            print("Running Bakta annotation...")
+            bakta_out = self.functional_runner.run_bakta(bins_dir, output_dir, self.args.threads)
+            if bakta_out:
+                pipeline.state_tracker.mark_step_complete("bakta_annotation", bakta_out)
+        
+        if not pipeline.state_tracker.is_step_complete("gtdbtk_taxonomy"):
+            print("Running GTDB-TK classification...")
+            gtdbtk_out = self.functional_runner.run_gtdbtk(bins_dir, output_dir, self.args.threads)
+            if gtdbtk_out:
+                pipeline.state_tracker.mark_step_complete("gtdbtk_taxonomy", gtdbtk_out)
+        
+        # Upload results if we're not in offline mode
+        if not self.offline_mode and self.django_db:
+            try:
+                self.django_db.upload_functional_results(output_dir, self.args.sample)
+                print("Functional analysis results uploaded successfully.")
+            except Exception as e:
+                print(f"Failed to upload functional analysis results: {e}")
+        
         print("Functional analysis pipeline completed successfully.")
 
     def concatenate_files(self, files, sample_name):
