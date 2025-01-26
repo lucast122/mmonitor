@@ -13,6 +13,7 @@ from .PipelineStateTracker import PipelineStateTracker, PipelineStep
 from .ToolInstaller import ToolInstaller
 from .MetaBatRunner import MetaBatRunner
 from ..paths import SRC_DIR, LIB_DIR, RESOURCES_DIR
+import glob
 
 logger = logging.getLogger(__name__)
 
@@ -333,19 +334,141 @@ class AssemblyPipeline:
                 else:
                     print("Skipping GTDB-Tk classification - tool not available")
 
-            # Upload results
-            self.state_tracker.set_current_step(PipelineStep.UPLOAD_TO_SERVER)
-            if progress_callback:
-                progress_callback("Uploading results...")
-            try:
-                if not self._upload_results(results["assembly"], results.get("bins")):
-                    raise RuntimeError("Failed to upload results to server")
-                self.state_tracker.mark_step_complete(PipelineStep.UPLOAD_TO_SERVER, {"uploaded_files": list(results.keys())})
-            except Exception as e:
-                self.state_tracker.mark_step_failed(PipelineStep.UPLOAD_TO_SERVER, str(e))
-                raise
+            # Run MetaBAT2 binning
+            if not self.is_step_completed(PipelineStep.METABAT_BINNING):
+                print("Running MetaBAT2 binning...")
+                bins_dir = os.path.join(self.sample_dir, "bins")
+                os.makedirs(bins_dir, exist_ok=True)
+                self.run_metabat2(results["assembly"], input_files[0], bins_dir, threads)
+                self.complete_step(PipelineStep.METABAT_BINNING, bins_dir)
+            else:
+                bins_dir = self.state_tracker.get_step_output(PipelineStep.METABAT_BINNING)
 
-            return results
+            # Run CheckM2 quality assessment
+            if not self.is_step_completed(PipelineStep.CHECKM2_QUALITY):
+                print("Running CheckM2 quality assessment...")
+                checkm2_dir = os.path.join(self.sample_dir, "checkm2")
+                os.makedirs(checkm2_dir, exist_ok=True)
+                checkm2_results = self.run_checkm2(bins_dir, checkm2_dir, threads)
+                self.complete_step(PipelineStep.CHECKM2_QUALITY, checkm2_results)
+            else:
+                checkm2_results = self.state_tracker.get_step_output(PipelineStep.CHECKM2_QUALITY)
+
+            # Run Bakta annotation
+            if not self.is_step_completed(PipelineStep.BAKTA_ANNOTATION):
+                print("Running Bakta annotation...")
+                bakta_dir = os.path.join(self.sample_dir, "bakta")
+                os.makedirs(bakta_dir, exist_ok=True)
+                bakta_results = self.run_bakta(bins_dir, bakta_dir, threads)
+                self.complete_step(PipelineStep.BAKTA_ANNOTATION, bakta_results)
+            else:
+                bakta_results = self.state_tracker.get_step_output(PipelineStep.BAKTA_ANNOTATION)
+
+            # Run KEGGCharter
+            kegg_dir = os.path.join(self.sample_dir, "kegg")
+            os.makedirs(kegg_dir, exist_ok=True)
+            from .FunctionalRunner import FunctionalRunner
+            functional_runner = FunctionalRunner()
+            
+            # Process each bin's Bakta output with KEGGCharter
+            for bin_dir in glob.glob(os.path.join(bakta_dir, "*")):
+                bin_name = os.path.basename(bin_dir)
+                kegg_out = os.path.join(kegg_dir, bin_name)
+                os.makedirs(kegg_out, exist_ok=True)
+                keggcharter_input = os.path.join(bin_dir, "keggcharter.tsv")
+                functional_runner.create_keggcharter_input(bin_dir)
+                functional_runner.run_keggcharter(kegg_out, keggcharter_input)
+
+            # Upload MAGs and annotations to Django server
+            print("Uploading results to server...")
+            try:
+                # Read CheckM2 quality results
+                quality_results = {}
+                with open(os.path.join(checkm2_dir, "quality_report.tsv"), 'r') as f:
+                    next(f)  # Skip header
+                    for line in f:
+                        bin_name, completeness, contamination, strain_het = line.strip().split('\t')
+                        quality_results[bin_name] = {
+                            'completeness': float(completeness),
+                            'contamination': float(contamination),
+                            'strain_heterogeneity': float(strain_het)
+                        }
+
+                # Read GTDB-TK taxonomy results
+                taxonomy_results = {}
+                gtdbtk_summary = os.path.join(self.sample_dir, "gtdbtk", "classify", "gtdbtk.summary.tsv")
+                if os.path.exists(gtdbtk_summary):
+                    with open(gtdbtk_summary, 'r') as f:
+                        next(f)  # Skip header
+                        for line in f:
+                            fields = line.strip().split('\t')
+                            bin_name = os.path.basename(fields[0])
+                            taxonomy = fields[1] if len(fields) > 1 else "Unknown"
+                            taxonomy_results[bin_name] = taxonomy
+
+                # Process each bin
+                for bin_path in glob.glob(os.path.join(bins_dir, "*.fa")):
+                    bin_name = os.path.basename(bin_path)
+                    bin_prefix = bin_name.rsplit('.', 1)[0]
+                    
+                    # Get quality metrics
+                    quality = quality_results.get(bin_name, {})
+                    
+                    # Get taxonomy
+                    taxonomy = taxonomy_results.get(bin_name, "Unknown")
+                    
+                    # Get Bakta annotation stats
+                    bakta_stats = {}
+                    bakta_json = os.path.join(bakta_dir, bin_prefix, f"{bin_prefix}.json")
+                    if os.path.exists(bakta_json):
+                        with open(bakta_json) as f:
+                            stats = json.load(f)
+                            bakta_stats = {
+                                'gene_count': stats.get('genes', {}).get('total', 0),
+                                'trna_count': stats.get('genes', {}).get('trna', 0),
+                                'rrna_count': stats.get('genes', {}).get('rrna', 0),
+                                'cds_count': stats.get('genes', {}).get('cds', 0)
+                            }
+                    
+                    # Get KEGG maps
+                    kegg_maps = []
+                    kegg_bin_dir = os.path.join(kegg_dir, bin_prefix)
+                    if os.path.exists(kegg_bin_dir):
+                        for map_file in glob.glob(os.path.join(kegg_bin_dir, "*.png")):
+                            map_id = os.path.basename(map_file).split('.')[0]
+                            kegg_maps.append({
+                                'map_id': map_id,
+                                'description': f"KEGG map {map_id}",
+                                'image_path': map_file
+                            })
+                    
+                    # Upload to Django server
+                    self.db_interface.upload_mag(
+                        name=f"{self.sample_name}_{bin_prefix}",
+                        taxonomy=taxonomy,
+                        sample_name=self.sample_name,
+                        gff_file_path=os.path.join(bakta_dir, bin_prefix, f"{bin_prefix}.gff3"),
+                        fasta_file_path=bin_path,
+                        completeness=quality.get('completeness'),
+                        contamination=quality.get('contamination'),
+                        strain_heterogeneity=quality.get('strain_heterogeneity'),
+                        **bakta_stats
+                    )
+                    
+                    # Upload KEGG maps
+                    for kegg_map in kegg_maps:
+                        self.db_interface.upload_kegg_map(
+                            mag_name=f"{self.sample_name}_{bin_prefix}",
+                            **kegg_map
+                        )
+                
+                print("Successfully uploaded all MAGs and annotations")
+                return True
+                
+            except Exception as e:
+                print(f"Error uploading results: {str(e)}")
+                traceback.print_exc()
+                return False
 
         except Exception as e:
             print(f"Error in assembly pipeline: {str(e)}")
@@ -624,51 +747,108 @@ class AssemblyPipeline:
             print(f"Error running Bakta: {str(e)}")
             return None
 
+    def run_checkm2(self, bins_dir, output_dir, threads=None):
+        """Run CheckM2 quality assessment on binned contigs
+        
+        Args:
+            bins_dir (str): Directory containing bin FASTA files
+            output_dir (str): Output directory for CheckM2 results
+            threads (int, optional): Number of threads to use. Defaults to None.
+            
+        Returns:
+            str: Path to CheckM2 output directory
+        """
+        if not threads:
+            threads = self.default_threads
+
+        # Check if CheckM2 is available
+        checkm2_path = self.tool_installer.check_tool('checkm2')
+        if not checkm2_path:
+            raise RuntimeError("CheckM2 not found. Please install it first.")
+
+        # Run CheckM2
+        cmd = f"{checkm2_path} predict -i {bins_dir} -o {output_dir}/quality_report.tsv -t {threads} --force"
+        print(f"Running CheckM2 command: {cmd}")
+        
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+            return output_dir
+        except subprocess.CalledProcessError as e:
+            print(f"Error running CheckM2: {str(e)}")
+            raise
+
+    def run_bakta(self, bins_dir, output_dir, threads=None):
+        """Run Bakta annotation on binned contigs
+        
+        Args:
+            bins_dir (str): Directory containing bin FASTA files
+            output_dir (str): Output directory for Bakta results
+            threads (int, optional): Number of threads to use. Defaults to None.
+            
+        Returns:
+            str: Path to Bakta output directory
+        """
+        if not threads:
+            threads = self.default_threads
+
+        # Check if Bakta is available
+        bakta_path = self.tool_installer.check_tool('bakta')
+        if not bakta_path:
+            raise RuntimeError("Bakta not found. Please install it first.")
+
+        # Check for Bakta database
+        bakta_db = self._check_bakta_db()
+        if not bakta_db:
+            raise RuntimeError("Bakta database not found. Please install it first.")
+
+        # Process each bin
+        for bin_file in glob.glob(os.path.join(bins_dir, "*.fa")):
+            bin_name = os.path.basename(bin_file).rsplit('.', 1)[0]
+            bin_output = os.path.join(output_dir, bin_name)
+            os.makedirs(bin_output, exist_ok=True)
+
+            # Run Bakta
+            cmd = f"{bakta_path} --db {bakta_db} --output {bin_output} --prefix {bin_name} --threads {threads} {bin_file}"
+            print(f"Running Bakta on {bin_name}: {cmd}")
+            
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running Bakta on {bin_name}: {str(e)}")
+                continue
+
+        return output_dir
+
     def _check_bakta_db(self):
         """Check if Bakta database exists and download if needed
         
         Returns:
             str: Path to the Bakta database
         """
-        # Get the database path from config or use default
-        db_path = os.path.join(os.getcwd(), "db-light")
-        
-        # Check if database exists
-        if not os.path.exists(db_path):
-            if self.progress_callback:
-                response = self.progress_callback({
-                    'type': 'user_input',
-                    'message': 'Bakta database not found. Would you like to download it? This may take a while (~1.5GB).',
-                    'options': ['yes', 'no']
-                })
-                if response != 'yes':
-                    raise RuntimeError("Bakta database is required but user declined download")
-            
-            print("Downloading Bakta database...")
-            
-            # Use bakta_db download command
-            cmd = [
-                'bakta_db',
-                'download',
-                '--type', 'light'
-            ]
-            
+        # Check common locations for Bakta DB
+        db_paths = [
+            os.path.expanduser("~/.bakta/db"),
+            "/opt/conda/db/bakta",
+            os.path.join(LIB_DIR, "bakta_db")
+        ]
+
+        for db_path in db_paths:
+            if os.path.exists(os.path.join(db_path, "version.json")):
+                return db_path
+
+        # If not found, offer to download
+        print("Bakta database not found. Would you like to download it? (y/n)")
+        if input().lower() == 'y':
+            db_path = os.path.join(LIB_DIR, "bakta_db")
+            os.makedirs(db_path, exist_ok=True)
+            cmd = f"bakta_db download --output {db_path}"
             try:
-                # Run the command and ignore AMRFinderPlus errors
-                process = subprocess.run(cmd, capture_output=True, text=True)
-                if process.returncode != 0 and "AMRFinderPlus failed" not in process.stderr:
-                    raise subprocess.CalledProcessError(process.returncode, cmd, process.stderr)
-                print("Bakta database downloaded successfully")
+                subprocess.run(cmd, shell=True, check=True)
+                return db_path
             except subprocess.CalledProcessError as e:
-                error_msg = f"Error downloading Bakta database: {str(e)}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-            except Exception as e:
-                error_msg = f"Unexpected error downloading Bakta database: {str(e)}"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
-        
-        return db_path
+                print(f"Error downloading Bakta database: {str(e)}")
+                return None
+        return None
 
     def run_bakta_annotation(self, assembly_file, output_dir, threads=None):
         """Run Bakta annotation on the assembly
@@ -767,3 +947,82 @@ class AssemblyPipeline:
                 print(f"Tool {tool} not available, some pipeline steps may be skipped")
                 if tool in ['minimap2', 'flye']:  # These are essential
                     raise RuntimeError(f"Essential tool {tool} is not available")
+
+class PipelineStep(Enum):
+    CONCATENATE = "concatenate"
+    FLYE_ASSEMBLY = "flye_assembly"
+    MEDAKA_POLISH = "medaka_polish"
+    METABAT_BINNING = "metabat_binning"
+    CHECKM2_QUALITY = "checkm2_quality"
+    GTDBTK_TAXONOMY = "gtdbtk_taxonomy"
+    BAKTA_ANNOTATION = "bakta_annotation"
+    KEGGCHARTER = "keggcharter"
+    UPLOAD_TO_SERVER = "upload_to_server"
+
+    def run_gtdbtk(self, bins_dir, output_dir, threads=None):
+        """Run GTDB-TK for taxonomic classification of MAGs
+        
+        Args:
+            bins_dir (str): Directory containing bin FASTA files
+            output_dir (str): Output directory for GTDB-TK results
+            threads (int, optional): Number of threads to use. Defaults to None.
+            
+        Returns:
+            str: Path to GTDB-TK output directory
+        """
+        if not threads:
+            threads = self.default_threads
+
+        # Check if GTDB-TK is available
+        gtdbtk_path = self.tool_installer.check_tool('gtdbtk')
+        if not gtdbtk_path:
+            raise RuntimeError("GTDB-TK not found. Please install it first.")
+
+        # Check for GTDB-TK database
+        if 'GTDBTK_DATA_PATH' not in os.environ:
+            db_path = self._check_gtdbtk_db()
+            if not db_path:
+                raise RuntimeError("GTDB-TK database not found. Please install it first.")
+            os.environ['GTDBTK_DATA_PATH'] = db_path
+
+        # Run GTDB-TK classify workflow
+        cmd = f"{gtdbtk_path} classify_wf --genome_dir {bins_dir} --out_dir {output_dir} --cpus {threads} --extension fa"
+        print(f"Running GTDB-TK command: {cmd}")
+        
+        try:
+            subprocess.run(cmd, shell=True, check=True)
+            return output_dir
+        except subprocess.CalledProcessError as e:
+            print(f"Error running GTDB-TK: {str(e)}")
+            raise
+
+    def _check_gtdbtk_db(self):
+        """Check if GTDB-TK database exists and download if needed
+        
+        Returns:
+            str: Path to the GTDB-TK database
+        """
+        # Check common locations for GTDB-TK DB
+        db_paths = [
+            os.path.expanduser("~/.gtdbtk/db"),
+            "/opt/conda/db/gtdbtk",
+            os.path.join(LIB_DIR, "gtdbtk_db")
+        ]
+
+        for db_path in db_paths:
+            if os.path.exists(os.path.join(db_path, "metadata")):
+                return db_path
+
+        # If not found, offer to download
+        print("GTDB-TK database not found. Would you like to download it? (y/n)")
+        if input().lower() == 'y':
+            db_path = os.path.join(LIB_DIR, "gtdbtk_db")
+            os.makedirs(db_path, exist_ok=True)
+            cmd = f"gtdbtk download --out_dir {db_path} --force"
+            try:
+                subprocess.run(cmd, shell=True, check=True)
+                return db_path
+            except subprocess.CalledProcessError as e:
+                print(f"Error downloading GTDB-TK database: {str(e)}")
+                return None
+        return None
