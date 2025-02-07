@@ -1,5 +1,5 @@
 # 📊 MMonitor Documentation
-<img src="https://mmonitor.org/static/mmonitor_banner.png" />
+<img src="img/mmonitor_banner.png" />
 g/static/mmonitor_banner.png)
 
 
