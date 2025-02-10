@@ -208,7 +208,7 @@ MMonitor is designed for researchers in biology related fields who need to analy
 - **Main Analysis Types**:
 
   ```bash
-  python MMonitor/desktop/src/mmonitor/__main__.py -a [analysis_type] -c [config_file] [options]
+  python MMonitor/desktop/src/mmonitor/mmonitor_cmd.py -a [analysis_type] -c [config_file] [options]
   ```
 
   - `analysis_type`: `taxonomy-wgs`, `taxonomy-16s`, `assembly`, `functional`, `stats`
