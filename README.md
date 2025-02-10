@@ -414,8 +414,8 @@ MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
 - **👥 Contributors**:
   - **Timo N. Lucas**: Lead developer.
-  - **Tobias Laas**: Development contributions.
-  - **Simon Konzalla**: Development contributions.
+  - **Tobias Lass**: Development contributions (helped with first version of the dashboard).
+  - **Simon Konzalla**: Development contributions (django structure and webserver).
 
 - **💡 Funding**:
   - Funding by CMFI
