@@ -434,5 +434,5 @@ MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
 
 ---
 
-**Note**: For detailed information and methods, refer to the publication (once it's submitted...)
+**Note**: For detailed information and methods, refer to the publication (once it's published we will put a link to the paper here)
 
