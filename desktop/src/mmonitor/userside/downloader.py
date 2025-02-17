@@ -6,7 +6,7 @@ from tkinter import ttk
 
 
 class Downloader():
-    # ceck if a file exists and if not asks the user to download it. gets used to check if db are all present
+    # checks if a file exists and if not asks the user to download it. gets used to check if db are all present
     # TODO: also add checksum check to make sure the index is completely downloaded, if not remove file and download again
     def check_file_exists(self, filepath, url, tk):
         if os.path.exists(filepath):

@@ -79,6 +79,29 @@ class CentrifugerRunner:
             print(f"Error during concatenation: {e}")
             return False
 
+    def get_full_db_path(self, db_path):
+        """Get the full database path including the correct index prefix"""
+        # First check if path exists
+        if not os.path.exists(db_path):
+            raise ValueError(f"Database path does not exist: {db_path}")
+            
+        # Find all .cfr files in the directory
+        cfr_files = [f for f in os.listdir(db_path) if f.endswith('.cfr')]
+        if not cfr_files:
+            raise ValueError(f"No .cfr files found in database directory: {db_path}")
+            
+        # Extract the common prefix from the first .cfr file
+        # Example: if file is "centrifuger.1.cfr", prefix is "centrifuger"
+        prefix = cfr_files[0].split('.')[0]
+        
+        # Verify all .cfr files have the same prefix
+        for cfr_file in cfr_files:
+            if not cfr_file.startswith(prefix):
+                raise ValueError(f"Inconsistent .cfr file prefixes in {db_path}")
+                
+        # Return full path with correct prefix
+        return os.path.join(db_path, prefix)
+
     def run_centrifuger(self, input_file, sample_name, db_path):
         """Run Centrifuger analysis on input file"""
         os.makedirs(self.pipeline_out, exist_ok=True)
@@ -87,29 +110,31 @@ class CentrifugerRunner:
         sample_out_dir = os.path.join(self.pipeline_out, sample_name)
         os.makedirs(sample_out_dir, exist_ok=True)
         
-        
-        # Output files
-        output_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_classifications.txt")
-        report_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_report.tsv")
-        log_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger.log")
-        
-        print(f"\nStarting Centrifuger analysis for sample: {sample_name}")
-        print(f"Database path: {db_path}")
-        print(f"Input file: {input_file}")
-        print(f"Output directory: {sample_out_dir}")
-        
-        # Construct command with correct parameters for Centrifuger
-        cmd = [
-            "centrifuger",
-            "-x", db_path,           # Index prefix
-            "-u", input_file,        # Single-end read file
-            "-t", str(multiprocessing.cpu_count()),  # Number of threads
-            "-k", "1"                # Report up to k distinct assignments
-        ]
-        
-        print(f"\nRunning Centrifuger command: {' '.join(cmd)}")
-        
         try:
+            # Get full database path with correct prefix
+            full_db_path = self.get_full_db_path(db_path)
+            
+            # Output files
+            output_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_classifications.txt")
+            report_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_report.tsv")
+            log_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger.log")
+            
+            print(f"\nStarting Centrifuger analysis for sample: {sample_name}")
+            print(f"Database path: {full_db_path}")
+            print(f"Input file: {input_file}")
+            print(f"Output directory: {sample_out_dir}")
+            
+            # Construct command with correct parameters for Centrifuger
+            cmd = [
+                "centrifuger",
+                "-x", full_db_path,           # Index prefix
+                "-u", input_file,        # Single-end read file
+                "-t", str(multiprocessing.cpu_count()),  # Number of threads
+                "-k", "1"                # Report up to k distinct assignments
+            ]
+            
+            print(f"\nRunning Centrifuger command: {' '.join(cmd)}")
+            
             # Run Centrifuger and capture all output
             with open(log_file, 'w') as log:
                 process = subprocess.run(
@@ -140,38 +165,32 @@ class CentrifugerRunner:
             print("\nGenerating Kraken-style report...")
             kreport_cmd = [
                 "centrifuger-kreport",
-                "-x", db_path,
+                "-x", full_db_path,
                 output_file
             ]
             
-            try:
-                kreport_result = subprocess.run(
-                    kreport_cmd,
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                
-                # Write kreport output to file
-                with open(report_file, 'w') as f:
-                    f.write(kreport_result.stdout)
-                
-                # Append kreport logs
-                with open(log_file, 'a') as log:
-                    log.write("\n=== KREPORT STDOUT ===\n")
-                    log.write(kreport_result.stdout)
-                    log.write("\n=== KREPORT STDERR ===\n")
-                    log.write(kreport_result.stderr)
-                
-                print("Centrifuger analysis completed successfully")
-                print(f"Results saved to: {sample_out_dir}")
-                return True
-                
-            except subprocess.CalledProcessError as e:
-                print(f"Error generating Kraken-style report: {e}")
-                print(f"kreport stderr: {e.stderr}")
-                return False
-                
+            kreport_result = subprocess.run(
+                kreport_cmd,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            
+            # Write kreport output to file
+            with open(report_file, 'w') as f:
+                f.write(kreport_result.stdout)
+            
+            # Append kreport logs
+            with open(log_file, 'a') as log:
+                log.write("\n=== KREPORT STDOUT ===\n")
+                log.write(kreport_result.stdout)
+                log.write("\n=== KREPORT STDERR ===\n")
+                log.write(kreport_result.stderr)
+            
+            print("Centrifuger analysis completed successfully")
+            print(f"Results saved to: {sample_out_dir}")
+            return True
+            
         except subprocess.CalledProcessError as e:
             print(f"Error running Centrifuger: {e}")
             print(f"Centrifuger stderr: {e.stderr}")
@@ -209,10 +228,11 @@ class CentrifugerRunner:
         return output_file
 
     def make_kraken_report(self, centrifuger_out, db_path, output_file):
-        """Convert Centrifuger output to Kraken-style report"""
+        """Generate a Kraken-style report from Centrifuger output"""
+        full_db_path = self.get_full_db_path(db_path)
         cmd = [
             "centrifuger-kreport",
-            "-x", db_path,
+            "-x", full_db_path,
             centrifuger_out
         ]
         

@@ -1,47 +1,45 @@
 import os
 import sys
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
-from threading import Thread
-from webbrowser import open_new
-from datetime import datetime
-from PIL import Image
-import customtkinter as ctk
-from CTkMessagebox import CTkMessagebox
+import json
 import subprocess
-import csv
-import io
-import threading
-import webbrowser
-import gzip
-from requests import post
-from tkcalendar import DateEntry
-import datetime
+import tkinter as tk
+from tkinter import ttk, messagebox
+import customtkinter as ctk
+from datetime import datetime
+from tkcalendar import Calendar
+import time
 import queue
-from mmonitor.database.django_db_interface import DjangoDBInterface
-from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
-from ..paths import ROOT, IMAGES_PATH
-from mmonitor.dashapp.index import Index
-import requests
+import datetime
+import customtkinter as ctk
+from tkinter import messagebox
+import tkinter as tk
+import multiprocessing
+import io
+import webbrowser
 
-from mmonitor.database.DBConfigForm import DataBaseConfigForm
-from mmonitor.database.django_db_interface import DjangoDBInterface
-from mmonitor.database.mmonitor_db import MMonitorDBInterface
+from mmonitor.userside.utils import create_tooltip
+from mmonitor.userside.LoginWindow import LoginWindow
+from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
+from mmonitor.userside.PipelineConfig import PipelineConfig
+from mmonitor.userside.DatabaseWindow import DatabaseWindow
+from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
 from mmonitor.userside.EmuRunner import EmuRunner
 from mmonitor.userside.FastqStatistics import FastqStatistics
 from mmonitor.userside.InputWindow import InputWindow
-from mmonitor.userside.PipelineConfig import PipelineConfig
 from mmonitor.userside.FunctionalRunner import FunctionalRunner
-from mmonitor.userside.MMonitorCMD import MMonitorCMD
-from mmonitor.userside.DatabaseWindow import DatabaseWindow
-from mmonitor.userside.LoginWindow import LoginWindow
-import multiprocessing
-from mmonitor.userside.utils import create_tooltip
-import json
-import time
 
-VERSION = "v0.1.0"
+from mmonitor.database.DBConfigForm import DataBaseConfigForm
+from mmonitor.database.django_db_interface import DjangoDBInterface
+from mmonitor.database.mmonitor_db import MMonitorDBInterface
+
+from mmonitor.dashapp.index import Index
+from mmonitor.config import _MMONITOR_ROOT as ROOT, _RESOURCES
+from ..paths import IMAGES_PATH, RESOURCES_DIR
+
+
+import sys
+VERSION = "v0.2.0"
 MAIN_WINDOW_X, MAIN_WINDOW_Y = 1500, 1000  # Standard window size
 CONSOLE_WIDTH = 300  # Fixed console width
 SIDEBAR_WIDTH = 220  # Fixed sidebar width
@@ -49,21 +47,51 @@ CONTENT_WIDTH = MAIN_WINDOW_X - SIDEBAR_WIDTH - CONSOLE_WIDTH
 
 # Add color scheme constants
 COLORS = {
-    "primary": "#2B6CB0",        # Deep blue
-    "primary_hover": "#2C5282",  # Darker blue
-    "secondary": "#718096",      # Slate gray
-    "background": "#FFFFFF",     # White
-    "surface": "#F7FAFC",        # Light gray background
-    "border": "#E2E8F0",        # Light border color
-    "text": "#2D3748",          # Dark gray text
-    "text_secondary": "#4A5568", # Secondary text color
-    "success": "#38A169",       # Green
-    "error": "#E53E3E",         # Red
-    "warning": "#D69E2E",       # Yellow
-    "console_bg": "#F8FAFC",    # Very light gray for console
-    "console_text": "#1A202C",  # Very dark gray for console text
-    "button_text": "#FFFFFF"    # White text for buttons
+    "primary": "#2563eb",        # Modern royal blue
+    "primary_hover": "#1d4ed8",  # Darker blue for hover
+    "secondary": "#64748b",      # Slate gray
+    "background": "#ffffff",     # White
+    "surface": "#f8fafc",        # Light gray background
+    "border": "#e2e8f0",        # Light border color
+    "text": "#1e293b",          # Dark blue-gray text
+    "text_secondary": "#475569", # Secondary text color
+    "success": "#059669",       # Green
+    "error": "#dc2626",         # Red
+    "warning": "#d97706",       # Amber
+    "console_bg": "#f8fafc",    # Very light gray for console
+    "console_text": "#1e293b",  # Very dark blue-gray for console text
+    "button_text": "#ffffff"    # White text for buttons
 }
+
+# Modern styling constants
+STYLING = {
+    "button_height": 36,        # Taller buttons for better touch targets
+    "corner_radius": 8,         # Slightly rounded corners
+    "border_width": 1,          # Thin borders
+    "font_family": "Helvetica",
+    "padding": 16,              # Consistent padding
+    "shadow": "0 2px 4px rgba(0, 0, 0, 0.1)"  # Subtle shadow for depth
+}
+
+def load_config():
+    """Load configuration from config.json"""
+    config_path = os.path.join(_RESOURCES, "config.json")
+    try:
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        return {
+            "host": "mmonitor.org",
+            "port": 443,
+            "offline_mode": False
+        }
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        return {
+            "host": "mmonitor.org",
+            "port": 443,
+            "offline_mode": False
+        }
 
 class TeeOutput(io.StringIO):
     def __init__(self, original_stream, gui):
@@ -112,6 +140,29 @@ class StdoutRedirector(io.StringIO):
 class GUI(ctk.CTk):
     def __init__(self):
         print("Initializing GUI...")
+        # Check if we're already running
+        if os.environ.get('MMONITOR_RUNNING') == '1' and len(sys.argv) > 1:
+            print("Application is already running, preventing restart...")
+            sys.exit(0)
+            
+        self.pipeline_config = {
+            'analysis_type': 'taxonomy-wgs',
+            'threads': '12',
+            'min_length': '1000',
+            'min_quality': '10',
+            'emu_db': '',
+            'centrifuger_db': 'ncbi_build_20241229_184111',
+            'min_abundance': '0.01',
+            'assembly_mode': 'nano-hq',
+            'medaka_model': 'r1041_e82_400bps_sup_v5.0.0',
+            'is_isolate': False,
+            'min_contig_length': '1000'
+        }
+        
+        # Load configuration
+        self.config = load_config()
+        print("Loaded config:", self.config)
+        
         super().__init__()
         self.title(f"MMonitor {VERSION}")
         
@@ -135,7 +186,7 @@ class GUI(ctk.CTk):
         self.small_font_size = 12
 
         # Load appearance mode from system and config
-        self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.config_file = os.path.join(_RESOURCES, "pipeline_config.json")
         self.load_appearance_mode()
         
         # Define theme colors based on mode
@@ -209,7 +260,18 @@ class GUI(ctk.CTk):
 
     def init_layout(self):
         print("Initializing layout...")
-        ctk.set_default_color_theme("blue")
+        
+        # Set the grey theme using our custom theme file
+        if getattr(sys, 'frozen', False):
+            # If we're in the bundled app
+            theme_path = os.path.join(sys._MEIPASS, "mmonitor", "resources", "grey_theme.json")
+        else:
+            # If we're in development
+            theme_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 
+                                    "src", "mmonitor", "resources", "grey_theme.json")
+            
+        print(f"Loading theme from: {theme_path}")
+        ctk.set_default_color_theme(theme_path)
         
         # Create main frame with fixed minimum size
         self.main_frame = ctk.CTkFrame(self)
@@ -243,57 +305,76 @@ class GUI(ctk.CTk):
         self.create_sidebar_buttons()
 
     def create_console(self):
-        """Create the console frame with consistent size"""
+        """Create a console window for output"""
+        # Create console frame with fixed width
         self.console_frame = ctk.CTkFrame(
-            self.main_frame, 
+            self.main_frame,
             width=CONSOLE_WIDTH,
             height=MAIN_WINDOW_Y,
-            fg_color=COLORS["console_bg"]
+            border_width=0,
+            fg_color="#E0E0E0"
         )
         self.console_frame.pack(side="right", fill="y")
         self.console_frame.pack_propagate(False)
-        
-        # Modern title bar
-        console_title = ctk.CTkFrame(
-            self.console_frame, 
-            height=40, 
-            fg_color=COLORS["primary"]
+
+        # Create title bar frame
+        title_bar = ctk.CTkFrame(
+            self.console_frame,
+            border_width=0,
+            fg_color="#D0D0D0"
         )
-        console_title.pack(fill="x", padx=1, pady=(1, 0))
-        console_title.pack_propagate(False)
-        
-        ctk.CTkLabel(
-            console_title, 
-            text="Console Output", 
-            font=("Helvetica", 12, "bold"),
-            text_color=COLORS["button_text"]
-        ).pack(side="left", padx=10)
-        
-        # Improved toggle button
+        title_bar.pack(fill="x", padx=0, pady=0)
+
+        # Add title label
+        title_label = ctk.CTkLabel(
+            title_bar,
+            text="Console",
+            font=("Helvetica", 13),
+            text_color="#202020"
+        )
+        title_label.pack(side="left", padx=10)
+
+        # Add minimize button
         self.minimize_btn = ctk.CTkButton(
-            console_title,
+            title_bar,
             text="−",
-            width=30,
-            height=30,
-            corner_radius=5,
+            width=20,
+            height=20,
             command=self.toggle_console,
-            fg_color=COLORS["primary"],
-            hover_color=COLORS["primary_hover"],
-            text_color=COLORS["button_text"]
+            font=("Helvetica", 13),
+            fg_color="#D0D0D0",
+            hover_color="#C0C0C0",
+            text_color="#202020",
+            border_width=0
         )
-        self.minimize_btn.pack(side="right", padx=5, pady=5)
-        
-        # Console text area with improved styling
-        self.console_text = ctk.CTkTextbox(
-            self.console_frame, 
-            wrap="word",
-            width=CONSOLE_WIDTH - 20,
-            height=MAIN_WINDOW_Y - 60,
-            fg_color="white",
-            text_color=COLORS["console_text"],
-            font=("Consolas", 11)
+        self.minimize_btn.pack(side="right", padx=5)
+
+        # Create console text widget
+        self.console = tk.Text(
+            self.console_frame,
+            wrap=tk.WORD,
+            width=40,
+            height=20,
+            font=("Courier", 10),
+            bg="#E0E0E0",
+            fg="#202020",
+            insertbackground="#202020",
+            borderwidth=0,
+            highlightthickness=0
         )
-        self.console_text.pack(expand=True, fill="both", padx=10, pady=10)
+        self.console.pack(fill="both", expand=True, padx=0, pady=0)
+
+        # Add scrollbar
+        scrollbar = ctk.CTkScrollbar(
+            self.console_frame,
+            command=self.console.yview,
+            border_spacing=0
+        )
+        scrollbar.pack(side="right", fill="y")
+        self.console.configure(yscrollcommand=scrollbar.set)
+
+        # Configure tag for error messages
+        self.console.tag_configure("error", foreground="red")
         
         self.console_expanded = True
         self.console_auto_opened = True
@@ -336,6 +417,19 @@ class GUI(ctk.CTk):
         nav_frame = ctk.CTkFrame(sidebar_content, fg_color="transparent")
         nav_frame.pack(fill="x", expand=True, padx=10)
 
+        nav_button_args = {
+            "fg_color": COLORS["primary"],
+            "hover_color": COLORS["primary_hover"],
+            "text_color": COLORS["button_text"],
+            "border_color": "#000000",
+            "border_width": STYLING["border_width"],
+            "height": STYLING["button_height"],
+            "corner_radius": STYLING["corner_radius"],
+            "font": (STYLING["font_family"], 14),
+            "anchor": "w",
+            "compound": "left"
+        }
+        
         for text, command, icon, tooltip in buttons:
             btn_container = ctk.CTkFrame(nav_frame, fg_color="transparent")
             btn_container.pack(fill="x", pady=5)
@@ -345,31 +439,21 @@ class GUI(ctk.CTk):
                 btn_container, 
                 text=f"{icon}  {text}",
                 command=lambda cmd=command: self.check_login_and_execute(cmd),
-                height=45,
-                corner_radius=10,
-                font=("Helvetica", 14),
-                anchor="w",
-                fg_color="transparent",
-                text_color=self.theme_colors["text"],
-                hover_color=self.theme_colors["button_hover"],
-                border_width=2,
-                border_color=self.theme_colors["button"],
-                compound="left"
+                **nav_button_args
             )
             btn.pack(fill="x", padx=5)
             
             # Add hover animation with mode-aware text color
             def on_enter(e, b=btn):
-                is_dark = self.appearance_mode == "dark"
                 b.configure(
-                    fg_color=self.theme_colors["button"],
-                    text_color="white" if is_dark else "black"  # Mode-specific text color
+                    fg_color="#0056b3",
+                    text_color="#FFFFFF"
                 )
             
             def on_leave(e, b=btn):
                 b.configure(
-                    fg_color="transparent",
-                    text_color=self.theme_colors["text"]
+                    fg_color="#007bff",
+                    text_color="#FFFFFF"
                 )
             
             btn.bind("<Enter>", on_enter)
@@ -395,10 +479,11 @@ class GUI(ctk.CTk):
             height=35,
             corner_radius=8,
             font=("Helvetica", 12),
-            fg_color=self.theme_colors["button"],
-            hover_color=self.theme_colors["button_hover"],
-            border_width=1,
-            border_color=self.theme_colors["button"]
+            fg_color="#007bff",
+            hover_color="#0056b3",
+            text_color="#FFFFFF",
+            border_color="#000000",
+            border_width=1
         )
         self.logout_button.pack(fill="x", pady=(10, 0))
         
@@ -413,19 +498,20 @@ class GUI(ctk.CTk):
             height=35,
             corner_radius=8,
             font=("Helvetica", 12),
-            fg_color=self.theme_colors["button"],
-            hover_color=self.theme_colors["button_hover"],
-            border_width=1,
-            border_color=self.theme_colors["button"]
+            fg_color="#007bff",
+            hover_color="#0056b3",
+            text_color="#FFFFFF",
+            border_color="#000000",
+            border_width=1
         )
         self.toggle_console_button.pack(fill="x", pady=(10, 0))
 
         # Update theme colors for dark/light mode
         def update_colors():
             is_dark = self.appearance_mode == "dark"
-            bg_color = "gray20" if is_dark else "white"
+            bg_color = "#dbdbdb" if is_dark else "white"
             text_color = "white" if is_dark else "black"
-            hover_color = "gray30" if is_dark else "gray80"
+            hover_color = "#b4b4b4" if is_dark else "gray80"
             
             for widget in nav_frame.winfo_children():
                 if isinstance(widget, ctk.CTkButton):
@@ -449,8 +535,8 @@ class GUI(ctk.CTk):
 
     def update_console(self, text):
         """Update console content and auto-show if needed"""
-        self.console_text.insert("end", text)
-        self.console_text.see("end")
+        self.console.insert("end", text)
+        self.console.see("end")
         
         # Auto-show console on first update if configured
         if not self.console_expanded and not self.console_auto_opened:
@@ -464,28 +550,39 @@ class GUI(ctk.CTk):
         print(f"Database configuration updated: {db_config_form.last_config}")
 
     
-    def run_pipeline(self, analysis_type, emu_db, centrifuge_db):
-        print(f"Starting pipeline for analysis type: {analysis_type}")
-        input_window = InputWindow(self, self.emu_runner)
-        self.wait_window(input_window)
-
-        if input_window.do_quit:
-            print("Pipeline configuration cancelled by user.")
-            return
-
-        # Create a new thread for running the pipeline
-        if input_window.process_multiple_samples:
-            print("Processing multiple samples...")
-            thread = threading.Thread(target=self.run_multi_sample_pipeline, args=(analysis_type, input_window.multi_sample_input))
-        else:
-            print("Processing single sample...")
-            thread = threading.Thread(target=self.run_single_sample_pipeline, args=(analysis_type, input_window))
-
-        # Start the thread
-        thread.start()
-
-        # Show loading indicator
-        self.show_loading_indicator()
+    def run_pipeline(self, params):
+        """Run the pipeline with the given parameters"""
+        try:
+            # Get the analysis type from the FolderWatcher if it exists
+            analysis_type = None
+            if hasattr(self, 'folder_watcher') and self.folder_watcher:
+                analysis_type = self.folder_watcher.analysis_type.get()
+            else:
+                # Default to WGS if no folder watcher
+                analysis_type = 'taxonomy-wgs'
+                
+            print(f"Starting pipeline for analysis type: {analysis_type}")
+            
+            # Create input window
+            input_window = InputWindow(self)
+            
+            # If user cancels input, return
+            if not input_window.result:
+                return
+                
+            # Create thread for pipeline
+            if input_window.multi_sample_mode:
+                thread = threading.Thread(target=self.run_multi_sample_pipeline, 
+                                       args=(analysis_type, input_window.multi_sample_input))
+            else:
+                thread = threading.Thread(target=self.run_single_sample_pipeline, 
+                                       args=(analysis_type, input_window))
+            
+            thread.start()
+            
+        except Exception as e:
+            print(f"Error starting pipeline: {e}")
+            traceback.print_exc()
 
     def show_loading_indicator(self):
         # Create a new window for the loading indicator
@@ -739,10 +836,11 @@ class GUI(ctk.CTk):
                     height=35,
                     corner_radius=8,
                     font=("Helvetica", 12),
-                    fg_color=self.theme_colors["button"],
-                    hover_color=self.theme_colors["button_hover"],
+                    fg_color="#007bff",
+                    hover_color="#0056b3",
+                    text_color="#FFFFFF",
+                    border_color="#000000",
                     border_width=1,
-                    border_color=self.theme_colors["button"],
                     command=lambda: webbrowser.open("http://127.0.0.1:8000/dash/"),
                     
                     
@@ -796,7 +894,7 @@ class GUI(ctk.CTk):
 
     def open_database_window(self):
         self.clear_content_frame()
-        self.database_window = DatabaseWindow(self.content_frame)
+        self.database_window = DatabaseWindow(self.content_frame, self)
         self.database_window.pack(fill="both", expand=True)
         self.update()  # Force update of the GUI
 
@@ -845,55 +943,31 @@ class GUI(ctk.CTk):
 
     def update_theme_colors(self):
         """Update theme colors based on current mode"""
-        # Always use light mode colors
         self.theme_colors = {
-            "text": "#1A1A1A",
-            "secondary_text": "#666666",
-            "button": "#2B7DE9",
-            "button_hover": "#1E63C4",
-            "button_text": "#FFFFFF",
-            "button_secondary": "#E0E0E0",
-            "button_secondary_hover": "#CCCCCC",
-            "background": "#FFFFFF",
-            "sidebar": "#F5F5F5",
-            "frame": "#FFFFFF",
-            "border": "#E0E0E0",
-            "input": "#F8F8F8",
-            "hover": "#EEEEEE"
+            "text": "#202020",              # Dark grey text
+            "secondary_text": "#404040",     # Medium grey text
+            "button": "#007bff",            # Blue button
+            "button_hover": "#0056b3",      # Darker blue for hover
+            "button_text": "#FFFFFF",       # White button text
+            "button_secondary": "#007bff",  # Blue secondary button
+            "button_secondary_hover": "#0056b3",
+            "background": "#E0E0E0",        # Light grey background
+            "sidebar": "#E0E0E0",           # Light grey sidebar
+            "frame": "#E0E0E0",             # Light grey frame
+            "border": "#D0D0D0",            # Medium grey border
+            "input": "#E0E0E0",             # Light grey input
+            "hover": "#D0D0D0"              # Light grey hover
         }
 
-    def toggle_dark_mode(self):
-        """Toggle between light and dark mode"""
-        # Commented out dark mode toggle functionality
-        # new_mode = "light" if self.appearance_mode == "dark" else "dark"
-        # self.appearance_mode = new_mode
-        # ctk.set_appearance_mode(new_mode)
-        # 
-        # # Update theme colors
-        # self.update_theme_colors()
-        # 
-        # # Update all windows
-        # self.update_all_windows()
-        # 
-        # # Save to config
-        # try:
-        #     with open(self.config_file, 'r') as f:
-        #         config = json.load(f)
-        #     config['appearance_mode'] = new_mode
-        #     with open(self.config_file, 'w') as f:
-        #         json.dump(config, f, indent=4)
-        # except Exception as e:
-        #     print(f"Error saving appearance mode: {e}")
-        pass
 
     def update_appearance(self):
         # Always use light mode appearance
-        self.configure(fg_color="white")
+        self.configure(fg_color="#E0E0E0")
         for widget in self.sidebar.winfo_children():
             if isinstance(widget, ctk.CTkButton):
-                widget.configure(fg_color="#E0E0E0", text_color="black", hover_color="#CCCCCC")
+                widget.configure(fg_color="#007bff", text_color="#FFFFFF", hover_color="#0056b3", border_color="#000000", border_width=1)
             elif isinstance(widget, ctk.CTkLabel):
-                widget.configure(text_color="black")
+                widget.configure(text_color="#202020")
 
     def update_all_windows(self):
         """Update appearance of all windows"""
@@ -916,12 +990,12 @@ class GUI(ctk.CTk):
         """Update console appearance based on current theme"""
         if self.console_expanded:
             self.console_frame.configure(
-                fg_color=self.theme_colors["frame"],
-                border_color=self.theme_colors["border"]
+                fg_color="#E0E0E0",
+                border_color="#D0D0D0"
             )
-            self.console_text.configure(
-                fg_color=self.theme_colors["input"],
-                text_color=self.theme_colors["text"]
+            self.console.configure(
+                fg_color="#E0E0E0",
+                text_color="#202020"
             )
 
     def show_home(self):
@@ -946,7 +1020,7 @@ class GUI(ctk.CTk):
             title_frame,
             text="Real-time Monitoring and Analysis of Nanopore Metagenome Sequencing Data",
             font=("Helvetica", 14),
-            text_color=self.theme_colors["secondary_text"]
+            text_color="#404040"
         ).pack(anchor="w")
         
         # Create steps container
@@ -992,7 +1066,7 @@ class GUI(ctk.CTk):
     def create_step_frame(self, parent, title, description, icon_path, command, button_text):
         """Create a consistent frame for each step"""
         frame = ctk.CTkFrame(parent)
-        frame.configure(fg_color=self.theme_colors.get("surface", "#F7FAFC"))  # Use default if not found
+        frame.configure(fg_color="#E0E0E0")  # Use default if not found
         
         # Content container
         content = ctk.CTkFrame(frame, fg_color="transparent")
@@ -1003,7 +1077,7 @@ class GUI(ctk.CTk):
             content,
             text=title,
             font=("Helvetica", 16, "bold"),
-            text_color=self.theme_colors.get("text", "#2D3748")
+            text_color="#202020"
         ).pack(anchor="w")
         
         # Description
@@ -1011,7 +1085,7 @@ class GUI(ctk.CTk):
             content,
             text=description,
             font=("Helvetica", 12),
-            text_color=self.theme_colors.get("secondary_text", "#4A5568"),
+            text_color="#404040",
             wraplength=800,
             justify="left"
         ).pack(anchor="w", pady=(5, 10))
@@ -1023,9 +1097,11 @@ class GUI(ctk.CTk):
             command=command,
             height=32,
             font=("Helvetica", 12),
-            fg_color=self.theme_colors.get("primary", "#2B6CB0"),
-            hover_color=self.theme_colors.get("primary_hover", "#2C5282"),
-            text_color="#FFFFFF"
+            fg_color="#007bff",
+            hover_color="#0056b3",
+            text_color="#FFFFFF",
+            border_color="#000000",
+            border_width=1
         ).pack(anchor="w")
         
         return frame
@@ -1052,36 +1128,17 @@ class GUI(ctk.CTk):
             self.open_login_window()
 
     def show_analysis(self):
+        """Show the analysis configuration window"""
+        print("Loading pipeline config:", self.pipeline_config)
         self.clear_content_frame()
         
-        # Create main configuration frame with modern styling
+        # Create a frame for the pipeline configuration
         config_frame = ctk.CTkFrame(self.content_frame)
-        config_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        config_frame.pack(fill="both", expand=True)
         
-        # Add title with modern typography
-        title_frame = ctk.CTkFrame(config_frame, fg_color="transparent")
-        title_frame.pack(fill="x", pady=(0, 20))
-        
-        ctk.CTkLabel(
-            title_frame, 
-            text="Analysis Configuration",
-            font=("Helvetica", 24, "bold")
-        ).pack(anchor="w")
-        
-        ctk.CTkLabel(
-            title_frame,
-            text="Configure your analysis parameters and pipeline settings",
-            font=("Helvetica", 12),
-            text_color=self.theme_colors["secondary_text"]
-        ).pack(anchor="w")
-        
-        # Add pipeline configuration with reference to main window
+        # Create the pipeline configuration window
         self.pipeline_popup = PipelineConfig(config_frame, self)
         self.pipeline_popup.pack(fill="both", expand=True)
-        
-        # Ensure console stays on right
-        if self.console_expanded:
-            self.console_frame.pack(side="right", fill="y")
 
     def show_folder_watcher(self):
         if self.check_valid_config():
@@ -1112,7 +1169,7 @@ class GUI(ctk.CTk):
         print("Showing Database Management")
         self.clear_content_frame()
         print("Content frame cleared")
-        self.database_window = DatabaseWindow(self.content_frame)
+        self.database_window = DatabaseWindow(self.content_frame, self)
         print("DatabaseWindow created")
         self.database_window.pack(fill="both", expand=True)
         print("DatabaseWindow packed")

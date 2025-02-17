@@ -1,25 +1,43 @@
 import os
 import sys
 import json
-import gzip
+import time
 import shutil
-import argparse
 import logging
-from datetime import datetime
+import argparse
+import datetime
+import tempfile
+import threading
+import subprocess
+import traceback
+import multiprocessing
+from pathlib import Path
+import requests
+import numpy as np
+from .FileUtils import concatenate_fastq_files
+from .AssemblyPipeline import AssemblyPipeline
 import keyring
-
-# Add parent directory to Python path for imports
+# Add src directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(os.path.dirname(current_dir))
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
+src_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))  # Go up to src directory
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
 
-from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
-from mmonitor.userside.FunctionalRunner import FunctionalRunner
-from mmonitor.userside.DjangoDBInterface import DjangoDBInterface
-from mmonitor.userside.EmuRunner import EmuRunner
-from mmonitor.userside.AssemblyPipeline import AssemblyPipeline
-from mmonitor.paths import src_dir
+try:
+    from mmonitor.database.django_db_interface import DjangoDBInterface
+    from mmonitor.userside.FunctionalRunner import FunctionalRunner
+    from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
+    from mmonitor.userside.EmuRunner import EmuRunner
+    from mmonitor.userside.AssemblyPipeline import AssemblyPipeline
+    from mmonitor.paths import src_dir
+except ImportError:
+    # Fallback to local imports if package is not installed
+    from ..database.django_db_interface import DjangoDBInterface
+    from .FunctionalRunner import FunctionalRunner
+    from .CentrifugerRunner import CentrifugerRunner
+    from .EmuRunner import EmuRunner
+    from .AssemblyPipeline import AssemblyPipeline
+    from ..paths import src_dir
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -31,7 +49,7 @@ logger.addHandler(handler)
 # Add the src directory to Python path
 src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)
+    sys.path.append(src_dir)
 
 from mmonitor.database.django_db_interface import DjangoDBInterface
 from mmonitor.userside.FastqStatistics import FastqStatistics
@@ -73,11 +91,9 @@ class MMonitorCMD:
         self.logged_in = False
         self.current_user = None
 
-        # Add minimap2 from lib folder to PATH
-        minimap2_path = os.path.join(src_dir, "lib", "minimap2")
-        os.environ['PATH'] = f"{minimap2_path}:{os.environ['PATH']}"
-        print(f"Updated PATH: {os.environ['PATH']}")
-
+        # Add minimap2 from lib folder to PATH only if needed
+        self.minimap2_path = os.path.join(src_dir, "lib", "minimap2")
+        
         # Use separate config files
         self.db_config_path = os.path.join(src_dir, "resources", "db_config.json")
         self.pipeline_config_path = os.path.join(src_dir, "resources", "pipeline_config.json")
@@ -86,13 +102,11 @@ class MMonitorCMD:
         try:
             if os.path.exists(self.db_config_path):
                 with open(self.db_config_path, 'r') as f:
-                    content = f.read().strip()  # Remove any whitespace
+                    content = f.read().strip()
                     try:
                         self.db_config = json.loads(content)
                     except json.JSONDecodeError as e:
                         print(f"Error parsing db_config.json: {e}")
-                        print(f"Content causing error: {content}")
-                        # Initialize with empty config
                         self.db_config = {}
         except Exception as e:
             print(f"Error loading db_config: {e}")
@@ -122,9 +136,19 @@ class MMonitorCMD:
             self.config = {}
         
         # Initialize EMU runner with proper database path
-        if self.args.emu_db:
-            self.emu_runner = EmuRunner(custom_db_path=self.args.emu_db)
+        if hasattr(self.args, 'emu_db') and self.args.emu_db:
+            # Use the absolute path from args
+            self.emu_db_path = os.path.abspath(self.args.emu_db)
+            print(f"Using EMU database path from args: {self.emu_db_path}")
+            self.emu_runner = EmuRunner(custom_db_path=self.emu_db_path)
+        elif 'emu_db' in self.config:
+            # Use the absolute path from config
+            self.emu_db_path = os.path.abspath(self.config['emu_db'])
+            print(f"Using EMU database path from config: {self.emu_db_path}")
+            self.emu_runner = EmuRunner(custom_db_path=self.emu_db_path)
         else:
+            # Use default path
+            print(f"Using default EMU database path: {self.emu_db_path}")
             self.emu_runner = EmuRunner(custom_db_path=self.emu_db_path)
         
         # Initialize Django DB interface with proper offline mode
@@ -146,7 +170,7 @@ class MMonitorCMD:
         
         print(f"Initializing MMonitorCMD with args:")
         print(f"Centrifuger DB: {self.centrifuger_db}")
-        print(f"EMU DB: {self.args.emu_db}")
+        print(f"EMU DB: {self.emu_db_path}")
         print(f"Offline mode: {self.offline_mode}")
 
     def valid_file(self, path):
@@ -165,8 +189,6 @@ class MMonitorCMD:
             return datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             raise argparse.ArgumentTypeError(f"Invalid date format: {date_str}. Use YYYY-MM-DD")
-
-
 
     @staticmethod
     def parse_arguments(args=None):
@@ -291,50 +313,93 @@ class MMonitorCMD:
         unique_files = list(set(file_paths))
         print(f"Concatenating {len(unique_files)} files using Python implementation...")
         
-        with gzip.open(output_file, 'wb') as outfile:
-            for fastq_file in unique_files:
-                try:
-                    if fastq_file.endswith(".gz"):
-                        with gzip.open(fastq_file, 'rb') as infile:
-                            shutil.copyfileobj(infile, outfile, length=1024*1024)
-                    else:
-                        with open(fastq_file, 'rb') as infile:
-                            shutil.copyfileobj(infile, outfile, length=1024*1024)
-                except Exception as e:
-                    print(f"Error processing file {fastq_file}: {e}")
-                    continue
+        # Use a temporary uncompressed file for better performance
+        temp_output = output_file.replace('.gz', '')
+        try:
+            with open(temp_output, 'wb') as outfile:
+                for fastq_file in unique_files:
+                    try:
+                        if fastq_file.endswith(".gz"):
+                            with gzip.open(fastq_file, 'rb') as infile:
+                                while True:
+                                    chunk = infile.read(1024*1024)  # 1MB chunks
+                                    if not chunk:
+                                        break
+                                    outfile.write(chunk)
+                        else:
+                            with open(fastq_file, 'rb') as infile:
+                                while True:
+                                    chunk = infile.read(1024*1024)  # 1MB chunks
+                                    if not chunk:
+                                        break
+                                    outfile.write(chunk)
+                    except Exception as e:
+                        print(f"Error processing file {fastq_file}: {e}")
+                        continue
 
-        print(f"Successfully concatenated files into {output_file}")
+            # Now compress the concatenated file
+            print("Compressing concatenated file...")
+            with open(temp_output, 'rb') as f_in:
+                with gzip.open(output_file, 'wb', compresslevel=5) as f_out:
+                    while True:
+                        chunk = f_in.read(1024*1024)  # 1MB chunks
+                        if not chunk:
+                            break
+                        f_out.write(chunk)
+                        
+            print(f"Successfully concatenated files into {output_file}")
+            
+        finally:
+            # Clean up temporary file
+            try:
+                if os.path.exists(temp_output):
+                    os.remove(temp_output)
+            except Exception as e:
+                print(f"Warning: Could not remove temporary file {temp_output}: {e}")
 
     def concatenate_files(self, files, sample_name):
+        """
+        Concatenate multiple FASTQ files into a single file in a temporary directory.
+        
+        Args:
+            files: List of input FASTQ files
+            sample_name: Name of the sample for the output file
+            
+        Returns:
+            Path to the concatenated file
+        """
         if not files:
             raise ValueError("The files list is empty.")
 
+        # Determine file extension based on first file
         file_extension = ".fastq.gz" if files[0].endswith(".gz") else ".fastq"
 
-        # Ensure the first file has a valid directory path
-        first_file_dir = os.path.dirname(files[0])
-        if not first_file_dir:
-            raise ValueError("The directory of the first file is invalid.")
-
-        base_dir = first_file_dir
-        concat_file_name = os.path.join(base_dir, f"{sample_name}_concatenated{file_extension}")
-
-        # Debug: Print the directory and concatenated file path
-        print(f"Base directory: {base_dir}")
-        print(f"Concatenated file path: {concat_file_name}")
-
-        # Ensure the directory is writable
-        if not os.access(base_dir, os.W_OK):
-            raise PermissionError(f"Directory {base_dir} is not writable.")
-
-        # Check if the concatenated file already exists
-        if not os.path.exists(concat_file_name):
-            self.concatenate_fastq_files(files, concat_file_name)
-        else:
-            print(f"Concatenated file {concat_file_name} already exists. Skipping concatenation.")
-
-        return concat_file_name
+        # Create temporary directory using tempfile for cross-platform compatibility
+        import tempfile
+        temp_dir = tempfile.mkdtemp(prefix="mmonitor_concat_")
+        
+        try:
+            # Create concatenated file in temp directory
+            concat_file_path = os.path.join(temp_dir, f"{sample_name}_concatenated{file_extension}")
+            
+            # Only concatenate if we have multiple files
+            if len(files) > 1:
+                print(f"Concatenating {len(files)} files into temporary file: {concat_file_path}")
+                self.concatenate_fastq_files(files, concat_file_path)
+                return concat_file_path
+            else:
+                # For single file, just return the original file path
+                print("Single input file - skipping concatenation")
+                return files[0]
+                
+        except Exception as e:
+            print(f"Error during concatenation: {e}")
+            # Clean up temp directory on error
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as cleanup_error:
+                print(f"Error cleaning up temporary directory: {cleanup_error}")
+            raise
 
     def load_config(self):
         if os.path.exists(self.args.config):
@@ -348,46 +413,62 @@ class MMonitorCMD:
             print(f"Config path doesn't exist")
 
     def add_statistics(self, fastq_file, sample_name, project_name, subproject_name, sample_date, multi=True):
-        fastq_stats = FastqStatistics(fastq_file, multi=multi)
+        """Add sequencing statistics to database"""
+        print("\nadding statistics")
+        
+        # Convert date to string if it's a datetime object
+        if isinstance(sample_date, (datetime.date, datetime.datetime)):
+            date_str = sample_date.strftime('%Y-%m-%d')
+        else:
+            date_str = str(sample_date)
+
+        fastq_stats = FastqStatistics(fastq_file)
+
         # Calculate statistics
         fastq_stats.quality_statistics()
         fastq_stats.read_lengths_statistics()
         quality_vs_lengths_data = fastq_stats.qualities_vs_lengths()
         gc_contents = fastq_stats.gc_content_per_sequence()
-        # qual_dist = fastq_stats.quality_score_distribution()
-        # q20_q30 = fastq_stats.q20_q30_scores()
 
-
+        # Pre-calculate plot data
+        plot_data = fastq_stats.calculate_plot_data()
 
         data = {
             'sample_name': sample_name,
             'project_id': project_name,
             'subproject_id': subproject_name,
-            'date': sample_date,
-            'mean_gc_content': float(fastq_stats.gc_content()),  # Ensure float
-            'mean_read_length': float(np.mean(fastq_stats.lengths)),  # Convert with float()
-            'median_read_length': float(np.median(fastq_stats.lengths)),  # Convert with float()
-            'mean_quality_score': float(np.mean([np.mean(q) for q in fastq_stats.qualities])),  # Ensure float
-            'read_lengths': json.dumps(quality_vs_lengths_data['read_lengths'], cls=NumpyEncoder),
-            # Use custom encoder if needed
-            'avg_qualities': json.dumps(quality_vs_lengths_data['avg_qualities'], cls=NumpyEncoder),
-            # Use custom encoder if needed
-            'number_of_reads': int(fastq_stats.number_of_reads()),  # Ensure int
-            'total_bases_sequenced': int(fastq_stats.total_bases_sequenced()),  # Ensure int
-            'gc_contents_per_sequence': json.dumps(gc_contents, cls=NumpyEncoder)
-
+            'date': date_str,  # Use string date
+            'mean_gc_content': float(fastq_stats.gc_content()),
+            'mean_read_length': float(np.mean(fastq_stats.lengths)),
+            'median_read_length': float(np.median(fastq_stats.lengths)),
+            'mean_quality_score': float(np.mean([np.mean(q) for q in fastq_stats.qualities])),
+            'read_lengths': json.dumps(fastq_stats.lengths.tolist()),
+            'avg_qualities': json.dumps([np.mean(q) for q in fastq_stats.qualities]),
+            'number_of_reads': fastq_stats.number_of_reads(),
+            'total_bases_sequenced': fastq_stats.total_bases_sequenced(),
+            'q20_score': float((fastq_stats.q20_counts.sum() / fastq_stats.total_bases) * 100),
+            'q30_score': float((fastq_stats.q30_counts.sum() / fastq_stats.total_bases) * 100),
+            'gc_contents_per_sequence': json.dumps(gc_contents),
+            'plot_data': json.dumps(plot_data)  # Store pre-calculated plot data
         }
 
+        # Send to database
         self.django_db.send_sequencing_statistics(data)
 
-    # method to check if a sample is already in the database, if user does not want to overwrite results
-    # returns true if sample_name is in db and false if not
-    def check_sample_in_db(self, sample_id):
-        samples_in_db = self.django_db.get_unique_sample_ids()
-        if samples_in_db is not None:
-            return sample_id in samples_in_db
-        else:
-            return []
+    def _convert_numpy(self, obj):
+        """Convert numpy types to native Python types for JSON serialization."""
+        if isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64,
+                          np.uint8, np.uint16, np.uint32, np.uint64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {k: self._convert_numpy(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self._convert_numpy(x) for x in obj]
+        return obj
 
     def update_only_statistics(self):
 
@@ -416,27 +497,63 @@ class MMonitorCMD:
                                     sample_date, multi=True)
 
     def taxonomy_nanopore_16s(self):
-        
-        sample_name = str(self.args.sample)
-        project_name = str(self.args.project)
-        subproject_name = str(self.args.subproject)
-        sample_date = self.args.date.strftime('%Y-%m-%d')
-        input_files = self.args.input  # This should be a list of input files
+        """Run EMU analysis on 16S data"""
+        print(f"Analyzing 16S data for sample {self.args.sample}")
+        print(f"Min abundance threshold: {self.args.min_abundance}")
 
-        print(f"Analyzing amplicon data for sample {sample_name}.")
-        emu_success = self.emu_runner.run_emu(input_files, sample_name, self.args.minabundance)
-        
-        if not emu_success:
-            print(f"Emu analysis failed for sample {sample_name}.")
-            return
-
-        print(f"Emu analysis completed for sample {sample_name}.")
-        
-        # Update the database after successful Emu analysis
-        if self.update_database_16s(sample_name, project_name, subproject_name, sample_date):
-            print(f"Database successfully updated with results for sample {sample_name}.")
-        else:
-            print(f"Failed to update database with results for sample {sample_name}.")
+        concat_file = None
+        try:
+            # Get input files and sample info
+            input_files = self.args.input
+            sample_name = str(self.args.sample)
+            project_name = str(self.args.project)
+            subproject_name = str(self.args.subproject)
+            sample_date = self.args.date
+            
+            # Setup output directory
+            output_dir = os.path.join(self.pipeline_out, sample_name)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Handle file concatenation if needed
+            input_file = input_files[0] if len(input_files) == 1 else self.concatenate_files(input_files, sample_name)
+            if input_file != input_files[0]:  # Track if we created a new file
+                concat_file = input_file
+            
+            # Run EMU analysis
+            success = self.emu_runner.run_emu(
+                input_file=input_file,
+                output_dir=output_dir,
+                db_dir=self.config.get('emu_db', ''),
+                threads=int(self.config.get('threads', 12)),
+                minimap_type="map-ont"
+            )
+            
+            if not success:
+                print("EMU analysis failed")
+                return False
+                
+            # Update database with EMU results
+            self.update_database_16s(sample_name, project_name, subproject_name, sample_date)
+            
+            # Add sequencing statistics
+            print("\nCollecting sequencing statistics...")
+            self.add_statistics(input_file, sample_name, project_name, subproject_name, sample_date)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error running analysis: {e}")
+            traceback.print_exc()
+            return False
+        finally:
+            # Clean up temporary concatenated file if it exists
+            if concat_file and os.path.exists(concat_file):
+                try:
+                    temp_dir = os.path.dirname(concat_file)
+                    shutil.rmtree(temp_dir)
+                    print(f"Cleaned up temporary directory: {temp_dir}")
+                except Exception as e:
+                    print(f"Warning: Failed to clean up temporary file: {e}")
 
     def update_database_16s(self, sample_name, project_name, subproject_name, sample_date):
         emu_out_path = os.path.join(self.pipeline_out, sample_name)
@@ -460,62 +577,106 @@ class MMonitorCMD:
 
     def taxonomy_nanopore_wgs(self):
         """Run WGS taxonomy analysis using Centrifuger"""
-        if not self.args.multicsv:
+        concat_file = None
+        try:
+            # Get input files and sample info
+            input_files = self.args.input
             sample_name = str(self.args.sample)
-            if not self.args.overwrite:
-                if self.check_sample_in_db(sample_name):
-                    print("Sample is already in DB use --overwrite to overwrite it...")
-                    return
             project_name = str(self.args.project)
             subproject_name = str(self.args.subproject)
             sample_date = self.args.date
             
-            files = self.centrifuger_runner.get_files_from_folder(self.args.input[0])
+            print(f"\nAnalyzing WGS data for sample {sample_name}")
+            print(f"Using Centrifuger database at: {self.config.get('centrifuge_db', '')}")
             
-            if self.args.update:
-                print("Update parameter specified. Will only update results from file.")
-                self.add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
-                return
-
-            # Concatenate input files
-            if files[0].endswith(".gz"):
-                concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq.gz"
-                self.centrifuger_runner.concatenate_gzipped_files(files, concat_file_name)
-            else:
-                concat_file_name = f"{os.path.dirname(files[0])}/{sample_name}_concatenated.fastq"
-                self.centrifuger_runner.concatenate_fastq_fast(files, concat_file_name, False)
-
+            # Handle file concatenation if needed
+            input_file = input_files[0] if len(input_files) == 1 else self.concatenate_files(input_files, sample_name)
+            if input_file != input_files[0]:  # Track if we created a new file
+                concat_file = input_file
+            
             # Run Centrifuger analysis
-            self.centrifuger_runner.run(concat_file_name, sample_name, self.centrifuger_db)
+            success = self.centrifuger_runner.run_centrifuger(
+                input_file=input_file,
+                sample_name=sample_name,
+                db_path=self.config.get('centrifuge_db', '')
+            )
+            
+            if not success:
+                print("Centrifuger analysis failed")
+                return False
+                
+            # Add sample to databases
             self.add_sample_to_databases(sample_name, project_name, subproject_name, sample_date)
             
-            if self.args.qc:
-                self.add_statistics(concat_file_name, sample_name, project_name, subproject_name, sample_date)
-                print("adding statistics")
-            os.remove(concat_file_name)
+            # Add sequencing statistics
+            self.add_statistics(input_file, sample_name, project_name, subproject_name, sample_date)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error running analysis: {e}")
+            traceback.print_exc()
+            return False
+        finally:
+            # Clean up temporary concatenated file if it exists
+            if concat_file and os.path.exists(concat_file):
+                try:
+                    temp_dir = os.path.dirname(concat_file)
+                    shutil.rmtree(temp_dir)
+                    print(f"Cleaned up temporary directory: {temp_dir}")
+                except Exception as e:
+                    print(f"Warning: Failed to clean up temporary file: {e}")
 
     def assembly_pipeline(self):
         """Run the assembly pipeline with checkpointing"""
-        output_dir = os.path.join(self.pipeline_out, self.args.sample)
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Initialize assembly pipeline with state tracking
-        pipeline = AssemblyPipeline(output_dir, self.args.sample, self.django_db)
-        
-        # Run assembly pipeline with proper checkpointing
-        success = pipeline.run_assembly(self.args.input, self.args.threads)
-        
-        if success:
-            print("Assembly pipeline completed successfully.")
-            # Upload results if we're not in offline mode
-            if not self.offline_mode and self.django_db:
+        concat_file = None
+        try:
+            # Get input files and sample info
+            input_files = self.args.input
+            sample_name = str(self.args.sample)
+            
+            # Setup output directory
+            output_dir = os.path.join(self.pipeline_out, sample_name)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Handle file concatenation if needed
+            input_file = input_files[0] if len(input_files) == 1 else self.concatenate_files(input_files, sample_name)
+            if input_file != input_files[0]:  # Track if we created a new file
+                concat_file = input_file
+            
+            # Initialize assembly pipeline
+            pipeline = AssemblyPipeline(output_dir, sample_name, self.django_db)
+            
+            # Run assembly pipeline with proper checkpointing
+            success = pipeline.run_assembly([input_file], self.args.threads)
+            
+            if success:
+                print("Assembly pipeline completed successfully.")
+                # Upload results if we're not in offline mode
+                if not self.offline_mode and self.django_db:
+                    try:
+                        self.django_db.upload_assembly_results(output_dir, sample_name)
+                        print("Assembly results uploaded successfully.")
+                    except Exception as e:
+                        print(f"Failed to upload assembly results: {e}")
+            else:
+                # Get error info from pipeline state
+                failed_step, error_msg = pipeline.state_tracker.get_error_info()
+                if failed_step and error_msg:
+                    print(f"Assembly pipeline failed at step {failed_step}: {error_msg}")
+                else:
+                    print("Assembly pipeline failed. Check logs for details.")
+        except Exception as e:
+            print(f"Assembly pipeline failed: {str(e)}")
+        finally:
+            # Clean up temporary concatenated file if it exists
+            if concat_file and os.path.exists(concat_file):
                 try:
-                    self.django_db.upload_assembly_results(output_dir, self.args.sample)
-                    print("Assembly results uploaded successfully.")
+                    temp_dir = os.path.dirname(concat_file)
+                    shutil.rmtree(temp_dir)
+                    print(f"Cleaned up temporary directory: {temp_dir}")
                 except Exception as e:
-                    print(f"Failed to upload assembly results: {e}")
-        else:
-            print("Assembly pipeline failed. Check logs for details.")
+                    print(f"Warning: Failed to clean up temporary file: {e}")
 
     def functional_pipeline(self):
         """Run the functional analysis pipeline with checkpointing"""
@@ -560,36 +721,6 @@ class MMonitorCMD:
         
         print("Functional analysis pipeline completed successfully.")
 
-    def concatenate_files(self, files, sample_name):
-        if not files:
-            raise ValueError("The files list is empty.")
-
-        file_extension = ".fastq.gz" if files[0].endswith(".gz") else ".fastq"
-
-        # Ensure the first file has a valid directory path
-        first_file_dir = os.path.dirname(files[0])
-        if not first_file_dir:
-            raise ValueError("The directory of the first file is invalid.")
-
-        base_dir = first_file_dir
-        concat_file_name = os.path.join(base_dir, f"{sample_name}_concatenated{file_extension}")
-
-        # Debug: Print the directory and concatenated file path
-        print(f"Base directory: {base_dir}")
-        print(f"Concatenated file path: {concat_file_name}")
-
-        # Ensure the directory is writable
-        if not os.access(base_dir, os.W_OK):
-            raise PermissionError(f"Directory {base_dir} is not writable.")
-
-        # Check if the concatenated file already exists
-        if not os.path.exists(concat_file_name):
-            self.concatenate_fastq_files(files, concat_file_name)
-        else:
-            print(f"Concatenated file {concat_file_name} already exists. Skipping concatenation.")
-
-        return concat_file_name
-
     def load_config(self):
         if os.path.exists(self.args.config):
             try:
@@ -602,168 +733,75 @@ class MMonitorCMD:
             print(f"Config path doesn't exist")
 
     def add_sample_to_databases(self, sample_name, project_name, subproject_name, sample_date):
-        # Add sample to Django DB
-        self.django_db.add_sample(sample_name, project_name, subproject_name, sample_date)
-        
-        # Add sample to Centrifuger DB
-        self.centrifuger_runner.add_sample_to_centrifuger_db(sample_name, self.centrifuger_db)
+        """Add sample to databases with proper error handling"""
+        try:
+            # Get the Centrifuger output files
+            sample_out_dir = os.path.join(self.pipeline_out, sample_name)
+            kraken_report = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_report.tsv")
+            
+            if not os.path.exists(kraken_report):
+                print(f"Error: Centrifuger report not found at {kraken_report}")
+                return False
+                
+            # Convert date to string if it's a datetime object
+            if isinstance(sample_date, (datetime.date, datetime.datetime)):
+                date_str = sample_date.strftime('%Y-%m-%d')
+            else:
+                date_str = str(sample_date)
+            
+            # Send to database
+            success = self.django_db.send_nanopore_record_centrifuger(
+                kraken_out_path=kraken_report,
+                sample_name=sample_name,
+                project_id=project_name,
+                subproject_id=subproject_name,
+                date=date_str,
+                overwrite=self.args.overwrite
+            )
+            
+            if success:
+                print(f"Successfully added sample {sample_name} to database")
+            else:
+                print(f"Failed to add sample {sample_name} to database")
+                
+            return success
+            
+        except Exception as e:
+            print(f"Error adding sample to databases: {e}")
+            traceback.print_exc()
+            return False
 
     def run(self):
         """Run the analysis with proper authentication handling"""
         logger.info(f"Starting run with analysis type: {self.args.analysis}")
         
         try:
-            # Authenticate first
-            if not self.authenticate_user():
-                logger.error("Authentication failed")
-                return False
+            # Only add tools to PATH if needed
+            if self.args.analysis == "assembly":
+                # Add assembly tools to PATH
+                flye_path = os.path.join(src_dir, "lib", "Flye-2.9.5", "bin")
+                os.environ['PATH'] = f"{flye_path}:{self.minimap2_path}:{os.environ['PATH']}"
+            elif self.args.analysis == "taxonomy-16s":
+                # Add minimap2 for EMU
+                os.environ['PATH'] = f"{self.minimap2_path}:{os.environ['PATH']}"
             
-            # Create output directory for this sample
-            sample_output_dir = os.path.join(self.pipeline_out, self.args.sample)
-            os.makedirs(sample_output_dir, exist_ok=True)
-            
-            success = False
+            # Run appropriate analysis based on type
             if self.args.analysis == "taxonomy-16s":
-                # EMU analysis implementation...
-                pass
-                
+                return self.taxonomy_nanopore_16s()
             elif self.args.analysis == "taxonomy-wgs":
-                # Centrifuge analysis implementation...
-                pass
-                
+                return self.taxonomy_nanopore_wgs()
             elif self.args.analysis == "assembly":
-                try:
-                    # Initialize FunctionalRunner
-                    runner = FunctionalRunner()
-                    
-                    # Get input files
-                    input_files = self.args.input
-                    if isinstance(input_files, str):
-                        input_files = [input_files]
-                    
-                    print(f"Starting assembly pipeline for {self.args.sample}")
-                    
-                    # Only concatenate if we have multiple files
-                    if len(input_files) > 1:
-                        # Create temporary concatenated file using fast concatenation
-                        with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
-                            print(f"Concatenating {len(input_files)} input files to {temp_file.name}")
-                            self.concatenate_fastq_files(input_files, temp_file.name)
-                            input_file = temp_file.name
-                    else:
-                        input_file = input_files[0]
-                        print(f"Single input file, skipping concatenation: {input_file}")
-                        
-                    # Run Flye assembly with input file
-                    print("Running Flye assembly...")
-                    assembly_file = runner.run_flye(
-                        input_files=[input_file],  # Pass as list with single concatenated file
-                        sample_name=self.args.sample,
-                        output_dir=sample_output_dir,
-                        threads=self.args.threads
-                    )
-                    
-                    # Run Medaka for assembly correction
-                    print("Running Medaka correction...")
-                    corrected_assembly = runner.run_medaka(
-                        assembly_file,
-                        reads=input_file,  # Use concatenated file
-                        output_dir=sample_output_dir,
-                        threads=self.args.threads
-                    )
-                    
-                    # Run MetaBAT2 for binning
-                    print("Running MetaBAT2 binning...")
-                    bins_dir = runner.run_metabat2(
-                        assembly=corrected_assembly,
-                        reads=input_file,  # Use concatenated file
-                        output_dir=sample_output_dir,
-                        threads=self.args.threads
-                    )
-                    
-                    # Clean up temp file
-                    if len(input_files) > 1:
-                        os.unlink(input_file)
-                        
-                    success = True
-                    print(f"Assembly pipeline completed successfully for {self.args.sample}")
-                    
-                except Exception as e:
-                    print(f"Error in assembly pipeline: {str(e)}")
-                    traceback.print_exc()
-                    success = False
-                    
+                return self.assembly_pipeline()
             elif self.args.analysis == "functional":
-                try:
-                    # Initialize FunctionalRunner
-                    runner = FunctionalRunner()
-                    
-                    # Create temporary concatenated file
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.fastq.gz') as temp_file:
-                        print(f"Concatenating input files to {temp_file.name}")
-                        with gzip.open(temp_file.name, 'wb') as outfile:
-                            for filename in self.args.input:
-                                with gzip.open(filename, 'rb') as infile:
-                                    shutil.copyfileobj(infile, outfile)
-                        
-                        # Run assembly steps with concatenated file
-                        assembly_file = runner.run_flye(
-                            [temp_file.name],
-                            self.args.sample,
-                            sample_output_dir,
-                            self.args.threads
-                        )
-                        
-                        corrected_assembly = runner.run_medaka(
-                            assembly_file,
-                            temp_file.name,
-                            sample_output_dir,
-                            self.args.threads
-                        )
-                        
-                        bins_dir = runner.run_metabat2(
-                            corrected_assembly,
-                            temp_file.name,
-                            sample_output_dir,
-                            self.args.threads
-                        )
-                        
-                        # Clean up temp file
-                        os.unlink(temp_file.name)
-                        
-                        # Run additional functional analysis steps
-                        print("Running CheckM2 quality assessment...")
-                        checkm2_out = runner.run_checkm2(
-                            bins_dir=bins_dir,
-                            output_dir=sample_output_dir,
-                            threads=self.args.threads
-                        )
-                        
-                        print("Running GTDB-TK taxonomy classification...")
-                        gtdbtk_out = runner.run_gtdbtk(
-                            bins_dir=bins_dir,
-                            output_dir=sample_output_dir,
-                            threads=self.args.threads
-                        )
-                        
-                        print("Running Bakta annotation...")
-                        bakta_out = runner.run_bakta(
-                            bins_dir=bins_dir,
-                            output_dir=sample_output_dir
-                        )
-                        
-                        success = True
-                        print(f"Functional analysis pipeline completed successfully for {self.args.sample}")
-                        
-                except Exception as e:
-                    print(f"Error in functional pipeline: {str(e)}")
-                    traceback.print_exc()
-                    success = False
-            
-            return success
-
+                return self.functional_pipeline()
+            elif self.args.analysis == "stats":
+                return self.update_only_statistics()
+            else:
+                logger.error(f"Unknown analysis type: {self.args.analysis}")
+                return False
+                
         except Exception as e:
-            logger.error(f"Error during analysis: {str(e)}")
+            logger.error(f"Error running analysis: {e}")
             traceback.print_exc()
             return False
 
@@ -1011,6 +1049,7 @@ def main():
         cmd.run()
     except Exception as e:
         logger.error(f"Error running MMonitorCMD: {e}")
+        traceback.print_exc()
         raise
 
 if __name__ == "__main__":

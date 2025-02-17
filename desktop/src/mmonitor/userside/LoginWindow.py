@@ -14,13 +14,13 @@ import fcntl
 import os
 import tkinter.messagebox as messagebox
 
-from build_mmonitor_pyinstaller import ROOT
+from mmonitor.paths import ROOT
 
 # Define colors here as well for consistency
 COLORS = {
     "primary": "#2B6CB0",        # Deep blue
     "primary_hover": "#2C5282",  # Darker blue
-    "background": "#ffffff",     # White
+    "background": "#dbdbdb",     # Light grey background
     "text": "#1A202C",          # Dark text
     "button_text": "#FFFFFF"     # White text for buttons
 }
@@ -110,10 +110,10 @@ class LoginWindow(ctk.CTkFrame):
                        font=("Helvetica", 11),
                        height=20).pack(side="left", padx=5)
                        
-        ctk.CTkCheckBox(checkbox_frame, text="Remember Me",
-                       variable=self.remember_var,
-                       font=("Helvetica", 11),
-                       height=20).pack(side="right", padx=5)
+        # ctk.CTkCheckBox(checkbox_frame, text="Remember Me",
+        #                variable=self.remember_var,
+        #                font=("Helvetica", 11),
+        #                height=20).pack(side="right", padx=5)
 
         # Buttons
         button_frame = ctk.CTkFrame(container, fg_color="transparent")
@@ -149,8 +149,13 @@ class LoginWindow(ctk.CTkFrame):
     def start_local_server(self):
         """Start the local Django server"""
         try:
-            # Use local server path from root MMonitor directory
-            server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "server")
+            # Get server path based on environment
+            if getattr(sys, 'frozen', False):
+                # If we're in the bundled app
+                server_path = os.path.join(sys._MEIPASS, "server")
+            else:
+                # If we're in development
+                server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "server")
         
             if not os.path.exists(server_path):
                 raise FileNotFoundError(f"Server directory not found at {server_path}")

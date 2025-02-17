@@ -11,9 +11,11 @@ import subprocess
 import sys
 import gzip
 import shutil
+import multiprocessing
 import queue
 import threading
-from build_mmonitor_pyinstaller import ROOT
+from mmonitor.paths import ROOT, RESOURCES_DIR
+import tkinter as tk
 from tkcalendar import Calendar
 import re
 import json
@@ -52,6 +54,10 @@ class FolderWatcherWindow(ctk.CTkFrame):
         self.project_var = tk.StringVar()
         self.subproject_var = tk.StringVar()
         self.date_var = tk.StringVar(value=datetime.datetime.now().strftime("%Y-%m-%d"))
+        self.analysis_type = tk.StringVar(value="taxonomy-wgs")
+        
+        # Initialize trace for analysis_type
+        self.analysis_type_trace = self.analysis_type.trace_add('write', lambda *args: self.on_analysis_type_change())
         
         self.samples = {}
         self.watching = False
@@ -62,7 +68,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
         self.all_samples = {}
         self.queue_samples = {}
         self.pending_files = []
-        self.config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.config_file = os.path.join(RESOURCES_DIR, "pipeline_config.json")
         
         # Load configuration first
         self.load_config()
@@ -77,9 +83,26 @@ class FolderWatcherWindow(ctk.CTkFrame):
         # Add thread tracking
         self.running_analyses = {}  # Keep track of running analysis threads
         self.analysis_lock = threading.Lock()  # Thread safety for analysis operations
+        
+        # Initialize update flags
+        self._update_pending = False
+        self._update_after_id = None
+        self._last_update = 0
+        self.UPDATE_INTERVAL = 500  # ms
+        
+        # Initialize file monitoring
+        self.file_queue = queue.Queue()
+        self.event_handler = None
+        self.observer = None
+        
+        # Start processing queue
+        self.process_queue()
 
     def load_config(self):
         """Load analysis configuration from file"""
+        # Ensure resources directory exists
+        os.makedirs(RESOURCES_DIR, exist_ok=True)
+        
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r') as f:
@@ -90,100 +113,32 @@ class FolderWatcherWindow(ctk.CTkFrame):
                 print(f"Error loading configuration: {e}")
                 return False
         else:
-            print("No configuration file found")
+            print(f"No configuration file found at {self.config_file}")
             return False
 
     def create_widgets(self):
-        """Create all widgets for the folder watcher window"""
-        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
-        self.main_container.pack(fill="both", expand=True, padx=10, pady=5)
+        print("Creating FolderWatcherWindow widgets")
         
-        # Create folder selection frame
-        folder_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        folder_frame.pack(fill="x", pady=5)
+        # Main container
+        main_container = ctk.CTkFrame(self)
+        main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Project info frame
-        project_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        project_frame.pack(fill="x", pady=5)
+        # Create top section
+        self.create_top_section(main_container)
         
-        # Project fields
-        ctk.CTkLabel(project_frame, text="Project:").pack(side="left", padx=5)
-        self.project_entry = ctk.CTkEntry(project_frame, width=200)
-        self.project_entry.pack(side="left", padx=5)
+        # Create separator
+        self.create_separator(main_container)
         
-        ctk.CTkLabel(project_frame, text="Subproject:").pack(side="left", padx=5)
-        self.subproject_entry = ctk.CTkEntry(project_frame, width=200)
-        self.subproject_entry.pack(side="left", padx=5)
+        # Create file trees section
+        self.create_file_trees(main_container)
         
-        ctk.CTkLabel(project_frame, text="Date:").pack(side="left", padx=5)
-        self.date_entry = ctk.CTkEntry(project_frame, width=200)
-        self.date_entry.pack(side="left", padx=5)
-        self.date_entry.insert(0, datetime.datetime.now().strftime("%Y-%m-%d"))
+        # Create bottom controls
+        self.create_bottom_controls(main_container)
         
-        # Folder selection
-        ctk.CTkLabel(folder_frame, text="Watch Folder:").pack(side="left", padx=5)
-        self.folder_entry = ctk.CTkEntry(folder_frame, textvariable=self.folder_var, width=400)
-        self.folder_entry.pack(side="left", padx=5)
+        # Configure cross-platform consistent treeview styling
+        self.configure_treeview_colors()
         
-        # Store reference to browse button
-        self.browse_button = ctk.CTkButton(folder_frame, text="Browse", 
-                                          command=self.browse_folder)
-        self.browse_button.pack(side="left", padx=5)
-        
-        # Watch control buttons
-        self.watch_button = ctk.CTkButton(folder_frame, text="Start Watching",
-                                         command=self.toggle_watching)
-        self.watch_button.pack(side="left", padx=5)
-        
-        # Analysis type selector
-        self.analysis_type_var = ctk.StringVar(value="taxonomy-wgs")
-        self.analysis_type_menu = ctk.CTkOptionMenu(
-            folder_frame,
-            values=["taxonomy-wgs", "taxonomy-16s", "assembly", "functional"],
-            variable=self.analysis_type_var,
-            width=150,
-            height=32
-        )
-        self.analysis_type_menu.pack(side="left", padx=5)
-        create_tooltip(self.analysis_type_menu, "Select analysis type to perform")
-        
-        # Create trees
-        self.create_file_trees(self.main_container)
-        
-        # Create control buttons frame at the bottom
-        control_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        control_frame.pack(fill="x", pady=5)
-        
-        # Left side - Analyze Selected button
-        left_controls = ctk.CTkFrame(control_frame, fg_color="transparent")
-        left_controls.pack(side="left", padx=5)
-        
-        self.analyze_button = ctk.CTkButton(
-            left_controls,
-            text="Analyze Selected",
-            command=self.analyze_selected
-        )
-        self.analyze_button.pack(side="left", padx=5)
-        
-        # Right side - Auto-analyze checkbox and Run Queue button
-        right_controls = ctk.CTkFrame(control_frame, fg_color="transparent")
-        right_controls.pack(side="right", padx=5)
-        
-        self.auto_analyze_checkbox = ctk.CTkCheckBox(
-            right_controls,
-            text="Auto-analyze new samples",
-            variable=self.auto_analyze_var,
-            onvalue=True,
-            offvalue=False
-        )
-        self.auto_analyze_checkbox.pack(side="left", padx=5)
-        
-        self.run_queue_button = ctk.CTkButton(
-            right_controls,
-            text="Run Queue",
-            command=self.run_queue
-        )
-        self.run_queue_button.pack(side="left", padx=5)
+        print("FolderWatcherWindow widgets created")
 
     def create_separator(self, parent):
         """Create a visual separator line"""
@@ -192,49 +147,53 @@ class FolderWatcherWindow(ctk.CTkFrame):
 
     def create_top_section(self, container):
         top_frame = ctk.CTkFrame(container, fg_color="transparent")
-        top_frame.pack(fill="x", pady=(0, 5))
-
-        # Folder selection with improved visual grouping
-        folder_group = ctk.CTkFrame(top_frame, fg_color="transparent")
-        folder_group.pack(fill="x", pady=3)
+        top_frame.pack(fill="x", padx=20, pady=(10, 0))
         
-        folder_label = ctk.CTkLabel(folder_group, text="Folder to watch:", 
-                                   font=("Helvetica", 12, "bold"))
-        folder_label.pack(side="left")
+        # Folder selection frame
+        folder_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        folder_frame.pack(fill="x", pady=5)
         
-        self.folder_entry = ctk.CTkEntry(folder_group, height=32)
-        self.folder_entry.pack(side="left", expand=True, fill="x", padx=5)
+        # Folder entry
+        self.folder_entry = ctk.CTkEntry(folder_frame, height=32, width=400)
+        self.folder_entry.pack(side="left", padx=(0, 5))
         
-        button_frame = ctk.CTkFrame(folder_group, fg_color="transparent")
-        button_frame.pack(side="left")
-        
-        # Modern buttons with consistent styling
+        # Browse button
         self.browse_button = ctk.CTkButton(
-            button_frame, 
-            text="Browse", 
-            command=self.browse_folder,
+            folder_frame,
+            text="Browse",
+            width=100,
             height=32,
-            font=("Helvetica", 12)
+            command=self.browse_folder
         )
-        self.browse_button.pack(side="left", padx=2)
+        self.browse_button.pack(side="left", padx=5)
         
-        self.csv_button = ctk.CTkButton(
-            button_frame, 
-            text="Import CSV", 
-            command=self.load_from_csv,
+        # Import CSV button
+        self.import_csv_button = ctk.CTkButton(
+            folder_frame,
+            text="Import CSV",
+            width=100,
             height=32,
-            font=("Helvetica", 12)
+            command=self.load_from_csv
         )
-        self.csv_button.pack(side="left", padx=2)
+        self.import_csv_button.pack(side="left", padx=5)
         
-        self.watch_button = ctk.CTkButton(
-            button_frame, 
-            text="Start Watching", 
-            command=self.toggle_watching,
+        # Stop button (hidden initially)
+        self.stop_button = ctk.CTkButton(
+            folder_frame,
+            text="Stop Watching",
+            width=120,
             height=32,
-            font=("Helvetica", 12)
+            command=self.stop_watching
         )
-        self.watch_button.pack(side="left", padx=2)
+        
+        # Auto-analyze checkbox
+        self.auto_analyze_checkbox = ctk.CTkCheckBox(
+            folder_frame,
+            text="Auto-analyze",
+            variable=self.auto_analyze_var,
+            font=("Helvetica", 11)
+        )
+        self.auto_analyze_checkbox.pack(side="left", padx=10)
 
         # Project information section
         # Project, subproject and date in one line
@@ -242,7 +201,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
         info_frame.pack(fill="x", pady=(10, 0))
 
         # Initialize date variables
-        self.selected_date = datetime.date.today()
+        self.selected_date = datetime.datetime.now().date()
         self.use_file_date = tk.BooleanVar(value=True)
 
         # Project name
@@ -258,6 +217,21 @@ class FolderWatcherWindow(ctk.CTkFrame):
                      width=80).pack(side="left", padx=(10,0))
         self.subproject_entry = ctk.CTkEntry(info_frame, height=32, width=150)
         self.subproject_entry.pack(side="left", padx=5)
+
+        # Pipeline selection
+        ctk.CTkLabel(info_frame, text="Pipeline:", 
+                     font=("Helvetica", 12, "bold"), 
+                     width=60).pack(side="left", padx=(10,0))
+        pipeline_options = ["taxonomy-wgs", "taxonomy-16s", "assembly"]
+        self.pipeline_menu = ctk.CTkOptionMenu(
+            info_frame,
+            values=pipeline_options,
+            variable=self.analysis_type,
+            height=32,
+            width=150,
+            command=self.on_analysis_type_change
+        )
+        self.pipeline_menu.pack(side="left", padx=5)
 
         # Date picker
         ctk.CTkLabel(info_frame, text="Date:", 
@@ -421,197 +395,317 @@ class FolderWatcherWindow(ctk.CTkFrame):
 
     def create_bottom_controls(self, container):
         """Create bottom controls with improved spacing"""
-        bottom_frame = ctk.CTkFrame(container, fg_color="transparent")
-        bottom_frame.pack(fill="x", padx=20, pady=(0, 20))  # Added bottom padding
+        controls_frame = ctk.CTkFrame(container)
+        controls_frame.pack(fill="x", pady=(10, 0))
         
-        # Left side controls
-        left_controls = ctk.CTkFrame(bottom_frame, fg_color="transparent")
-        left_controls.pack(side="left", fill="y")
+        # Left side buttons
+        left_buttons = ctk.CTkFrame(controls_frame)
+        left_buttons.pack(side="left", fill="x", expand=True)
         
-        self.auto_analyze_checkbox = ctk.CTkCheckBox(
-            left_controls,
-            text="Auto-analyze new samples",
-            variable=self.auto_analyze_var,
-            font=("Helvetica", 12)
-        )
-        self.auto_analyze_checkbox.pack(side="left", padx=(0, 10))
-        
-        # Right side controls with spacing
-        right_controls = ctk.CTkFrame(bottom_frame, fg_color="transparent")
-        right_controls.pack(side="right", fill="y", padx=(0, 20))  # Added right padding
-        
-        self.analyze_button = ctk.CTkButton(
-            right_controls,
+        analyze_button = ctk.CTkButton(
+            left_buttons,
             text="Analyze Selected",
-            command=self.analyze_selected_queue,
-            height=32,
-            font=("Helvetica", 12)
+            command=self.analyze_selected
         )
-        self.analyze_button.pack(side="left", padx=5)
+        analyze_button.pack(side="left", padx=5)
         
-        self.clear_button = ctk.CTkButton(
-            right_controls,
+        # Right side buttons
+        right_buttons = ctk.CTkFrame(controls_frame)
+        right_buttons.pack(side="right", fill="x")
+        
+        clear_button = ctk.CTkButton(
+            right_buttons,
             text="Clear Queue",
-            command=self.clear_queue,
-            height=32,
-            font=("Helvetica", 12)
+            command=self.clear_queue
         )
-        self.clear_button.pack(side="left", padx=5)
+        clear_button.pack(side="right", padx=5)
 
-    def add_new_file(self, file_path):
-        """Add a new file to both trees if appropriate"""
-        # Skip concatenated files
-        if '_concatenated' in file_path:
-            return
-        
-        if not self.watch_start_time:
-            return
-        
-        # Store currently expanded items before update
-        self.store_expanded_state()
-        
-        print(f"Processing new file: {file_path}")
-        sample_name = self.suggest_sample_name(os.path.dirname(file_path))
-        current_time = time.strftime("%H:%M:%S", time.localtime(time.time()))
-        
-        # Add to all_samples (left tree)
-        if sample_name not in self.all_samples:
-            print(f"Adding new sample {sample_name}")
-            self.all_samples[sample_name] = {
-                "files": [file_path],
-                "path": os.path.dirname(file_path)
-            }
-            self.samples[sample_name] = [file_path]
-        else:
-            if file_path not in self.all_samples[sample_name]["files"]:
-                print(f"Adding new file to existing sample {sample_name}")
-                self.all_samples[sample_name]["files"].append(file_path)
-                if sample_name in self.samples:
-                    self.samples[sample_name].append(file_path)
-                else:
-                    self.samples[sample_name] = [file_path]
-        
-        # Add to queue_samples (right tree)
-        if sample_name not in self.queue_samples:
-            print(f"Adding sample {sample_name} to queue")
-            self.queue_samples[sample_name] = {
-                "files": [file_path],
-                "first_seen": current_time
-            }
-        else:
-            if file_path not in self.queue_samples[sample_name]["files"]:
-                print(f"Adding new file to queued sample {sample_name}")
-                self.queue_samples[sample_name]["files"].append(file_path)
-        
-        # Set needs_update flag instead of forcing immediate updates
-        self.needs_update = True
-        
-        print(f"Current samples in all_samples: {list(self.all_samples.keys())}")
-        print(f"Current samples in queue: {list(self.queue_samples.keys())}")
+    def schedule_update(self):
+        """Schedule a tree update with rate limiting"""
+        current_time = time.time() * 1000
+        if not self._update_pending and (current_time - self._last_update) >= self.UPDATE_INTERVAL:
+            self._update_pending = True
+            self.after(0, self._do_update)
 
-    def schedule_updates(self):
-        """Schedule updates to avoid redundant calls"""
-        self.after_cancel(self.process_queue) if hasattr(self, '_after_id') else None
-        self._after_id = self.after(100, self.process_queue)
+    def _do_update(self):
+        """Perform the actual tree update"""
+        try:
+            self.update_file_tree()
+            self._last_update = time.time() * 1000
+        finally:
+            self._update_pending = False
+
+    def process_queue(self):
+        """Process the file event queue"""
+        try:
+            while True:
+                event = self.file_queue.get_nowait()
+                self.handle_file_event(event)
+        except queue.Empty:
+            pass
+        finally:
+            # Schedule next queue check
+            self.after(100, self.process_queue)
+
+    def handle_file_event(self, event):
+        """Handle a single file event"""
+        try:
+            if event.event_type in ['created', 'modified']:
+                if event.src_path.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')):
+                    self.add_new_file(event.src_path, is_initial_scan=False)
+            elif event.event_type == 'deleted':
+                self.remove_file(event.src_path)
+            
+            # Schedule update if needed
+            self.schedule_update()
+            
+        except Exception as e:
+            print(f"Error handling file event: {e}")
+            traceback.print_exc()
+
+    def scan_existing_files(self, folder):
+        """Scan and add existing files to the file tree"""
+        try:
+            # Get all files in the folder
+            all_files = []
+            for root, _, files in os.walk(folder):
+                for file in files:
+                    if file.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')):
+                        all_files.append(os.path.join(root, file))
+            
+            # Process files in larger batches for better performance
+            batch_size = 100
+            for i in range(0, len(all_files), batch_size):
+                batch = all_files[i:i + batch_size]
+                for file_path in batch:
+                    # Pass is_initial_scan=True to prevent queueing existing files
+                    self.add_new_file(file_path, is_initial_scan=True)
+                
+                # Update GUI less frequently
+                if i % (batch_size * 4) == 0:
+                    self.schedule_update()
+            
+            # Final update
+            self.schedule_update()
+            
+        except Exception as e:
+            print(f"Error scanning files: {e}")
+            traceback.print_exc()
+
+    def add_new_file(self, file_path, is_initial_scan=False):
+        """Add a new file to the samples dict"""
+        try:
+            if not file_path.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')):
+                return
+            
+            sample_name = self.suggest_sample_name(file_path)
+            if not sample_name:
+                return
+            
+            # Add to samples dict
+            if sample_name not in self.all_samples:
+                self.all_samples[sample_name] = {'files': [], 'status': 'Pending'}
+        
+            if file_path not in self.all_samples[sample_name]['files']:
+                self.all_samples[sample_name]['files'].append(file_path)
+            
+            # Only add to queue if it's not from initial scan and we're watching
+            if not is_initial_scan and self.watching:
+                if sample_name not in self.queue_samples:
+                    self.queue_samples[sample_name] = {
+                        "files": [file_path],
+                        "first_seen": datetime.datetime.now().strftime("%H:%M:%S")
+                    }
+                elif file_path not in self.queue_samples[sample_name]["files"]:
+                    self.queue_samples[sample_name]["files"].append(file_path)
+                
+                # Update queue display
+                self.update_queue_display()
+                
+                # Check if we should auto-analyze
+                if self.auto_analyze_var.get():
+                    self.check_and_start_analysis(sample_name)
+            
+        except Exception as e:
+            print(f"Error adding file: {e}")
 
     def update_file_tree(self):
-        """Update the file tree view with proper error handling"""
+        """Update the file tree with current samples"""
         try:
             # Clear existing items
-            self.file_tree.delete(*self.file_tree.get_children())
+            for item in self.file_tree.get_children():
+                self.file_tree.delete(item)
             
-            print(f"Updating tree with {len(self.all_samples)} samples")  # Debug print
-            
-            for sample_name, data in self.all_samples.items():
-                try:
-                    # Insert sample as parent
-                    files = data.get('files', [])
-                    status = data.get('status', 'Pending')
-                    
-                    sample_id = self.file_tree.insert(
-                        "", "end",
-                        text=sample_name,
-                        values=(f"{len(files)} files", status))
-                    
-                    # Insert each file as child
-                    for file_path in files:
-                        try:
-                            self.file_tree.insert(
-                                sample_id, "end",
-                                text=os.path.basename(file_path),
-                                values=("", "")
-                            )
-                        except Exception as e:
-                            print(f"Error inserting file {file_path}: {e}")
+            # Add samples and their files
+            for sample_name, sample_data in self.all_samples.items():
+                # Add sample
+                sample_item = self.file_tree.insert('', 'end', text=sample_name)
                 
-                except Exception as e:
-                    print(f"Error processing sample {sample_name}: {e}")
-            
-            # Update queue count
-            queue_count = len(self.queue_samples)
-            total_files = sum(len(data.get('files', [])) for data in self.queue_samples.values())
-            self.queue_count.configure(text=f"({queue_count} samples, {total_files} files)")
+                # Add status tag if needed
+                if 'status' in sample_data:
+                    self.file_tree.item(sample_item, tags=(sample_data['status'],))
+                
+                # Add files
+                for file_path in sample_data['files']:
+                    self.file_tree.insert(sample_item, 'end', text=os.path.basename(file_path))
             
         except Exception as e:
             print(f"Error updating file tree: {e}")
-            import traceback
             traceback.print_exc()
 
-    
-    def analysis_completed(self, sample_name, success):
-        """Handle analysis completion in main thread"""
-        if success:
-            self.update_sample_status(sample_name, "Completed")
-            print(f"Analysis completed successfully for {sample_name}")
+    def toggle_watching(self):
+        """Toggle folder watching on/off"""
+        if not self.watching:
+            folder = self.folder_entry.get()
+            if not folder:
+                messagebox.showerror("Error", "Please select a folder to watch.")
+                return
+                
+            if not self.check_config():
+                return
+                
+            # Clear existing data
+            self.file_tree.delete(*self.file_tree.get_children())
+            self.all_samples.clear()
+            self.queue_samples.clear()  # Also clear the queue
+            
+            # Start watching
+            self.start_watching(folder)
+            
+            # Update UI
+            self.watching = True
+            self.watch_button.configure(
+                text="Stop Watching",
+                state="normal",  # Ensure button stays enabled
+                command=self.toggle_watching  # Ensure command is preserved
+            )
+            self.folder_entry.configure(state="disabled")
+            self.browse_button.configure(state="disabled")
+            
+            messagebox.showinfo("Folder Watch Started", f"Now watching folder: {folder}")
         else:
-            self.update_sample_status(sample_name, "Failed")
-            print(f"Analysis failed for {sample_name}")
-        
-        # Remove from queue if present
-        if sample_name in self.queue_samples:
-            del self.queue_samples[sample_name]
-            self.needs_update = True
+            self.stop_watching()
+            
+            # Update UI
+            self.watching = False
+            self.watch_button.configure(
+                text="Watch Folder",
+                state="normal",  # Ensure button stays enabled
+                command=self.toggle_watching  # Ensure command is preserved
+            )
+            self.folder_entry.configure(state="normal")
+            self.browse_button.configure(state="normal")
 
-    def analysis_failed(self, sample_name, error_msg):
-        """Handle analysis failure in main thread"""
-        self.update_sample_status(sample_name, "Failed")
-        messagebox.showerror("Analysis Error", f"Analysis failed for {sample_name}: {error_msg}")
+    def start_watching(self, folder):
+        """Start watching a folder for changes"""
+        try:
+            # Stop existing observer if any
+            if self.observer:
+                self.stop_watching()
+            
+            # Scan existing files first
+            self.scan_existing_files(folder)
+            
+            # Set up new observer
+            self.event_handler = FileSystemEventHandler()
+            self.event_handler.on_created = lambda event: self.file_queue.put(event)
+            self.event_handler.on_modified = lambda event: self.file_queue.put(event)
+            self.event_handler.on_deleted = lambda event: self.file_queue.put(event)
+            
+            self.observer = Observer()
+            self.observer.schedule(self.event_handler, folder, recursive=True)
+            self.observer.start()
+            
+            # Record start time
+            self.watch_start_time = datetime.datetime.now()
+            
+        except Exception as e:
+            print(f"Error starting folder watch: {e}")
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to start watching folder: {str(e)}")
 
-    def run_all_analyses(self):
-        """Run analyses for all samples in separate threads"""
-        for sample_name in list(self.samples.keys()):
-            if sample_name not in self.running_analyses:
-                self.run_analysis_for_sample(sample_name)
-            else:
-                print(f"Analysis already running for {sample_name}")
-
-    def check_and_start_analysis(self, sample_name):
-        """Check if conditions are met to start analysis"""
-        if not self.auto_analyze_var.get():
-            return
-        
-        if sample_name not in self.all_samples:
-            return
-        
-        # Get minimum files threshold from config or use default
-        min_files = self.config.get('min_files_for_analysis', 10)
-        current_files = len(self.all_samples[sample_name]["files"])
-        
-        print(f"Checking analysis conditions for {sample_name}: {current_files}/{min_files} files")
-        
-        if current_files >= min_files:
-            print(f"Starting analysis for {sample_name}")
-            self.run_analysis_for_sample(sample_name)
+    def stop_watching(self):
+        """Stop watching and clean up resources"""
+        try:
+            if self.observer:
+                self.observer.stop()
+                self.observer.join()
+                self.observer = None
+            
+            self.event_handler = None
+            self.watch_start_time = None
+            
+            # Clear queue samples but keep all_samples
+            self.queue_samples.clear()
+            self.update_queue_display()
+            
+        except Exception as e:
+            print(f"Error stopping folder watch: {e}")
+            traceback.print_exc()
 
     def browse_folder(self):
+        """Browse for a folder to watch"""
         folder = filedialog.askdirectory()
         if folder:
             self.folder_entry.delete(0, tk.END)
             self.folder_entry.insert(0, folder)
+            
+            # Suggest project names
             self.suggest_project_names(folder)
-            # Auto-start watching when folder is selected
-            if not self.watching:
-                self.start_watching()
+            
+            # Start watching automatically
+            self.start_watching_folder()
+            
+    def start_watching_folder(self):
+        """Start watching the selected folder"""
+        folder = self.folder_entry.get()
+        if not folder:
+            messagebox.showerror("Error", "Please select a folder to watch.")
+            return
+            
+        if not self.check_config():
+            return
+            
+        # Clear existing data
+        self.file_tree.delete(*self.file_tree.get_children())
+        self.all_samples.clear()
+        self.queue_samples.clear()
+        
+        # Start watching
+        self.start_watching(folder)
+        
+        # Update UI
+        self.watching = True
+        self.folder_entry.configure(state="disabled")
+        self.browse_button.pack_forget()  # Hide browse button
+        self.stop_button.pack(side="left", padx=5)  # Show stop button
+        
+        messagebox.showinfo("Folder Watch Started", f"Now watching folder: {folder}")
+
+    def stop_watching(self):
+        """Stop watching and clean up resources"""
+        try:
+            if self.observer:
+                self.observer.stop()
+                self.observer.join()
+                self.observer = None
+            
+            self.event_handler = None
+            self.watch_start_time = None
+            
+            # Clear queue samples but keep all_samples
+            self.queue_samples.clear()
+            self.update_queue_display()
+            
+            # Update UI
+            self.watching = False
+            self.folder_entry.configure(state="normal")
+            self.stop_button.pack_forget()  # Hide stop button
+            self.browse_button.pack(side="left", padx=5)  # Show browse button
+            
+        except Exception as e:
+            print(f"Error stopping folder watch: {e}")
+            traceback.print_exc()
 
     def suggest_project_names(self, folder):
         """Suggest project and subproject names based on the folder path"""
@@ -629,98 +723,6 @@ class FolderWatcherWindow(ctk.CTkFrame):
         self.subproject_entry.delete(0, tk.END)
         self.subproject_entry.insert(0, subproject_name)
 
-    def toggle_watching(self):
-        if not self.watching:
-            self.start_watching()
-        else:
-            self.stop_watching()
-
-    def start_watching(self):
-        if not self.check_config():
-            return
-
-        folder = self.folder_entry.get()
-        if not folder:
-            messagebox.showerror("Error", "Please select a folder to watch.")
-            return
-
-        # Clear existing data
-        self.file_tree.delete(*self.file_tree.get_children())
-        self.queue_tree.delete(*self.queue_tree.get_children())
-        self.all_samples.clear()
-        self.samples.clear()
-        self.queue_samples.clear()
-        
-        # Set watch start time
-        self.watch_start_time = time.time()
-        
-        # Now scan existing files
-        self.scan_existing_files(folder)
-        self.update_file_tree()  # Force initial update
-
-        # Start monitoring
-        if self.folder_monitor:
-            self.folder_monitor.stop()
-
-        self.folder_monitor = FolderMonitor([folder], self)
-        self.folder_monitor.start()
-        self.watching = True
-        self.watch_button.configure(text="Stop Watching")
-        
-        # Disable folder entry and browse button while watching
-        self.folder_entry.configure(state="disabled")
-        self.browse_button.configure(state="disabled")
-
-        messagebox.showinfo("Folder Watch Started", f"Now watching folder: {folder}")
-
-    def stop_watching(self):
-        """Stop watching and clean up running analyses"""
-        if self.folder_monitor:
-            self.folder_monitor.stop()
-            self.folder_monitor = None
-        
-        # Wait for running analyses to complete
-        for thread in self.running_analyses.values():
-            thread.join(timeout=0.1)  # Short timeout to avoid blocking
-        
-        self.watching = False
-        self.watch_button.configure(text="Start Watching")
-        self.folder_entry.configure(state="normal")
-        self.browse_button.configure(state="normal")
-        
-        messagebox.showinfo("Folder Watch Stopped", "Stopped watching folder.")
-
-    def scan_existing_files(self, folder):
-        """Scan and add existing files to the file tree only"""
-        print(f"Scanning existing files in {folder}")
-        self.file_tree.delete(*self.file_tree.get_children())
-        self.all_samples.clear()
-        self.samples.clear()
-        
-        for root, _, files in os.walk(folder):
-            # Filter out concatenated files and get only fastq files
-            fastq_files = [f for f in files 
-                          if (f.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')) and 
-                              '_concatenated' not in f)]
-            
-            if fastq_files:
-                sample_name = self.suggest_sample_name(root)
-                file_paths = [os.path.join(root, f) for f in fastq_files]
-                print(f"Found sample {sample_name} with {len(file_paths)} files")
-                
-                self.all_samples[sample_name] = {
-                    "files": file_paths,
-                    "path": root
-                }
-                self.samples[sample_name] = file_paths
-        
-        print(f"Total samples found: {len(self.all_samples)}")
-        self.needs_update = True  # Set flag instead of immediate update
-
-    """
-    Detect if the reads look like 16S or WGS based on read length distribution.
-    """
-    
     def detect_read_type(self, file_path, length_threshold=2000, fraction_threshold=0.6, max_reads=30):
         read_lengths = []
         
@@ -751,7 +753,6 @@ class FolderWatcherWindow(ctk.CTkFrame):
         else:
             return "Looks like WGS"
 
-
     def suggest_sample_name(self, path):
         # Try to extract meaningful sample name from the path
         path_parts = path.split(os.sep)
@@ -769,9 +770,9 @@ class FolderWatcherWindow(ctk.CTkFrame):
         top.title("Select Date")
         
         cal = Calendar(top, selectmode='day', date_pattern='yyyy-mm-dd',
-                      year=self.selected_date.year,
-                      month=self.selected_date.month,
-                      day=self.selected_date.day)
+                      year=datetime.datetime.now().year,
+                      month=datetime.datetime.now().month,
+                      day=datetime.datetime.now().day)
         cal.pack(padx=10, pady=10)
         
         def set_date():
@@ -789,37 +790,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
         else:
             self.sample_name_entry.configure(state="normal")
 
-    def update_appearance(self):
-        """Update appearance based on current theme"""
-        is_dark = ctk.get_appearance_mode() == "dark"
-        
-        # Update background colors
-        bg_color = "#1a1a1a" if is_dark else "#ffffff"
-        frame_color = "#2d2d2d" if is_dark else "#f5f5f5"
-        text_color = "#ffffff" if is_dark else "#000000"
-        
-        # Update main container
-        self.configure(fg_color=bg_color)
-        
-        # Update all frames
-        for widget in self.winfo_children():
-            if isinstance(widget, ctk.CTkFrame):
-                widget.configure(fg_color=frame_color)
-        
-        # Update labels and buttons
-        for widget in self.winfo_children():
-            if isinstance(widget, ctk.CTkLabel):
-                widget.configure(text_color=text_color)
-            elif isinstance(widget, ctk.CTkButton):
-                widget.configure(
-                    fg_color=frame_color,
-                    text_color=text_color,
-                    hover_color="#3d3d3d" if is_dark else "#e0e0e0"
-                )
-        
-        # Update treeview colors
-        self.configure_treeview_colors()
-
+    
     def check_config(self):
         if not self.config:
             messagebox.showwarning("Invalid Configuration", "Please set up analysis parameters in the Analysis tab first.")
@@ -839,145 +810,6 @@ class FolderWatcherWindow(ctk.CTkFrame):
             self.update_queue_count()
         except Exception as e:
             print(f"Error updating queue display: {e}")
-
-    def process_queue(self):
-        """Process the update queue with debug output"""
-        if self.needs_update:
-            print("Processing update queue...")  # Debug print
-            self.update_file_tree()
-            self.update_queue_tree()
-            self.needs_update = False
-        
-        # Schedule next update
-        self.after(100, self.process_queue)
-
-
-    def _run_analysis_thread(self, sample_name, tree_item):
-        """Thread function to run analysis for a single sample"""
-        try:
-            print(f"Starting analysis thread for sample: {sample_name}")
-            
-            # Update status in GUI thread
-            self.after(0, lambda: self.update_sample_status(sample_name, "Analyzing..."))
-            
-            # Get sample files
-            files = self.all_samples[sample_name]['files']
-            
-            # Get project information
-            project_info = {
-                'project': self.project_entry.get() or "default_project",
-                'subproject': self.subproject_entry.get() or "default_subproject",
-                'date': self.date_entry.get()
-            }
-            
-            # Initialize MMonitorCMD
-            cmd_runner = MMonitorCMD()
-            cmd_runner.offline_mode = self.offline_mode
-            cmd_runner.logged_in = self.logged_in
-            cmd_runner.current_user = self.current_user
-            
-            # Load config file
-            try:
-                with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-                    print(f"Loaded config: {config}")
-            except Exception as e:
-                print(f"Error loading config: {e}")
-                raise
-            
-            # Verify database paths exist
-            centrifuger_db = config.get('centrifuger_db')
-            if not centrifuger_db:
-                raise ValueError("Centrifuger database path not found in config")
-            
-            if not os.path.exists(os.path.dirname(centrifuger_db)):
-                raise ValueError(f"Centrifuger database directory not found: {centrifuger_db}")
-            
-            # Set up arguments with proper database paths
-            args = argparse.Namespace(
-                analysis=config.get('analysis_type', 'taxonomy-wgs'),
-                config=self.config_file,
-                threads=config.get('threads', 4),
-                sample=sample_name,
-                project=project_info['project'],
-                subproject=project_info['subproject'],
-                date=datetime.datetime.strptime(project_info['date'], '%Y-%m-%d').date(),
-                input=files,
-                multicsv=None,
-                centrifuger_db=centrifuger_db,  # Use verified path
-                emu_db=config.get('emu_db'),
-                min_length=config.get('min_length', 1000),
-                min_quality=config.get('min_quality', 10.0),
-                min_abundance=config.get('min_abundance', 0.01),
-                overwrite=True,
-                qc=True,
-                update=False,
-                verbose=True,
-                loglevel='INFO'
-            )
-            
-            print(f"Analysis arguments:")
-            print(f"Centrifuger DB: {args.centrifuger_db}")
-            print(f"EMU DB: {args.emu_db}")
-            print(f"Sample: {args.sample}")
-            print(f"Project: {args.project}")
-            print(f"Subproject: {args.subproject}")
-            
-            # Initialize and run analysis
-            cmd_runner.initialize_from_args(args)
-            success = cmd_runner.run()
-            
-            # Update GUI in main thread
-            def update_gui():
-                if success:
-                    self.update_sample_status(sample_name, "Completed")
-                    messagebox.showinfo("Success", f"Analysis completed for sample {sample_name}")
-                else:
-                    self.update_sample_status(sample_name, "Failed")
-                    messagebox.showerror("Error", f"Analysis failed for sample {sample_name}")
-                
-                # Remove from queue if present
-                if sample_name in self.queue_samples:
-                    del self.queue_samples[sample_name]
-                    self.update_queue_display()
-            
-            self.after(0, update_gui)
-            
-        except Exception as e:
-            error_msg = f"Error running analysis for {sample_name}: {str(e)}"
-            print(error_msg)
-            traceback.print_exc()
-            
-            # Update GUI in main thread
-            self.after(0, lambda: [
-                self.update_sample_status(sample_name, "Error"),
-                messagebox.showerror("Error", error_msg)
-            ])
-
-    def analyze_selected_queue(self):
-        selected_items = self.queue_tree.selection()
-        if not selected_items:
-            messagebox.showinfo("Info", "Please select samples from the queue to analyze.")
-            return
-            
-        for item in selected_items:
-            sample_name = self.queue_tree.item(item)["text"]
-            self.run_analysis_for_sample(sample_name)
-            self.queue_tree.delete(item)
-            # Remove from pending files
-            self.pending_files = [(f, s) for f, s in self.pending_files if s != sample_name]
-        
-        self.update_queue_count()
-
-    def clear_queue(self):
-        if messagebox.askyesno("Clear Queue", "Are you sure you want to clear the analysis queue?"):
-            self.queue_tree.delete(*self.queue_tree.get_children())
-            self.queue_samples.clear()  # Clear queue samples instead of pending_files
-            self.update_queue_count()
-
-    def update_queue_count(self):
-        sample_count = len(self.queue_samples)
-        file_count = sum(len(data["files"]) for data in self.queue_samples.values())
 
     def configure_treeview_colors(self):
         """Configure cross-platform consistent treeview styling"""
@@ -1053,6 +885,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
             return
 
         error_messages = []  # list to accumulate error messages
+        samples_to_analyze = []  # list to track samples that need to be analyzed
 
         try:
             with open(file_path, 'r') as file:
@@ -1064,6 +897,9 @@ class FolderWatcherWindow(ctk.CTkFrame):
                 if missing_columns:
                     messagebox.showerror("Error", f"Missing required columns in CSV: {', '.join(missing_columns)}")
                     return
+
+                # Get current analysis type
+                current_analysis_type = self.analysis_type.get()
 
                 for row in reader:
                     # Check if provided path exists
@@ -1113,7 +949,10 @@ class FolderWatcherWindow(ctk.CTkFrame):
                     sample_name = row["sample_name"]
                     self.all_samples[sample_name] = {
                         "files": files,
-                        "path": folder_path
+                        "path": folder_path,
+                        "project": row["project_name"],
+                        "subproject": row["subproject_name"],
+                        "date": row["date"]
                     }
                     
                     # Update project and subproject entries with the first row's values
@@ -1122,22 +961,54 @@ class FolderWatcherWindow(ctk.CTkFrame):
                     if not self.subproject_entry.get():
                         self.subproject_entry.insert(0, row["subproject_name"])
                     
-                    # Add to queue if it's a new sample
-                    current_time = time.strftime("%H:%M:%S", time.localtime(time.time()))
+                    # Add to queue and prepare for analysis
+                    current_time = datetime.datetime.now().strftime("%H:%M:%S")
                     self.queue_samples[sample_name] = {
                         "files": files,
-                        "first_seen": current_time
+                        "first_seen": current_time,
+                        "project": row["project_name"],
+                        "subproject": row["subproject_name"],
+                        "date": row["date"]
                     }
+                    samples_to_analyze.append(sample_name)
 
             # Update displays
-            self.needs_update = True
+            self.schedule_update()
             
             # Show summary
-            num_samples = len(self.all_samples)
+            num_samples = len(samples_to_analyze)
             if num_samples > 0:
+                # Start analysis for all samples
+                progress_window = tk.Toplevel(self)
+                progress_window.title("Analysis Progress")
+                
+                # Create progress bar
+                progress_label = ttk.Label(progress_window, text="Starting analysis...", wraplength=300)
+                progress_label.pack(pady=10)
+                progress_bar = ttk.Progressbar(progress_window, mode='indeterminate')
+                progress_bar.pack(pady=10, padx=20, fill=tk.X)
+                progress_bar.start()
+                
+                # Start analysis for each sample
+                for sample_name in samples_to_analyze:
+                    sample_data = self.queue_samples[sample_name]
+                    progress_label.config(text=f"Analyzing {sample_name}...")
+                    
+                    # Update project, subproject, and date from CSV
+                    self.project_entry.delete(0, tk.END)
+                    self.project_entry.insert(0, sample_data["project"])
+                    self.subproject_entry.delete(0, tk.END)
+                    self.subproject_entry.insert(0, sample_data["subproject"])
+                    self.date_entry.delete(0, tk.END)
+                    self.date_entry.insert(0, sample_data["date"])
+                    
+                    # Run analysis
+                    self.run_analysis_for_sample(sample_name)
+                
+                progress_window.destroy()
                 messagebox.showinfo(
                     "Import Complete",
-                    f"Successfully imported {num_samples} sample{'s' if num_samples != 1 else ''} from CSV."
+                    f"Successfully imported and started analysis for {num_samples} sample{'s' if num_samples != 1 else ''}."
                 )
             
             # Show errors if any
@@ -1151,6 +1022,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", f"Error reading CSV file:\n{str(e)}")
             print(f"Error reading CSV: {e}")
+            traceback.print_exc()
 
     def update_queue_tree(self):
         """Update the queue tree view"""
@@ -1186,12 +1058,11 @@ class FolderWatcherWindow(ctk.CTkFrame):
             
             # Update queue count label
             queue_count = len(self.queue_samples)
-            total_files = sum(len(data.get('files', [])) for data in self.queue_samples.values())
-            self.queue_count.configure(text=f"({queue_count} samples, {total_files} files)")
+            file_count = sum(len(data["files"]) for data in self.queue_samples.values())
+            self.queue_count.configure(text=f"({queue_count} samples, {file_count} files)")
             
         except Exception as e:
             print(f"Error updating queue tree: {e}")
-            import traceback
             traceback.print_exc()
 
     def create_control_buttons(self, container):
@@ -1201,7 +1072,7 @@ class FolderWatcherWindow(ctk.CTkFrame):
         
         # Left side controls
         left_controls = ctk.CTkFrame(button_frame, fg_color="transparent")
-        left_controls.pack(side="left", padx=5)
+        left_controls.pack(side="left", fill="x", expand=True)
         
         # Analyze Selected button
         self.analyze_button = ctk.CTkButton(
@@ -1211,6 +1082,15 @@ class FolderWatcherWindow(ctk.CTkFrame):
         )
         self.analyze_button.pack(side="left", padx=5)
         create_tooltip(self.analyze_button, "Analyze selected samples (Shift+Click for multiple)")
+        
+        # Run All button
+        self.run_all_button = ctk.CTkButton(
+            left_controls,
+            text="Run All",
+            command=self.run_all_analyses
+        )
+        self.run_all_button.pack(side="left", padx=5)
+        create_tooltip(self.run_all_button, "Run analysis for all samples in the file tree")
         
         # Right side controls
         right_controls = ctk.CTkFrame(button_frame, fg_color="transparent")
@@ -1225,55 +1105,136 @@ class FolderWatcherWindow(ctk.CTkFrame):
             offvalue=False
         )
         self.auto_analyze_checkbox.pack(side="left", padx=5)
+        create_tooltip(self.auto_analyze_checkbox, "Automatically analyze new samples when they are added")
         
         # Run Queue button
         self.run_queue_button = ctk.CTkButton(
             right_controls,
             text="Run Queue",
-            command=self.run_queue
+            command=self.analyze_selected_queue
         )
         self.run_queue_button.pack(side="left", padx=5)
+        create_tooltip(self.run_queue_button, "Run analysis for selected samples in the queue")
 
-    def analyze_selected(self):
-        """Analyze selected samples from the file tree using threading"""
-        selected_items = self.file_tree.selection()
+    def analyze_selected_queue(self):
+        selected_items = self.queue_tree.selection()
         if not selected_items:
-            messagebox.showwarning("No Selection", "Please select at least one sample to analyze")
+            messagebox.showinfo("Info", "Please select samples from the queue to analyze.")
             return
-        
-        # Create a thread for each selected sample
-        for item in selected_items:
-            # Get the parent item if a file is selected
-            parent = self.file_tree.parent(item)
-            sample_item = parent if parent else item
-            sample_name = self.file_tree.item(sample_item)['text']
             
-            if sample_name in self.all_samples:
-                # Create and start analysis thread
-                analysis_thread = threading.Thread(
-                    target=self._analyze_sample_thread,
-                    args=(sample_name, sample_item),
-                    daemon=True
-                )
-                analysis_thread.start()
+        for item in selected_items:
+            sample_name = self.queue_tree.item(item)["text"]
+            self.run_analysis_for_sample(sample_name)
+            self.queue_tree.delete(item)
+            # Remove from pending files
+            self.pending_files = [(f, s) for f, s in self.pending_files if s != sample_name]
+        
+        self.update_queue_count()
 
-    def _analyze_sample_thread(self, sample_name, tree_item):
+    def clear_queue(self):
+        if messagebox.askyesno("Clear Queue", "Are you sure you want to clear the analysis queue?"):
+            self.queue_tree.delete(*self.queue_tree.get_children())
+            self.queue_samples.clear()  # Clear queue samples instead of pending_files
+            self.update_queue_count()
+
+    def update_queue_count(self):
+        sample_count = len(self.queue_samples)
+        file_count = sum(len(data["files"]) for data in self.queue_samples.values())
+
+    class ProgressPopup(tk.Toplevel):
+        def __init__(self, parent, title="Progress", cancel_callback=None):
+            super().__init__(parent)
+            self.title(title)
+            self.parent = parent
+            self.cancel_callback = cancel_callback
+            
+            # Set up the window
+            self.geometry("300x150")
+            self.resizable(False, False)
+            
+            # Progress label
+            self.label = ttk.Label(self, text="Processing...", wraplength=280)
+            self.label.pack(pady=10)
+            
+            # Progress bar
+            self.progress = ttk.Progressbar(self, mode='indeterminate')
+            self.progress.pack(pady=10, padx=20, fill=tk.X)
+            self.progress.start()
+            
+            # Cancel button
+            self.cancel_btn = ttk.Button(self, text="Cancel", command=self.cancel)
+            self.cancel_btn.pack(pady=10)
+            
+            # Handle window close button
+            self.protocol("WM_DELETE_WINDOW", self.cancel)
+            
+            # Center the window
+            self.center_window()
+            
+        def cancel(self):
+            if self.cancel_callback:
+                self.cancel_callback()
+            self.destroy()
+            
+        def center_window(self):
+            self.update_idletasks()
+            width = self.winfo_width()
+            height = self.winfo_height()
+            x = (self.winfo_screenwidth() // 2) - (width // 2)
+            y = (self.winfo_screenheight() // 2) - (height // 2)
+            self.geometry('{}x{}+{}+{}'.format(width, height, x, y))
+            
+        def update_progress(self, text):
+            self.label.config(text=text)
+            
+    def run_analysis_for_sample(self, sample_name):
+        """Run analysis for a single sample"""
+        if sample_name in self.running_analyses:
+            print(f"Analysis already running for {sample_name}")
+            return
+            
+        # Create progress popup
+        self.progress_popup = self.ProgressPopup(
+            self, 
+            title=f"Running {self.analysis_type.get()} for {sample_name}",
+            cancel_callback=lambda: self.cancel_analysis(sample_name)
+        )
+        
+        # Create and start analysis thread
+        analysis_thread = threading.Thread(
+            target=self._run_analysis_thread,
+            args=(sample_name,)
+        )
+        analysis_thread.daemon = True
+        
+        # Store thread reference
+        self.running_analyses[sample_name] = {
+            'thread': analysis_thread,
+            'cancel': False
+        }
+        
+        analysis_thread.start()
+        
+    def cancel_analysis(self, sample_name):
+        """Cancel running analysis for a sample"""
+        if sample_name in self.running_analyses:
+            print(f"Canceling analysis for {sample_name}")
+            self.running_analyses[sample_name]['cancel'] = True
+            # Remove from running analyses
+            del self.running_analyses[sample_name]
+            # Close progress popup if it exists
+            if hasattr(self, 'progress_popup') and self.progress_popup:
+                self.progress_popup.destroy()
+                self.progress_popup = None
+                
+    def _run_analysis_thread(self, sample_name):
         """Thread function to run analysis for a single sample"""
         try:
-            print(f"Starting analysis for sample: {sample_name}")
-            
-            # Update status in GUI thread
-            self.after(0, lambda: self.update_sample_status(sample_name, "Analyzing..."))
-            
-            # Get sample files
-            files = self.all_samples[sample_name]['files']
-            
-            # Get project information
-            project_info = {
-                'project': self.project_entry.get() or "default_project",
-                'subproject': self.subproject_entry.get() or "default_subproject",
-                'date': self.date_entry.get()
-            }
+            # Get files for this sample and filter out any concatenated files
+            files = [f for f in self.all_samples[sample_name]['files'] 
+                    if not any(x in f for x in ['_concatenated.fastq', '_concat.fastq'])]
+            if not files:
+                raise Exception("No files found for sample")
             
             # Initialize MMonitorCMD
             cmd_runner = MMonitorCMD()
@@ -1281,30 +1242,31 @@ class FolderWatcherWindow(ctk.CTkFrame):
             cmd_runner.logged_in = self.logged_in
             cmd_runner.current_user = self.current_user
             
-            # Load config file
-            with open(self.config_file, 'r') as f:
-                config = json.load(f)
-            
-            # Use selected analysis type instead of config
-            analysis_type = self.analysis_type_var.get()
-            print(f"Using selected analysis type: {analysis_type}")
-            
-            # Set up arguments with proper database paths
+            # Load config file for threads
+            try:
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+            except Exception as e:
+                print(f"Error loading config: {e}")
+                self.after(0, lambda: self.analysis_failed(sample_name))
+                return
+                
+            # Set up args for analysis
             args = argparse.Namespace(
-                analysis=analysis_type,  # Use selected analysis type
+                analysis=self.analysis_type.get(),
                 config=self.config_file,
-                threads=config.get('threads', 4),
+                threads=int(config.get('threads', 12)),
                 sample=sample_name,
-                project=project_info['project'],
-                subproject=project_info['subproject'],
-                date=datetime.datetime.strptime(project_info['date'], '%Y-%m-%d').date(),
+                project=self.project_var.get(),
+                subproject=self.subproject_var.get(),
+                date=datetime.datetime.strptime(self.date_var.get(), '%Y-%m-%d').date(),
                 input=files,
                 multicsv=None,
-                centrifuger_db=os.path.abspath(config.get('centrifuger_db')),
-                emu_db=os.path.abspath(config.get('emu_db')),
+                centrifuger_db=config.get('centrifuge_db', ''),
+                emu_db=os.path.abspath(config.get('emu_db', '')),
                 min_length=config.get('min_length', 1000),
                 min_quality=config.get('min_quality', 10.0),
-                min_abundance=config.get('min_abundance', 0.01),
+                min_abundance=float(config.get('min_abundance', 0.01)),
                 overwrite=True,
                 qc=True,
                 update=False,
@@ -1314,134 +1276,132 @@ class FolderWatcherWindow(ctk.CTkFrame):
             
             # Initialize and run analysis
             cmd_runner.initialize_from_args(args)
+            
+            # Check for cancellation before starting
+            if sample_name in self.running_analyses and self.running_analyses[sample_name]['cancel']:
+                print(f"Analysis canceled for {sample_name}")
+                return
+                
             success = cmd_runner.run()
             
+            # Check for cancellation after run
+            if sample_name in self.running_analyses and self.running_analyses[sample_name]['cancel']:
+                print(f"Analysis canceled for {sample_name}")
+                return
+            
             if success:
-                # Upload results based on selected analysis type
-                if analysis_type == 'taxonomy-wgs':
-                    # Path to centrifuger report
-                    report_file = os.path.join(
-                        cmd_runner.pipeline_out,
-                        sample_name,
-                        f"{sample_name}_centrifuger_report.tsv"
-                    )
-                    
-                    # Upload centrifuger results
-                    if os.path.exists(report_file):
-                        cmd_runner.django_db.send_nanopore_record_centrifuge(
-                            kraken_out_path=report_file,
+                # Get the output directory
+                output_dir = os.path.join(cmd_runner.pipeline_out, sample_name)
+                
+                # Update database with results
+                if self.analysis_type.get() == "taxonomy-16s":
+                    print(f"\nUpdating database with EMU results for {sample_name}...")
+                    try:
+                        cmd_runner.django_db.update_django_with_emu_out(
+                            emu_out_path=output_dir,
+                            tax_rank="species",
                             sample_name=sample_name,
-                            project_id=project_info['project'],
-                            subproject_id=project_info['subproject'],
-                            date=project_info['date'],
+                            project_name=self.project_var.get(),
+                            subproject_name=self.subproject_var.get(),
+                            sample_date=self.date_var.get(),
                             overwrite=True
                         )
-                elif analysis_type == 'taxonomy-16s':
-                    # Path to EMU output
-                    emu_out_path = os.path.join(cmd_runner.pipeline_out, sample_name)
-                    
-                    # Upload EMU results
-                    cmd_runner.django_db.update_django_with_emu_out(
-                        emu_out_path=emu_out_path,
-                        tax_rank="species",
-                        sample_name=sample_name,
-                        project_name=project_info['project'],
-                        sample_date=project_info['date'],
-                        subproject_name=project_info['subproject'],
-                        overwrite=True
-                    )
-            
-            # Update GUI in main thread
-            def update_gui():
-                if success:
-                    self.update_sample_status(sample_name, "Completed")
-                    messagebox.showinfo("Success", f"Analysis completed for sample {sample_name}")
-                else:
-                    self.update_sample_status(sample_name, "Failed")
-                    messagebox.showerror("Error", f"Analysis failed for sample {sample_name}")
+                        print("Database update completed")
+                    except Exception as e:
+                        print(f"Error updating database: {e}")
+                        self.after(0, lambda: self.analysis_failed(sample_name))
+                        return
+                        
+                elif self.analysis_type.get() == "taxonomy-wgs":
+                    print(f"\nUpdating database with Centrifuger results for {sample_name}...")
+                    try:
+                        # Construct the path to the Centrifuger report file
+                        centrifuger_report = os.path.join(output_dir, f"{sample_name}_centrifuger_report.tsv")
+                        if not os.path.isfile(centrifuger_report):
+                            raise FileNotFoundError(f"Centrifuger report not found at {centrifuger_report}")
+                            
+                        cmd_runner.django_db.send_nanopore_record_centrifuger(
+                            kraken_out_path=centrifuger_report,
+                            sample_name=sample_name,
+                            project_id=self.project_var.get(),
+                            subproject_id=self.subproject_var.get(),
+                            date=datetime.datetime.now().strftime("%Y-%m-%d"),
+                            overwrite=True
+                        )
+                        print("Successfully updated database with Centrifuger results")
+                    except Exception as e:
+                        print(f"Error updating database: {str(e)}")
+                        self.after(0, lambda: self.analysis_failed(sample_name))
+                        return
                 
-                # Remove from queue if present
-                if sample_name in self.queue_samples:
-                    del self.queue_samples[sample_name]
-                    self.update_queue_display()
-            
-            self.after(0, update_gui)
+                self.after(0, lambda: self.analysis_completed(sample_name))
+            else:
+                self.after(0, lambda: self.analysis_failed(sample_name))
             
         except Exception as e:
-            error_msg = f"Error analyzing sample {sample_name}: {str(e)}"
-            print(error_msg)
-            traceback.print_exc()
+            print(f"Error running analysis for {sample_name}: {e}")
+            self.after(0, lambda: self.analysis_failed(sample_name))
+        finally:
+            # Clean up
+            if sample_name in self.running_analyses:
+                del self.running_analyses[sample_name]
             
-            # Update GUI in main thread
-            self.after(0, lambda: [
-                self.update_sample_status(sample_name, "Error"),
-                messagebox.showerror("Error", error_msg)
-            ])
-
-    def run_queue(self):
-        """Run all samples in the queue"""
-        if not self.queue_samples:
-            messagebox.showinfo("Queue Empty", "No samples in the queue to analyze")
-            return
+            # Close progress window in main thread
+            self.after(0, self.close_progress_popup)
+            
+    def analysis_completed(self, sample_name):
+        """Handle analysis completion in main thread"""
+        try:
+            if hasattr(self, 'progress_popup') and self.progress_popup.winfo_exists():
+                self.progress_popup.update_progress(f"Analysis completed for {sample_name}")
+        except Exception as e:
+            print(f"Error updating progress window: {e}")
         
-        try:
-            # Get project information
-            project_info = {
-                'project': self.project_entry.get(),
-                'subproject': self.subproject_entry.get(),
-                'date': self.date_entry.get()
-            }
-            
-            # Process each sample in the queue
-            for sample_name in list(self.queue_samples.keys()):
-                try:
-                    print(f"Processing queued sample: {sample_name}")
-                    
-                    # Get all files for this sample (including new ones)
-                    all_files = self.all_samples[sample_name]['files']
-                    
-                    # Update status
-                    self.update_sample_status(sample_name, "Analyzing...")
-                    
-                    # Run the analysis
-                    cmd_runner = MMonitorCMD(
-                        files=all_files,
-                        sample_name=sample_name,
-                        config=self.config,
-                        project_info=project_info
-                    )
-                    cmd_runner.run()
-                    
-                    # Update status and remove from queue
-                    self.update_sample_status(sample_name, "Analyzed")
-                    del self.queue_samples[sample_name]
-                    
-                except Exception as e:
-                    print(f"Error processing queued sample {sample_name}: {e}")
-                    self.update_sample_status(sample_name, "Failed")
-                    messagebox.showerror("Queue Error", f"Error processing sample {sample_name}: {str(e)}")
-            
-            self.needs_update = True
-            
-        except Exception as e:
-            print(f"Error in run_queue: {e}")
-            messagebox.showerror("Error", f"Error processing queue: {str(e)}")
+        self.update_sample_status(sample_name, "Completed")
 
-    def update_sample_status(self, sample_name, status):
-        """Update the status of a sample in the file tree"""
+    def analysis_failed(self, sample_name):
+        """Handle analysis failure in main thread"""
         try:
-            # Update status in all_samples
-            if sample_name in self.all_samples:
-                self.all_samples[sample_name]['status'] = status
-            
-            # Find and update the item in the tree
-            for item in self.file_tree.get_children():
-                if self.file_tree.item(item)['text'] == sample_name:
-                    self.file_tree.set(item, "status", status)
+            if hasattr(self, 'progress_popup') and self.progress_popup.winfo_exists():
+                self.progress_popup.update_progress(f"Analysis failed for {sample_name}")
+        except Exception as e:
+            print(f"Error updating progress window: {e}")
+        
+        self.update_sample_status(sample_name, "Failed")
+
+    def close_progress_popup(self):
+        """Safely close the progress popup"""
+        try:
+            if hasattr(self, 'progress_popup') and self.progress_popup.winfo_exists():
+                self.progress_popup.destroy()
+                del self.progress_popup
+        except Exception as e:
+            print(f"Error closing progress window: {e}")
+
+    def remove_file(self, file_path):
+        """Remove a file from the samples dict"""
+        try:
+            for sample_name, sample_data in self.all_samples.items():
+                if file_path in sample_data['files']:
+                    self.all_samples[sample_name]['files'].remove(file_path)
+                    if not self.all_samples[sample_name]['files']:
+                        del self.all_samples[sample_name]
                     break
             
         except Exception as e:
-            print(f"Error updating sample status: {e}")
+            print(f"Error removing file: {e}")
+
+    def add_to_queue(self, sample_name):
+        """Add a sample to the queue"""
+        try:
+            if sample_name not in self.queue_samples:
+                self.queue_samples[sample_name] = {
+                    "files": self.all_samples[sample_name]['files'],
+                    "first_seen": datetime.datetime.now().strftime("%H:%M:%S")
+                }
+            
+        except Exception as e:
+            print(f"Error adding to queue: {e}")
 
     def on_file_change(self, event):
         """Handle file system events"""
@@ -1450,13 +1410,13 @@ class FolderWatcherWindow(ctk.CTkFrame):
                 return
                 
             file_path = event.src_path
-            if not any(file_path.endswith(ext) for ext in ['.fastq', '.fastq.gz', '.fq', '.fq.gz']):
+            if not file_path.endswith(('.fastq', '.fastq.gz', '.fq', '.fq.gz')):
                 return
                 
             sample_name = self.get_sample_name(file_path)
             if not sample_name:
                 return
-                
+            
             # Add to all_samples
             if sample_name not in self.all_samples:
                 self.all_samples[sample_name] = {'files': [], 'status': 'New'}
@@ -1468,29 +1428,65 @@ class FolderWatcherWindow(ctk.CTkFrame):
                 file_time = datetime.datetime.fromtimestamp(os.path.getctime(file_path))
                 if file_time > self.watch_start_time:
                     self.add_to_queue(sample_name)
-                    if self.auto_analyze_var.get():
-                        self.run_queue()
             
-            self.needs_update = True
+            self.schedule_update()
             
         except Exception as e:
             print(f"Error handling file change: {e}")
 
+    def on_analysis_type_change(self, *args):
+        """Handle analysis type change"""
+        analysis_type = self.analysis_type.get()
+        print(f"Analysis type changed to: {analysis_type}")
+        # Update configuration based on analysis type
+        if hasattr(self, 'gui') and hasattr(self.gui, 'pipeline_config'):
+            self.gui.pipeline_config['analysis_type'] = analysis_type
 
+    def destroy(self):
+        """Clean up before destroying the window"""
+        try:
+            # Remove the analysis type trace
+            if hasattr(self, 'analysis_type') and hasattr(self, 'analysis_type_trace'):
+                self.analysis_type.trace_remove('write', self.analysis_type_trace)
+            
+            # Stop watching if active
+            if self.watching:
+                self.stop_watching()
+            
+            # Destroy all widgets
+            super().destroy()
+            
+        except Exception as e:
+            print(f"Error during cleanup: {e}")
+            traceback.print_exc()
+            # Still try to destroy even if cleanup failed
+            super().destroy()
 
+    def analyze_selected(self):
+        """Analyze selected samples from the file tree"""
+        selected_items = self.file_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("No Selection", "Please select at least one sample to analyze")
+            return
+        
+        for item in selected_items:
+            # Get the parent item if a file is selected
+            parent = self.file_tree.parent(item)
+            sample_item = parent if parent else item
+            sample_name = self.file_tree.item(sample_item)['text']
+            
+            if sample_name in self.all_samples:
+                self.run_analysis_for_sample(sample_name)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def update_sample_status(self, sample_name, status):
+        """Update the status of a sample in the file tree"""
+        try:
+            # Find the sample item
+            for item in self.file_tree.get_children():
+                if self.file_tree.item(item)['text'] == sample_name:
+                    # Update status
+                    self.file_tree.item(item, tags=(status,))
+                    break
+            
+        except Exception as e:
+            print(f"Error updating sample status: {e}")
