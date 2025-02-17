@@ -5,7 +5,7 @@ import threading
 import shutil
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
-from build_mmonitor_pyinstaller import ROOT
+from mmonitor.paths import ROOT
 import traceback
 import datetime
 import multiprocessing
@@ -24,22 +24,21 @@ from io import BytesIO
 from mmonitor.userside.utils import create_tooltip
 import psutil
 import logging
-
-# Remove this import
-# from mmonitor.userside.PipelineConfig import PipelineConfig
+import tkinter as tk
 
 class DatabaseWindow(ctk.CTkFrame):
-    def __init__(self, parent):
+    def __init__(self, parent, gui):
         print("Initializing DatabaseWindow")
         super().__init__(parent)
         self.parent = parent
+        self.gui = gui
 
         # Initialize paths in resources directory
         self.resources_dir = os.path.join(ROOT, "src", "resources")
         self.emu_db_path = os.path.join(self.resources_dir, "custom_emu_db")
         self.centrifuger_db_path = os.path.join(self.resources_dir, "custom_centrifuger_db")
         self.gtdb_db_path = os.path.join(self.resources_dir, "custom_gtdb_db")
-        self.config_file = os.path.join(self.resources_dir, "pipeline_config.json")  # Changed from db_config.json
+        self.config_file = os.path.join(self.resources_dir, "pipeline_config.json")
         self.log_file = os.path.join(self.resources_dir, "database_build.log")
 
         # Create necessary directories
@@ -60,7 +59,18 @@ class DatabaseWindow(ctk.CTkFrame):
         console_handler.setFormatter(logging.Formatter('%(message)s'))
         self.logger.addHandler(console_handler)
 
+        # Load configuration
         self.load_config()
+
+        # Search for existing EMU database
+        emu_db_dir = os.path.join(self.resources_dir, "emu_db")
+        if os.path.exists(emu_db_dir):
+            # Check if it contains necessary files
+            required_files = ["species_taxid.map", "taxonomy.tsv"]
+            if all(os.path.exists(os.path.join(emu_db_dir, f)) for f in required_files):
+                self.emu_db_path = emu_db_dir
+                self.logger.info(f"Found existing EMU database at {emu_db_dir}")
+
         self.create_widgets()
         print("DatabaseWindow initialized")
 
@@ -80,7 +90,7 @@ class DatabaseWindow(ctk.CTkFrame):
         title_label.pack(pady=(0, 10))
         
         explanation = ("Here you can manage the databases used for taxonomic classification.\n"
-                       "You can build and update both Emu (16S) and Centrifuge (WGS) databases.")
+                       "You can build and update both Emu (16S) and Centrifuger (WGS) databases.")
         ctk.CTkLabel(main_frame, text=explanation, wraplength=500).pack(pady=(0, 20))
 
         # Create a notebook (tabbed interface)
@@ -101,16 +111,20 @@ class DatabaseWindow(ctk.CTkFrame):
         frame = ctk.CTkFrame(parent)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        ctk.CTkLabel(frame, text="Emu Database Path:", anchor="w").pack(fill="x", pady=(0, 5))
+        # Database path selection
         path_frame = ctk.CTkFrame(frame)
-        path_frame.pack(fill="x")
-
+        path_frame.pack(fill="x", pady=(0, 20))
+        
+        ctk.CTkLabel(path_frame, text="Database Path:", 
+                     font=("Helvetica", 12, "bold")).pack(side="left", padx=(0, 10))
+        
         self.emu_path_entry = ctk.CTkEntry(path_frame)
         self.emu_path_entry.pack(side="left", fill="x", expand=True)
-        self.emu_path_entry.insert(0, self.emu_db_path)
-        create_tooltip(self.emu_path_entry, "Path to the Emu database directory")
-
-        browse_button = ctk.CTkButton(path_frame, text="Browse", command=self.select_emu_db)
+        if self.emu_db_path:
+            self.emu_path_entry.insert(0, self.emu_db_path)
+        
+        browse_button = ctk.CTkButton(path_frame, text="Browse", 
+                                     command=self.select_emu_db)
         browse_button.pack(side="right", padx=(5, 0))
         create_tooltip(browse_button, "Select the Emu database directory")
 
@@ -126,9 +140,25 @@ class DatabaseWindow(ctk.CTkFrame):
         }
 
         for domain, var in self.emu_domains.items():
-            ctk.CTkCheckBox(domains_frame, text=domain, variable=var).pack(anchor="w", pady=2)
+            ctk.CTkCheckBox(
+                domains_frame,
+                text=domain,
+                variable=var
+            ).pack(anchor="w", pady=2)
 
-        ctk.CTkButton(frame, text="Build Emu Database", command=self.confirm_build_emu_db).pack(fill="x", pady=(20, 0))
+        # Create a container for the button to control its width
+        button_container = ctk.CTkFrame(frame, fg_color="transparent")
+        button_container.pack(pady=(20, 0))
+        
+        self.build_emu_button = ctk.CTkButton(
+            button_container,
+            text="Build Emu Database",
+            command=self.confirm_build_emu_db,
+            
+            
+            width=200  # Set a fixed width
+        )
+        self.build_emu_button.pack()
 
     def create_centrifuger_tab(self, parent):
         frame = ctk.CTkFrame(parent)
@@ -159,7 +189,7 @@ class DatabaseWindow(ctk.CTkFrame):
         ctk.CTkLabel(db_type_frame, text="Database Type:", 
                      font=("Helvetica", 12, "bold")).pack(fill="x", pady=(0, 5))
         
-        self.centrifuger_db_type = ctk.StringVar(value="NCBI")
+        self.centrifuger_db_type = tk.StringVar(value="NCBI")
         
         ctk.CTkRadioButton(db_type_frame, text="NCBI RefSeq", 
                           variable=self.centrifuger_db_type, 
@@ -203,7 +233,7 @@ class DatabaseWindow(ctk.CTkFrame):
                      font=("Helvetica", 10)).pack(anchor="w", padx=20)
         
         # Radio buttons for selection
-        self.assembly_level = ctk.StringVar(value="Complete Genome")
+        self.assembly_level = tk.StringVar(value="Complete Genome")
         
         radio_frame = ctk.CTkFrame(self.assembly_frame)
         radio_frame.pack(fill="x", pady=(5, 0))
@@ -230,41 +260,61 @@ class DatabaseWindow(ctk.CTkFrame):
         }
 
         for domain, var in self.centrifuger_domains.items():
-            ctk.CTkCheckBox(self.domains_frame, text=domain.capitalize(), variable=var).pack(anchor="w", pady=2)
+            ctk.CTkCheckBox(
+                self.domains_frame,
+                text=domain.capitalize(),
+                variable=var
+            ).pack(anchor="w", pady=2)
 
-        # Build button
-        ctk.CTkButton(frame, text="Build Centrifuger Database", 
-                     command=self.build_centrifuger_db).pack(fill="x", pady=(20, 0))
+        # Create a container for the button to control its width
+        button_container = ctk.CTkFrame(frame, fg_color="transparent")
+        button_container.pack(pady=(20, 0))
+        
+        self.build_centrifuger_button = ctk.CTkButton(
+            button_container,
+            text="Build Centrifuger Database",
+            command=self.confirm_build_centrifuger_db,
+            
+            width=200  
+        )
+        self.build_centrifuger_button.pack()
 
     def toggle_domain_selection(self):
         """Enable/disable domain selection based on database type"""
         if self.centrifuger_db_type.get() == "GTDB":
             for widget in self.domains_frame.winfo_children():
                 if isinstance(widget, ctk.CTkCheckBox):
-                    widget.configure(state="disabled")
+                    widget._state = "disabled"
+                    widget.configure(text_color_disabled=["#808080", "#808080"])
             for widget in self.assembly_frame.winfo_children():
-                widget.configure(state="disabled")
+                if hasattr(widget, '_state'):
+                    widget._state = "disabled"
+                    widget.configure(text_color_disabled=["#808080", "#808080"])
         else:
             for widget in self.domains_frame.winfo_children():
                 if isinstance(widget, ctk.CTkCheckBox):
-                    widget.configure(state="normal")
+                    widget._state = "normal"
             for widget in self.assembly_frame.winfo_children():
-                widget.configure(state="normal")
+                if hasattr(widget, '_state'):
+                    widget._state = "normal"
 
     def select_emu_db(self):
+        """Select EMU database directory and update config"""
         db_path = filedialog.askdirectory(title="Select Emu Database Directory")
         if db_path:
             self.emu_db_path = db_path
-            self.emu_path_entry.delete(0, ctk.END)
+            self.emu_path_entry.delete(0, tk.END)
             self.emu_path_entry.insert(0, db_path)
             self.save_config()
 
-    def select_centrifuger_db(self):  # Changed
-        """Select Centrifuger database directory"""  # Changed
-        db_path = filedialog.askdirectory(title="Select Centrifuger Database Directory")  # Changed
+    def select_centrifuger_db(self):
+        """Select Centrifuger database directory and update config"""
+        db_path = filedialog.askdirectory(title="Select Centrifuger Database Directory")
         if db_path:
-            self.centrifuger_path_entry.delete(0, tk.END)  # Changed
-            self.centrifuger_path_entry.insert(0, db_path)  # Changed
+            self.centrifuger_db_path = db_path
+            self.centrifuger_path_entry.delete(0, tk.END)
+            self.centrifuger_path_entry.insert(0, db_path)
+            self.save_config()
 
     def select_index(self):
         index_path = filedialog.askopenfilename(title="Select Index File")
@@ -440,39 +490,71 @@ class DatabaseWindow(ctk.CTkFrame):
         self.after(0, show_message)
 
     def load_config(self):
-        if os.path.exists(self.config_file):
-            with open(self.config_file, 'r') as f:
-                config = json.load(f)
-                self.emu_db_path = config.get('emu_db', self.emu_db_path)
-                self.centrifuger_db_path = config.get('centrifuger_db', self.centrifuger_db_path)
+        """Load configuration from pipeline_config.json"""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r') as f:
+                    config = json.load(f)
+                    print(f"Loaded database config: {config}")
+                    
+                    # Update paths from config if they exist
+                    if 'emu_db' in config and os.path.exists(config['emu_db']):
+                        self.emu_db_path = config['emu_db']
+                        if hasattr(self, 'emu_path_entry'):
+                            self.emu_path_entry.delete(0, tk.END)
+                            self.emu_path_entry.insert(0, self.emu_db_path)
+                    
+                    if 'centrifuge_db' in config and os.path.exists(config['centrifuge_db']):
+                        self.centrifuger_db_path = config['centrifuge_db']
+                        if hasattr(self, 'centrifuger_path_entry'):
+                            self.centrifuger_path_entry.delete(0, tk.END)
+                            self.centrifuger_path_entry.insert(0, self.centrifuger_db_path)
+                    
+            # If no config exists or paths not found, scan resources directory
+            if not self.emu_db_path or not os.path.exists(self.emu_db_path):
+                default_emu_path = os.path.join(self.resources_dir, "custom_emu_db")
+                if os.path.exists(default_emu_path):
+                    self.emu_db_path = default_emu_path
+                    self.save_config()
+            
+            if not self.centrifuger_db_path or not os.path.exists(self.centrifuger_db_path):
+                default_centrifuge_path = os.path.join(self.resources_dir, "custom_centrifuger_db")
+                if os.path.exists(default_centrifuge_path):
+                    self.centrifuger_db_path = default_centrifuge_path
+                    self.save_config()
+                    
+        except Exception as e:
+            print(f"Error loading config: {e}")
+            traceback.print_exc()
 
     def save_config(self):
         """Save current configuration to pipeline_config.json"""
         try:
-            # First read existing config to preserve other settings
+            # Read existing config first
+            config = {}
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
                     config = json.load(f)
-            else:
-                config = {}
-
+            
             # Update database paths
-            config.update({
-                'emu_db': self.emu_db_path,
-                'centrifuge_db': self.centrifuger_db_path,
-                'gtdb_db': self.gtdb_db_path
-            })
-
+            if hasattr(self, 'emu_path_entry'):
+                config['emu_db'] = self.emu_path_entry.get()
+            elif self.emu_db_path:
+                config['emu_db'] = self.emu_db_path
+                
+            if hasattr(self, 'centrifuger_path_entry'):
+                config['centrifuge_db'] = self.centrifuger_path_entry.get()
+            elif self.centrifuger_db_path:
+                config['centrifuge_db'] = self.centrifuger_db_path
+            
             # Save updated config
             with open(self.config_file, 'w') as f:
                 json.dump(config, f, indent=4)
-
-            # Notify PipelineConfig to refresh if it exists
-            if hasattr(self.parent, 'pipeline_config'):
-                self.parent.pipeline_config.load_config()
-                
+            print(f"Saved database config: {config}")
+            
         except Exception as e:
-            messagebox.showerror("Error", f"Could not save configuration: {str(e)}")
+            print(f"Error saving config: {e}")
+            traceback.print_exc()
 
     def _build_emu_db(self, selected_domains):
         try:
@@ -1024,7 +1106,7 @@ class DatabaseWindow(ctk.CTkFrame):
         """Save current configuration to file"""
         config = {
             'emu_db': self.emu_db_path,
-            'centrifuger_db': self.centrifuger_db_path,
+            'centrifuge_db': self.centrifuger_db_path,
             'gtdb_db': self.gtdb_db_path
         }
         try:
@@ -1033,20 +1115,88 @@ class DatabaseWindow(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", f"Could not save configuration: {str(e)}")
 
+    def update_appearance(self):
+        """Update appearance based on current theme"""
+        # Use consistent grey colors
+        bg_color = "#E0E0E0"      # Light grey background
+        frame_color = "#E0E0E0"   # Light grey frame
+        text_color = "#202020"    # Dark grey text
+        button_color = "#D0D0D0"  # Medium grey button
+        hover_color = "#C0C0C0"   # Slightly darker grey for hover
+        
+        # Update main container
+        self.configure(fg_color=bg_color)
+        
+        # Update all frames
+        for widget in self.winfo_children():
+            if isinstance(widget, ctk.CTkFrame):
+                widget.configure(fg_color=frame_color)
+        
+        # Update labels, buttons, and entries
+        for widget in self.winfo_children():
+            if isinstance(widget, ctk.CTkLabel):
+                widget.configure(text_color=text_color)
+            elif isinstance(widget, ctk.CTkButton):
+                widget.configure(
+                    fg_color=button_color,
+                    text_color=text_color,
+                    hover_color=hover_color
+                )
+            elif isinstance(widget, ctk.CTkEntry):
+                widget.configure(
+                    fg_color=bg_color,
+                    text_color=text_color,
+                    border_color="#D0D0D0"
+                )
+            elif isinstance(widget, ctk.CTkProgressBar):
+                widget.configure(
+                    fg_color=bg_color,
+                    progress_color=button_color,
+                    border_color="#D0D0D0"
+                )
+            elif isinstance(widget, ctk.CTkTextbox):
+                widget.configure(
+                    fg_color=bg_color,
+                    text_color=text_color,
+                    border_color="#D0D0D0"
+                )
 
+        # Recursively update nested frames
+        def update_nested_widgets(container):
+            for widget in container.winfo_children():
+                if isinstance(widget, ctk.CTkFrame):
+                    widget.configure(fg_color=frame_color)
+                    update_nested_widgets(widget)
+                elif isinstance(widget, ctk.CTkLabel):
+                    widget.configure(text_color=text_color)
+                elif isinstance(widget, ctk.CTkButton):
+                    widget.configure(
+                        fg_color=button_color,
+                        text_color=text_color,
+                        hover_color=hover_color
+                    )
+                elif isinstance(widget, ctk.CTkEntry):
+                    widget.configure(
+                        fg_color=bg_color,
+                        text_color=text_color,
+                        border_color="#D0D0D0"
+                    )
+                elif isinstance(widget, ctk.CTkProgressBar):
+                    widget.configure(
+                        fg_color=bg_color,
+                        progress_color=button_color,
+                        border_color="#D0D0D0"
+                    )
+                elif isinstance(widget, ctk.CTkTextbox):
+                    widget.configure(
+                        fg_color=bg_color,
+                        text_color=text_color,
+                        border_color="#D0D0D0"
+                    )
+        
+        # Update nested widgets
+        update_nested_widgets(self)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def destroy(self):
+        """Clean up before destroying the window"""
+        super().destroy()

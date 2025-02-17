@@ -14,12 +14,6 @@ emu_path = os.path.join(project_root, 'local-build', 'emu')
 if emu_path not in sys.path:
     sys.path.insert(0, emu_path)
 
-try:
-    from emu import emu
-except ImportError:
-    print(f"Warning: Could not import emu module from {emu_path}")
-    print("Make sure the emu module is installed in local-build/emu/")
-
 class EmuRunner:
 
     def __init__(self, custom_db_path=None):
@@ -28,7 +22,19 @@ class EmuRunner:
         self.emu_path = os.path.join(emu_path, "emu")
         self.check_emu()
         self.emu_out = ""
-        self.custom_db_path = custom_db_path or os.environ.get('EMU_DATABASE_DIR')
+        
+        # Handle database path
+        if custom_db_path:
+            self.custom_db_path = os.path.abspath(custom_db_path)
+            print(f"Using custom EMU database path: {self.custom_db_path}")
+            # Verify the database exists
+            if not os.path.exists(os.path.join(self.custom_db_path, "taxonomy.tsv")):
+                print(f"Warning: taxonomy.tsv not found in EMU database directory: {self.custom_db_path}")
+        else:
+            # Use default path from environment or resources
+            self.custom_db_path = os.path.abspath(os.environ.get('EMU_DATABASE_DIR', 
+                os.path.join(RESOURCES_DIR, "custom_emu_db")))
+            print(f"Using default EMU database path: {self.custom_db_path}")
 
     @staticmethod
     def unpack_fastq_list(ls):
@@ -41,6 +47,7 @@ class EmuRunner:
             return ",".join(ls)
 
     def check_emu(self):
+        """Check if EMU is installed and accessible"""
         try:
             result = subprocess.run([sys.executable, self.emu_path, '-h'], capture_output=True, text=True, check=True)
             output = result.stdout.strip()
@@ -55,11 +62,23 @@ class EmuRunner:
 
     def run_emu(self, input_file, output_dir, db_dir, threads, N=50, K="500M", minimap_type="map-ont"):
         """Run EMU analysis with proper parameter handling"""
+        # Only import emu when actually running the analysis
+        try:
+            from emu import emu
+            print("Successfully imported EMU module")
+        except ImportError:
+            print("Could not import EMU module - continuing with command line execution")
         self.emu_out = output_dir
         os.makedirs(output_dir, exist_ok=True)
         
         # Get sample name from output directory
         sample_name = os.path.basename(output_dir)
+        
+        # Ensure database path is absolute and exists
+        db_dir = os.path.abspath(db_dir)
+        if not os.path.exists(os.path.join(db_dir, "taxonomy.tsv")):
+            print(f"Error: taxonomy.tsv not found in EMU database directory: {db_dir}")
+            return False
         
         # Convert K to numeric format if given as string with M/G suffix
         if isinstance(K, str):
