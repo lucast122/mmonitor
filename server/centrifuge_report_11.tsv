@@ -1,0 +1,33 @@
+name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
+Vitreoscilla stercoraria	61	species	2661781	1	0	0.0
+Hyphomicrobiales	356	order	0	1	0	0.0
+Gammaproteobacteria	1236	class	0	1	0	0.0
+Staphylococcus	1279	genus	0	1	0	0.0
+Clostridium	1485	genus	0	1	0	0.0
+Clostridium cochlearium	1494	species	2435419	1	1	0.0
+Erysipelothrix	1647	genus	0	1	0	0.0
+Methanobrevibacter smithii	2173	species	5387853	2	1	0.0
+Staphylococcus capitis	29388	species	15189893	8	0	0.0
+Cutibacterium avidum	33010	species	15941607	1	1	0.0
+Geobacillus thermocatenulatus	33938	species	3742258	1	1	0.0
+Staphylococcus chromogenes	46126	species	9509039	1	0	0.0
+Treponema socranskii subsp. buccale	69713	subspecies	5672283	3	1	0.0
+Vitreoscilla sp. C1	96942	species	2612671	1	0	0.0
+Sphaerochaeta globosa str. Buddy	158189	strain	3316466	73	6	0.0
+Sphaerochaeta pleomorpha str. Grapes	158190	strain	3590853	14	4	0.0
+Eubacteriales	186802	order	0	1	0	0.0
+Bacillaceae	186817	family	0	1	0	0.0
+Candidatus Sulcia muelleri	336810	species	11037942	1	1	0.0
+Methanobrevibacter smithii ATCC 35061	420247	strain	1853160	1	0	0.0
+Treponema primitia ZAS-2	545694	strain	4059867	3	2	0.0
+Leadbettera azotonutricia ZAS-9	545695	strain	3855671	1	0	0.0
+Sediminispirochaeta smaragdinae DSM 11293	573413	strain	4653970	1	0	0.0
+Christensenella minuta	626937	species	2969292	1	1	0.0
+Caldinitratiruptor microaerophilus	671077	species	3599694	1	1	0.0
+Sphaerochaeta coccoides DSM 17374	760011	strain	2227296	1	1	0.0
+Bacillus cereus C1L	1003239	strain	6047547	1	1	0.0
+Sphaerochaeta associata	1129264	species	3554903	965	898	0.0
+Candidatus Syntrophocurvum alkaliphilum	2293317	species	2360781	1	0	0.0
+Blautia sp. SC05B48	2479767	species	3731576	1	1	0.0
+Natranaerofaba carboxydovora	2742683	species	3264732	1	0	0.0
+Latilactobacillus	2767885	genus	0	1	0	0.0

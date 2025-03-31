@@ -1,0 +1,101 @@
+/* Navbar styling ASDF */
+.mantine-Navbar-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 180px !important;
+    background-color: #16262C;
+    color: white;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+/* NavLink styling */
+.mantine-NavLink-root {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    color: white !important;
+    text-decoration: none;
+    border-radius: 4px;
+    margin: 5px 0;
+    transition: background-color 0.2s ease;
+}
+
+
+.mantine-NavLink-icon {
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.mantine-NavLink-label {
+    color: white !important;
+    font-size: 14px;
+}
+
+/* Active state */
+.mantine-NavLink-root[data-active="true"] {
+    background-color: #374151;
+    font-weight: 500;
+}
+
+/* Stack and divider styling */
+.mantine-Stack-root {
+    padding: 15px 0;
+}
+
+.mantine-Divider-root {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    margin: 10px 0;
+}
+
+/* Text styling */
+.mantine-Text-root {
+    color: white !important;
+}
+
+/* Main content area needs margin to make room for sidebar */
+.main-content {
+    margin-left: 10px;
+    padding: 20px;
+}
+
+/* Header styling */
+.mantine-Header-root {
+    margin-left: 10px;
+    background-color: white;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+/* MAGs Viewer specific styling */
+.mantine-NavLink-root .mags-viewer-label {
+    display: flex;
+    flex-direction: column;
+}
+
+.mags-viewer-label>div:first-child {
+    margin-bottom: 2px;
+}
+
+.mags-viewer-label>div:last-child {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* ScrollArea styling */
+.mantine-ScrollArea-root {
+    height: 100%;
+}
+
+.mantine-ScrollArea-viewport {
+    padding: 0 10px;
+}
+
+/* Container adjustments */
+.mantine-Container-root {
+    padding-left: 180px !important;
+    max-width: none !important;
+}

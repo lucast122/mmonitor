@@ -1,0 +1,91 @@
+name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
+Legionella longbeachae	450	species	25231216	1	1	0.0
+Escherichia coli	562	species	10143976665	1	0	0.0
+Klebsiella pneumoniae	573	species	6955559347	2	2	0.0
+Shigella flexneri	623	species	306935468	1	0	0.0
+Yersinia pseudotuberculosis	633	species	85636540	2	2	0.0
+Proteobacteria	1224	phylum	0	1	0	0.0
+Gammaproteobacteria	1236	class	0	1	1	0.0
+Piscirickettsia salmonis	1238	species	276337553	2	2	0.0
+Staphylococcus aureus	1280	species	2407768036	6	6	0.0
+Staphylococcus simulans	1286	species	52137033	1	0	0.0
+Staphylococcus warneri	1292	species	25040251	3	0	0.0
+Streptococcus pyogenes	1314	species	424822574	1	0	0.0
+Streptococcus equinus	1335	species	15247373	2	0	0.0
+Bacillus	1386	genus	0	1	0	0.0
+Priestia megaterium	1404	species	154373900	1	0	0.0
+Bacillus subtilis	1423	species	687833382	1	1	0.0
+Clostridium	1485	genus	0	1	0	0.0
+Paraclostridium bifermentans	1490	species	7206150	1	0	0.0
+Clostridium botulinum	1491	species	146505968	2	1	0.0
+Clostridioides difficile	1496	species	442652010	1	0	0.0
+Clostridium septicum	1504	species	10239405	1	0	0.0
+Acetoanaerobium sticklandii	1511	species	2715461	1	0	0.0
+Clostridium beijerinckii	1520	species	43424194	5	2	0.0
+Eubacterium	1730	genus	0	1	0	0.0
+Acholeplasma laidlawii	2148	species	3108581	2	0	0.0
+Mycolicibacter hiberniae	29314	species	4396654	1	0	0.0
+Microbacterium	33882	genus	0	1	0	0.0
+Acetobacterium woodii	33952	species	0	1	0	0.0
+Melissococcus plutonius	33970	species	4143540	2	0	0.0
+Stenotrophomonas maltophilia	40324	species	332823054	1	1	0.0
+Dehalobacterium formicoaceticum	51515	species	3766545	1	1	0.0
+Acetobacterium wieringae	52694	species	7793324	1	0	0.0
+Staphylococcus delphini	53344	species	24418365	6	0	0.0
+Desulfofarcimen acetoxidans	58138	species	0	1	0	0.0
+Pantoea stewartii	66269	species	9756540	1	0	0.0
+Streptococcus infantarius	102684	species	3777035	2	0	0.0
+Streptococcus lutetiensis	150055	species	9212831	4	0	0.0
+Chlorobia	191410	class	0	1	0	0.0
+Bacteroidia	200643	class	0	1	0	0.0
+Candidatus Koribacter versatilis Ellin345	204669	leaf	5650368	1	1	0.0
+Alkaliphilus metalliredigens	208226	species	0	1	0	0.0
+Escherichia albertii	208962	species	191492639	1	0	0.0
+Peribacillus asahii	228899	species	19536561	2	0	0.0
+Acidobacterium capsulatum ATCC 51196	240015	strain	4127356	1	1	0.0
+Acholeplasma hippikon	264636	species	1465667	1	0	0.0
+Syntrophomonas wolfei subsp. wolfei str. Goettingen G311	335541	strain	2936195	1	1	0.0
+Acholeplasma laidlawii PG-8A	441768	strain	1496992	1	0	0.0
+Desulfofarcimen acetoxidans DSM 771	485916	strain	4545624	2	0	0.0
+Rhodoluna	529883	genus	0	1	0	0.0
+Acetohalobium arabaticum DSM 5501	574087	strain	2469596	1	0	0.0
+Nautilia profundicola AmH	598659	strain	1676444	1	0	0.0
+Christensenella minuta	626937	species	2969292	5321	5319	0.0
+Desulfosporosinus acidiphilus SJ4	646529	strain	4991181	1	1	0.0
+Pantoea ananatis LMG 20103	706191	strain	4703373	1	0	0.0
+Halobacteroides halobius DSM 5150	748449	strain	2649255	1	0	0.0
+Hippea maritima DSM 10411	760142	strain	1694430	2	1	0.0
+Thermincola potens	863643	species	0	1	0	0.0
+Desulfosporosinus acidiphilus	885581	species	0	1	0	0.0
+Fenollaria massiliensis	938288	species	1609887	1	0	0.0
+Melissococcus plutonius DAT561	1090974	strain	2045253	1	0	0.0
+Peptoclostridium acidaminophilum DSM 3953	1286171	strain	3055036	5	4	0.0
+Clostridium autoethanogenum DSM 10061	1341692	strain	8710150	1	0	0.0
+Melissococcus plutonius S1	1385937	strain	2073864	1	0	0.0
+Klebsiella pneumoniae 30684/NJST258_2	1420013	strain	5417216	1	0	0.0
+Latilactobacillus sakei subsp. sakei DSM 20017 = JCM 1157	1423833	strain	1943136	1	1	0.0
+Geosporobacter ferrireducens	1424294	species	5817221	1	0	0.0
+Bacillus velezensis NJN-6	1458206	strain	4052546	1	0	0.0
+Crassaminicella	1848399	genus	0	1	0	0.0
+Ndongobacter massiliensis	1871025	species	1864878	2	2	0.0
+Thermosulfuriphilus ammonigenes	1936021	species	2287345	1	0	0.0
+Arthrobacter sp. YN	2020486	species	5063552	3	3	0.0
+Christensenella sp. Marseille-P3954	2086585	species	2422126	2	2	0.0
+Bacillus sp. ZY-1-1	2093834	species	3899251	1	0	0.0
+Planococcus halotolerans	2233542	species	3519247	2	0	0.0
+Candidatus Babeliae	2497643	class	0	1	0	0.0
+Clostridium sp. JN-9	2507159	species	3223191	1	0	0.0
+Salinibacterium sp. UTAS2018	2508880	species	2995446	1	0	0.0
+Vibrio taketomensis	2572923	species	8665221	1	0	0.0
+Nautilia sp. PV-1	2579250	species	1791100	1	0	0.0
+Streptococcus sp. CNU 77-61	2684658	species	1917833	1	0	0.0
+Streptococcus sp. CNU G2	2686210	species	2046950	1	0	0.0
+Pseudodesulfovibrio sp. zrk46	2725288	species	4082342	1	1	0.0
+Actinomyces respiraculi	2744574	species	2912106	1	0	0.0
+Dyella telluris	2763498	species	4991029	1	1	0.0
+Corynebacterium sp. FDAARGOS 1242	2778078	species	2774993	1	0	0.0
+Sulfidibacter corallicola	2818388	species	11786365	2	0	0.0
+Arthrobacter sp. FW305-BF8	2879617	species	5113695	1	0	0.0
+Bacillus sp. CMF12	2884834	species	5298346	2	0	0.0
+Desulforamulus	2916693	genus	0	1	0	0.0
+Tepidibacter sp. 8C15b	2925782	species	3666533	1	0	0.0

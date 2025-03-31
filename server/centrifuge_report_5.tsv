@@ -1,0 +1,72 @@
+name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
+Spirochaetales	136	order	0	1	0	0.0
+Spirochaeta thermophila	154	species	0	1	0	0.0
+Helicobacter pylori	210	species	438828474	1	0	0.0
+Acetobacteraceae	433	family	0	1	0	0.0
+Acinetobacter baumannii	470	species	1875884396	4	0	0.0
+Klebsiella pneumoniae	573	species	6955559347	4	2	0.0
+Thiobacillus	919	genus	0	2	0	0.0
+Gammaproteobacteria	1236	class	0	2	0	0.0
+Staphylococcus aureus	1280	species	2407768036	3	0	0.0
+Staphylococcus epidermidis	1282	species	301715820	1	0	0.0
+Streptococcus agalactiae	1311	species	180787831	1	0	0.0
+Streptococcus pneumoniae	1313	species	237851568	2	2	0.0
+Bacillus licheniformis	1402	species	148010079	1	0	0.0
+Clostridioides difficile	1496	species	442652010	3	0	0.0
+Paeniclostridium sordellii	1505	species	7246133	4	0	0.0
+Clostridium beijerinckii	1520	species	43424194	2	0	0.0
+Sphingomonas	13687	genus	0	3	3	0.0
+Alphaproteobacteria	28211	class	0	2	0	0.0
+Salmonella enterica	28901	species	742034846	2	2	0.0
+Candidatus Kinetoplastibacterium	33055	genus	0	2	0	0.0
+Hyphomicrobiaceae	45401	family	0	1	0	0.0
+Spirochaeta africana	46355	species	0	2	0	0.0
+Sediminispirochaeta smaragdinae	55206	species	0	5	0	0.0
+Saccharopolyspora spinosa	60894	species	8876435	2	0	0.0
+Treponema socranskii subsp. buccale	69713	subspecies	5672283	9	9	0.0
+Treponema primitia	88058	species	0	1	0	0.0
+Geobacillus	129337	genus	0	2	0	0.0
+Piscirickettsiaceae	135616	family	0	2	0	0.0
+Treponema parvum	138851	species	7894004	1	0	0.0
+Sphaerochaeta globosa str. Buddy	158189	strain	3316466	939	89	0.0
+Sphaerochaeta pleomorpha str. Grapes	158190	strain	3590853	95	40	0.0
+Carboxydocella thermautotrophica	178899	species	2678168	2	2	0.0
+Eubacteriales	186802	order	0	2	0	0.0
+Lactobacillales	186826	order	0	2	0	0.0
+Desulfuromonadaceae	213421	family	0	1	0	0.0
+Aquifex aeolicus VF5	224324	strain	1590791	1	0	0.0
+Enterobacter ludwigii	299767	species	82191059	1	0	0.0
+Sphaerochaeta	399320	genus	0	5	0	0.0
+Paludibacterium	400060	genus	0	2	0	0.0
+Priestia aryabhattai	412384	species	21918959	1	0	0.0
+Ammonifex degensii KC4	429009	strain	2157067	1	0	0.0
+Bacillus velezensis	492670	species	930239249	1	0	0.0
+Treponema primitia ZAS-2	545694	strain	4059867	11	2	0.0
+Leadbettera azotonutricia ZAS-9	545695	strain	3855671	7	0	0.0
+Sediminispirochaeta smaragdinae DSM 11293	573413	strain	4653970	7	3	0.0
+Thermodesulfobium narugense DSM 14796	747365	strain	1898865	1	0	0.0
+Sphaerochaeta coccoides DSM 17374	760011	strain	2227296	28	14	0.0
+Treponema succinifaciens DSM 2489	869209	strain	2897425	6	2	0.0
+Spirochaeta thermophila DSM 6578	869211	strain	2560222	4	4	0.0
+Spirochaeta africana DSM 8902	889378	strain	3285855	1	0	0.0
+Caldanaerobacter subterraneus	911092	species	0	2	0	0.0
+Bacillus cereus C1L	1003239	strain	6047547	1	0	0.0
+Hyphomicrobium nitrativorans NL23	1029756	strain	3653837	1	1	0.0
+Vibrio alfacsensis	1074311	species	15405513	2	2	0.0
+Sphaerochaeta associata	1129264	species	3554903	9894	9032	0.0
+Paraglaciecola psychrophila 170	1129794	strain	5413691	1	1	0.0
+Brachyspira hyodysenteriae ATCC 27164	1266923	strain	3074045	1	0	0.0
+Salinispira pacifica	1307761	species	3782798	3	0	0.0
+Halomonas sp. R57-5	1610576	species	5031573	2	2	0.0
+Thermodesulfobium acidiphilum	1794699	species	1774794	1	0	0.0
+Enterobacter roggenkampii	1812935	species	160561300	2	0	0.0
+Rugosibacter	1914449	genus	0	2	0	0.0
+Mariprofundus ferrinatatus	1921087	species	2301665	1	1	0.0
+Cohnella abietis	2507935	species	7059027	3	0	0.0
+Oceanispirochaeta crateris	2518645	species	4012482	6	0	0.0
+Brevibacillus sp. 7WMA2	2683193	species	5351077	1	1	0.0
+Paenibacillus rhizovicinus	2704463	species	7524325	3	0	0.0
+Treponema peruense	2787628	species	2738066	5	1	0.0
+Aquihabitans sp. G128	2849779	species	4938963	1	1	0.0
+Ruficoccus sp. ZRK36	2866311	species	3759138	3	2	0.0
+Pseudomonas sp. BYT-5	2944392	species	6003865	2	2	0.0

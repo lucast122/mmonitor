@@ -1,0 +1,53 @@
+
+{% load static %}
+
+<!-- templates/maintenance.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site Maintenance</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background-color: #f2f2f2;
+        }
+        h1 {
+            color: #333;
+            font-size: 48px;
+        }
+        p {
+            font-size: 18px;
+            color: #666;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .logo {
+            margin-bottom: 20px;
+        }
+        .logo img {
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <!-- Add your logo here if you have one -->
+            <img src="{% static 'mmonitor_banner.png' %}" alt="Logo">
+        </div>
+        <h1>We'll be back soon!</h1>
+        <p>Sorry for the inconvenience. We're performing some maintenance right now. We'll be back online soon!</p>
+        <p>Thank you for your patience!</p>
+    </div>
+</body>
+</html>

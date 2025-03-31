@@ -1,0 +1,2175 @@
+# mags.py
+import dash
+from dash import dcc, html, dash_table
+import dash_mantine_components as dmc
+from django_plotly_dash import DjangoDash
+import dash_bio as dashbio
+import pandas as pd
+import numpy as np
+import logging
+import plotly.graph_objects as go
+import plotly.express as px
+import json
+import base64
+from io import StringIO
+from Bio import SeqIO
+from users.models import MAG
+from dash import Input, Output, State, callback_context
+import os
+import re
+from datetime import datetime
+import io
+import traceback
+from dash_bio.utils import circos_parser
+
+logger = logging.getLogger(__name__)
+
+
+class MAGs:
+    def __init__(self, user_id):
+        """Initialize the MAGs app."""
+        self.user_id = user_id
+        logger.info(f"Initializing MAGs app for user_id: {user_id}")
+        
+        # Set up data directories
+        self.mag_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'mags')
+        logger.info(f"MAG directory set to: {self.mag_dir}")
+        
+        # Initialize the Dash app with a unique identifier
+        app_name = 'mags'
+        
+        # Initialize the Dash app
+        self.app = DjangoDash(
+            app_name,
+            add_bootstrap_links=False,
+            suppress_callback_exceptions=True,
+            serve_locally=True,  # Ensure assets are served locally
+            assets_folder="assets",  # Specify assets folder
+            external_stylesheets=[
+                'https://cdn.jsdelivr.net/npm/@mantine/core@5.10.5/dist/mantine.min.css',
+            ]
+        )
+        
+        # Create initial figures
+        try:
+            self.mag_data = self.get_mag_data()
+            self.initial_figures = self._create_initial_figures()
+            logger.info("Successfully initialized MAGs app with data")
+        except Exception as e:
+            logger.error(f"Error during MAGs app initialization: {str(e)}", exc_info=True)
+            self.mag_data = pd.DataFrame()
+            self.initial_figures = {}
+        
+        # Set up the layout
+        self.app.layout = self.create_layout()
+        
+        # Register callbacks
+        self._register_callbacks()
+        logger.info(f"MAGs app callbacks registered successfully for app '{app_name}'")
+
+    def _register_callbacks(self):
+        """Register all callbacks for the MAGs app."""
+        
+        @self.app.callback(
+            Output('mag-table', 'data'),
+            [Input('quality-filter', 'value')]
+        )
+        def filter_by_quality(quality_value):
+            """Filter MAGs by quality."""
+            self.logger.info(f"Filtering MAGs by quality: {quality_value}")
+            
+            if not quality_value or quality_value == 'all':
+                all_data = self._create_table_data()
+                self.logger.info(f"Returning all {len(all_data)} MAGs")
+                return all_data
+            
+            all_data = self._create_table_data()
+            
+            if quality_value == 'high':
+                # Only high quality MAGs
+                filtered = [row for row in all_data if row['Quality'] == 'High']
+                self.logger.info(f"Filtered to {len(filtered)} high quality MAGs")
+                return filtered
+            elif quality_value == 'medium+':
+                # Medium or better quality MAGs
+                filtered = [row for row in all_data if row['Quality'] in ['High', 'Medium']]
+                self.logger.info(f"Filtered to {len(filtered)} medium+ quality MAGs")
+                return filtered
+            elif quality_value == 'low+':
+                # Low or better quality MAGs (basically all that have a quality)
+                filtered = [row for row in all_data if row['Quality'] in ['High', 'Medium', 'Low']]
+                self.logger.info(f"Filtered to {len(filtered)} low+ quality MAGs")
+                return filtered
+            
+            # Fallback to all data
+            self.logger.info(f"Fallback: returning all {len(all_data)} MAGs")
+            return all_data
+            
+        @self.app.callback(
+            Output('gene-search-results', 'children'),
+            [Input('gene-search-button', 'n_clicks'),
+             Input('mag-table', 'selected_rows')],
+            [State('gene-search', 'value'),
+             State('mag-table', 'data')]
+        )
+        def display_search_results(n_clicks, selected_rows, search_term, table_data):
+            """Display search results for gene search."""
+            if not n_clicks or not search_term or not selected_rows:
+                return ""
+            
+            # Get selected MAG data
+            try:
+                if not table_data:
+                    table_data = self._create_table_data()
+                
+                selected_mag = table_data[selected_rows[0]].get('name', '')
+                if not selected_mag:
+                    selected_mag = table_data[selected_rows[0]].get('Name', '')
+                
+                if not selected_mag:
+                    return html.Div("Could not determine selected MAG", className="alert alert-warning")
+                
+                # Search for the term in GFF data
+                matched_features = []
+                mag_record = self.mag_data[self.mag_data['name'] == selected_mag].iloc[0]
+                
+                if 'gff_file' not in mag_record or not mag_record['gff_file']:
+                    return html.Div("No annotation data available for this MAG", className="alert alert-warning")
+                
+                gff_data = mag_record['gff_file']
+                
+                for line in gff_data.split('\n'):
+                    if line and not line.startswith('#'):
+                        parts = line.strip().split('\t')
+                        if len(parts) >= 9:  # Ensure it has all GFF columns
+                            seqid, source, feature_type, start, end, score, strand, phase, attributes = parts
+                            
+                            # Check if search term appears in attributes
+                            search_term_lower = search_term.lower()
+                            if search_term_lower in attributes.lower():
+                                # Extract the specific attribute that matched
+                                matched_attr = "unknown"
+                                matched_value = ""
+                                for attr in attributes.split(';'):
+                                    if '=' in attr and search_term_lower in attr.lower():
+                                        matched_attr = attr.split('=')[0]
+                                        matched_value = attr.split('=')[1]
+                                        break
+                                
+                                matched_features.append({
+                                    'type': feature_type,
+                                    'contig': seqid,
+                                    'position': f"{start}-{end}",
+                                    'strand': strand,
+                                    'matched_field': matched_attr,
+                                    'matched_value': matched_value
+                                })
+                
+                if matched_features:
+                    return html.Div([
+                        html.H5(f"Found {len(matched_features)} matches for '{search_term}'"),
+                        dash_table.DataTable(
+                            data=matched_features[:50],  # Limit to 50 results
+                            columns=[
+                                {'name': 'Type', 'id': 'type'},
+                                {'name': 'Contig', 'id': 'contig'},
+                                {'name': 'Position', 'id': 'position'},
+                                {'name': 'Strand', 'id': 'strand'},
+                                {'name': 'Matched In', 'id': 'matched_field'},
+                                {'name': 'Matched Value', 'id': 'matched_value'}
+                            ],
+                            style_table={'overflowX': 'auto'},
+                            style_cell={'textAlign': 'left'},
+                            page_size=10
+                        )
+                    ])
+                else:
+                    return html.Div(f"No matches found for '{search_term}'", className="alert alert-info")
+                    
+            except Exception as e:
+                return html.Div(f"Error searching: {str(e)}", className="alert alert-danger")
+            
+        @self.app.callback(
+            Output('mag-table', 'selected_rows'),
+            [Input('quality-plot', 'clickData')],
+            [State('mag-table', 'data')]
+        )
+        def update_selected_mag_from_plot(click_data, table_data):
+            """Update selected MAG when clicking on the quality plot."""
+            if not click_data or not table_data:
+                return []
+                
+            try:
+                point_text = click_data['points'][0]['text']
+                mag_name = point_text.split("<br>")[0].strip()
+                
+                # Find the index of this MAG in the table
+                for i, row in enumerate(table_data):
+                    if row['Name'] == mag_name:
+                        return [i]
+                        
+                return []
+            except Exception as e:
+                logger.error(f"Error in update_selected_mag_from_plot: {str(e)}")
+                return []
+                
+        # Callback to update sequence selector options when a MAG is selected
+        @self.app.callback(
+            Output('sequence-selector', 'options'),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_sequence_options(selected_rows, table_data):
+            """Update sequence selector dropdown options when a MAG is selected."""
+            try:
+                if not selected_rows or not table_data:
+                    logger.warning("No rows selected or no table data available")
+                    return []
+                
+                # Get selected row data
+                selected_row = table_data[selected_rows[0]]
+                logger.info(f"Selected row data: {selected_row}")
+                
+                # Find the MAG name - try both 'Name' and 'name' fields
+                selected_mag_name = None
+                for key in ['Name', 'name']:
+                    if key in selected_row and selected_row[key]:
+                        selected_mag_name = selected_row[key]
+                        break
+                        
+                if not selected_mag_name:
+                    logger.error("Could not find name in selected row")
+                    return []
+                    
+                logger.info(f"Looking for MAG with name: '{selected_mag_name}'")
+                
+                # Check if MAG data exists for debugging
+                if hasattr(self, 'mag_data'):
+                    logger.info(f"MAG data shape: {self.mag_data.shape}")
+                    logger.info(f"MAG data columns: {list(self.mag_data.columns)}")
+                    
+                    # Force reload MAG data to ensure we have the latest
+                    try:
+                        self.mag_data = self.get_mag_data()
+                        logger.info(f"Reloaded MAG data, new shape: {self.mag_data.shape}")
+                    except Exception as e:
+                        logger.error(f"Error reloading MAG data: {str(e)}")
+                else:
+                    logger.error("self.mag_data is not initialized!")
+                    return []
+                    
+                # Direct database query fallback
+                if self.mag_data is None or self.mag_data.empty:
+                    logger.warning("mag_data is empty, trying to reload from database")
+                    self.mag_data = self.get_mag_data()
+                    if self.mag_data is None or self.mag_data.empty:
+                        logger.error("Failed to load MAG data from database")
+                        return []
+                
+                # Try multiple approaches to find the matching MAG
+                # First try exact match
+                mag_matches = self.mag_data[self.mag_data['name'] == selected_mag_name]
+                
+                # If no exact match, try case-insensitive
+                if mag_matches.empty:
+                    mag_matches = self.mag_data[self.mag_data['name'].astype(str).str.lower() == selected_mag_name.lower()]
+                    
+                # If still no match, try contains
+                if mag_matches.empty:
+                    mag_matches = self.mag_data[self.mag_data['name'].astype(str).str.contains(selected_mag_name, case=False, na=False)]
+                
+                if mag_matches.empty:
+                    logger.error(f"No MAG data found for '{selected_mag_name}'")
+                    logger.info(f"Available MAGs: {self.mag_data['name'].tolist()[:5]}...")
+                    return []
+                
+                # Get the first matching MAG
+                mag_data = mag_matches.iloc[0]
+                logger.info(f"Found MAG data: {mag_data['name']}")
+                
+                # Check if FASTA data exists
+                if 'fasta_file' not in mag_data or not mag_data['fasta_file'] or mag_data['fasta_file'] == 'empty':
+                    logger.error(f"No FASTA data found for MAG {selected_mag_name}")
+                    return []
+                    
+                # Check FASTA data content
+                fasta_data = mag_data['fasta_file']
+                logger.info(f"FASTA data length: {len(fasta_data)}")
+                logger.info(f"FASTA data preview: {fasta_data[:100]}...")
+                
+                # Try to parse the FASTA data
+                from io import StringIO
+                from Bio import SeqIO
+                
+                try:
+                    # Make sure data is a string
+                    if not isinstance(fasta_data, str):
+                        fasta_data = str(fasta_data)
+                        
+                    fasta_io = StringIO(fasta_data)
+                    records = list(SeqIO.parse(fasta_io, 'fasta'))
+                    
+                    if not records:
+                        logger.error("No sequence records found in FASTA data")
+                        return []
+                        
+                    logger.info(f"Found {len(records)} sequences")
+                    
+                    # Create dropdown options
+                    options = []
+                    for record in records:
+                        seq_id = record.id
+                        seq_len = len(record.seq)
+                        options.append({
+                            'label': f"{seq_id} ({seq_len:,} bp)", 
+                            'value': seq_id
+                        })
+                        
+                    logger.info(f"Created {len(options)} dropdown options")
+                    return options
+                    
+                except Exception as e:
+                    logger.error(f"Error parsing FASTA data: {str(e)}", exc_info=True)
+                    return []
+            
+            except Exception as e:
+                logger.error(f"Error in update_sequence_options: {str(e)}", exc_info=True)
+                return []
+                
+        # New callback to set sequence-selector value when options change
+        @self.app.callback(
+            Output('sequence-selector', 'value'),
+            [Input('sequence-selector', 'options')]
+        )
+        def set_default_sequence(options):
+            """Set default sequence when options are updated."""
+            if options and len(options) > 0:
+                logger.info(f"Setting default sequence to {options[0]['value']}")
+                return options[0]['value']
+            return None
+            
+        @self.app.callback(
+            Output('copy-status', 'children'),
+            [Input('copy-selected-button', 'n_clicks'),
+             Input('copy-all-button', 'n_clicks')],
+            [State('mag-table', 'selected_rows'),
+             State('sequence-selector', 'value'),
+             State('mag-table', 'data')]
+        )
+        def handle_copy_sequence(copy_selected_clicks, copy_all_clicks, selected_rows, selected_sequence, table_data):
+            """Handle copying sequences to clipboard."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return ""
+                
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            if not selected_rows or not selected_sequence:
+                return html.Div("Please select a MAG and sequence first", className="alert alert-warning")
+                
+            try:
+                # Get selected MAG
+                selected_mag = table_data[selected_rows[0]].get('Name', table_data[selected_rows[0]].get('name', ''))
+                
+                # Get MAG data
+                mag_data = self.mag_data[self.mag_data['name'] == selected_mag]
+                if mag_data.empty:
+                    return html.Div(f"No data found for MAG {selected_mag}", className="alert alert-danger")
+                
+                # Get FASTA data
+                fasta_data = mag_data.iloc[0]['fasta_file']
+                if not fasta_data:
+                    return html.Div("No sequence data available", className="alert alert-danger")
+                    
+                # Parse FASTA data
+                sequences = self.parse_fasta_for_viewer(fasta_data)
+                
+                # Get the selected sequence
+                sequence_data = None
+                for seq in sequences:
+                    if seq['id'] == selected_sequence:
+                        sequence_data = seq
+                        break
+                        
+                if not sequence_data:
+                    return html.Div(f"Sequence {selected_sequence} not found", className="alert alert-danger")
+                
+                # Format the FASTA sequence with new lines for better readability
+                header = f">{sequence_data['id']} {sequence_data['description']}"
+                
+                if button_id == 'copy-selected-button':
+                    # Create JavaScript to copy to clipboard
+                    return html.Div([
+                        html.Div(id="clipboard-content", style={"display": "none"}, children=header + "\n" + sequence_data['sequence']),
+                        html.Div("Sequence ready to copy - Use browser copy function (Ctrl+C or Cmd+C)", className="alert alert-success"),
+                        html.Pre(header + "\n" + sequence_data['sequence'][:50] + "...", 
+                                style={"border": "1px solid #ccc", "padding": "10px", "overflow": "auto", "maxHeight": "100px"}),
+                        html.Span("Please use Cmd+A in the yellow box, then Cmd+C to copy.", 
+                                 style={'marginLeft': '20px', 'display': 'inline-block', 'color': '#666', 'fontStyle': 'italic'}),
+                        html.Div(id='copy-status', style={'marginTop': '5px', 'display': 'block'})
+                    ])
+                    
+                elif button_id == 'copy-all-button':
+                    # Format all sequences
+                    all_fasta = []
+                    for seq in sequences:
+                        all_fasta.append(f">{seq['id']} {seq['description']}\n{seq['sequence']}")
+                    
+                    # Create JavaScript to copy to clipboard
+                    return html.Div([
+                        html.Div(id="clipboard-content", style={"display": "none"}, children="\n".join(all_fasta)),
+                        html.Div("All sequences ready to copy - Use browser copy function (Ctrl+C or Cmd+C)", className="alert alert-success"),
+                        html.Pre("\n".join([f">{seq['id']} {seq['description']}\n{seq['sequence'][:30]}..." for seq in sequences[:3]]) + "\n...", 
+                                style={"border": "1px solid #ccc", "padding": "10px", "overflow": "auto", "maxHeight": "150px"}),
+                        html.Span("Please use Cmd+A in the yellow box, then Cmd+C to copy.", 
+                                 style={'marginLeft': '20px', 'display': 'inline-block', 'color': '#666', 'fontStyle': 'italic'}),
+                        html.Div(id='copy-status', style={'marginTop': '5px', 'display': 'block'})
+                    ])
+                    
+            except Exception as e:
+                return html.Div(f"Error copying sequence: {str(e)}", className="alert alert-danger")
+
+        @self.app.callback(
+            Output('circos-download-data', 'children'),
+            [Input('download-circos-button', 'n_clicks'),
+             Input('download-circos-svg-button', 'n_clicks')],
+            prevent_initial_call=True
+        )
+        def download_circos_plot(png_clicks, svg_clicks):
+            """Handle downloading of the circos plot as PNG or SVG."""
+            ctx = dash.callback_context
+            triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+            
+            if not triggered_id:
+                return ""  # No button clicked
+                
+            try:
+                logger.info(f"Download triggered by: {triggered_id}")
+                
+                if triggered_id == 'download-circos-button':
+                    # PNG download
+                    return html.Div([
+                        html.Script('''
+                        (function() {
+                            const svg = document.querySelector('#circos-plot svg');
+                            if (!svg) {
+                                console.error("No SVG found in circos-plot");
+                                return;
+                            }
+                            
+                            // Create a canvas with 2x resolution for higher quality
+                            const canvas = document.createElement('canvas');
+                            const bbox = svg.getBBox();
+                            const width = svg.clientWidth || bbox.width || 800;
+                            const height = svg.clientHeight || bbox.height || 800;
+                            canvas.width = width * 2;  // 2x resolution
+                            canvas.height = height * 2;
+                            
+                            // Get SVG data
+                            const xml = new XMLSerializer().serializeToString(svg);
+                            const svg64 = btoa(unescape(encodeURIComponent(xml)));
+                            const b64Start = 'data:image/svg+xml;base64,';
+                            const image64 = b64Start + svg64;
+                            
+                            // Draw to canvas and download
+                            const img = new Image();
+                            img.onload = function() {
+                                const ctx = canvas.getContext('2d');
+                                ctx.fillStyle = 'white';  // Set background to white
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                // Draw at 2x size for higher resolution
+                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                
+                                const a = document.createElement('a');
+                                a.download = 'circos_plot.png';
+                                a.href = canvas.toDataURL('image/png');
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                            };
+                            img.src = image64;
+                        })();
+                        ''')
+                    ])
+                
+                elif triggered_id == 'download-circos-svg-button':
+                    # SVG download
+                    return html.Div([
+                        html.Script('''
+                        (function() {
+                            const svg = document.querySelector('#circos-plot svg');
+                            if (!svg) {
+                                console.error("No SVG found in circos-plot");
+                                return;
+                            }
+                            
+                            // Clone the SVG so we don't modify the original
+                            const clonedSvg = svg.cloneNode(true);
+                            
+                            // Set explicit width and height if not present
+                            if (!clonedSvg.getAttribute('width')) {
+                                const bbox = svg.getBBox();
+                                clonedSvg.setAttribute('width', bbox.width || 800);
+                                clonedSvg.setAttribute('height', bbox.height || 800);
+                            }
+                            
+                            // Add white background for compatibility
+                            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                            rect.setAttribute('width', '100%');
+                            rect.setAttribute('height', '100%');
+                            rect.setAttribute('fill', 'white');
+                            clonedSvg.insertBefore(rect, clonedSvg.firstChild);
+                            
+                            // Get SVG as string with XML declaration
+                            const serializer = new XMLSerializer();
+                            let source = serializer.serializeToString(clonedSvg);
+                            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+                            
+                            // Create downloadable link
+                            const svgBlob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+                            const svgUrl = URL.createObjectURL(svgBlob);
+                            const a = document.createElement('a');
+                            a.href = svgUrl;
+                            a.download = 'circos_plot.svg';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        })();
+                        ''')
+                    ])
+                    
+                return ""  # Default empty return
+                
+            except Exception as e:
+                logger.error(f"Error in download_circos_plot: {str(e)}", exc_info=True)
+                return html.Div(f"Error downloading plot: {str(e)}", style={'color': 'red'})
+
+        @self.app.callback(
+            Output('circos-plot', 'children'),
+            [Input('mag-view-tabs', 'value'),
+             Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def handle_tab_switch(active_tab, selected_rows, table_data):
+            """Clear or update circos plot when changing tabs or selecting a MAG."""
+            ctx = dash.callback_context
+            triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else 'none'
+            logger.info(f"Circos plot callback triggered: {triggered_id}, tab={active_tab}, selected_rows={selected_rows}")
+            
+            # When switching away from circos tab, clear the content
+            if not active_tab or active_tab != 'circos':
+                logger.info("Clearing circos plot (not on circos tab)")
+                return html.Div([
+                    html.P("Switch to the CIRCOS Plot tab to view the plot")
+                ], id="circos-plot-empty")
+            
+            # When on circos tab with a selected MAG, show the plot
+            if active_tab == 'circos' and selected_rows and table_data:
+                logger.info(f"Updating circos plot with selected MAG")
+                selected_row = table_data[selected_rows[0]]
+                return self.create_dashbio_circos_plot(selected_row)
+            
+            # Default case - on circos tab but no MAG selected
+            return html.Div([
+                html.P("Please select a MAG from the table to visualize", className="mt-3")
+            ], id="circos-plot-empty")
+
+    def _create_empty_circos_figure(self, title, message):
+        """Create an empty figure with a message for use when circos plot cannot be created."""
+        return go.Figure(layout=dict(
+            title=title,
+            annotations=[{
+                'text': message,
+                'xref': "paper",
+                'yref': "paper",
+                'showarrow': False,
+                'font': {'size': 16},
+                'x': 0.5,
+                'y': 0.5,
+                'align': 'center'
+            }],
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            height=600,
+            width=800
+        ))
+
+    def get_mag_data(self):
+        """Get MAG data from database."""
+        try:
+            # Define the safe_json_load function at the beginning so it's available everywhere
+            def safe_json_load(x):
+                if pd.isna(x) or x == 'null' or not x:
+                    return {}
+                try:
+                    if isinstance(x, str) and (x.startswith('{') or x.startswith('[')):
+                        return json.loads(x)
+                    # If taxonomy is just a string (not JSON), create a simple dict
+                    if isinstance(x, str) and x:
+                        return {'species': x}
+                    return x if isinstance(x, dict) else {}
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"Failed to parse JSON data: {str(e)}")
+                    # If parsing fails and it's a string, return as species
+                    if isinstance(x, str) and x:
+                        return {'species': x}
+                    return {}
+            
+            # Get MAGs from database - avoid using distinct() since it's not supported in SQLite
+            logger.info(f"Fetching MAGs for user_id: {self.user_id}")
+            
+            # First, log all MAGs in the database to understand what's there
+            all_mags = MAG.objects.all().values('id', 'name', 'user_id')
+            logger.info(f"All MAGs in database: {list(all_mags)}")
+            
+            # Now get MAGs for this user
+            mags = MAG.objects.filter(user_id=self.user_id).values(
+                'id', 'name', 'taxonomy', 'sample_name', 'completeness', 'contamination',
+                'strain_heterogeneity', 'gene_count', 'trna_count', 'rrna_count', 
+                'cds_count', 'annotation_summary', 'quality_data', 'annotations',
+                'fasta_file', 'gff_file', 'fai_file', 'protein_file'
+            )
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(list(mags))
+            
+            if df.empty:
+                logger.warning(f"No MAGs found for user_id: {self.user_id}")
+                return pd.DataFrame({
+                    'name': [], 'completeness': [], 'contamination': [],
+                    'gene_count': [], 'trna_count': [], 'rrna_count': [],
+                    'cds_count': [], 'quality': []
+                })
+            
+            # Drop duplicates by name (keep the first occurrence)
+            logger.info(f"Before deduplication: {len(df)} MAGs")
+            df = df.drop_duplicates(subset=['name'])
+            logger.info(f"After deduplication: {len(df)} MAGs")
+            
+            # Add quality assessment
+            df['quality'] = df.apply(lambda row: self._assess_quality(row), axis=1)
+            
+            # Parse JSON fields
+            df['taxonomy_dict'] = df['taxonomy'].apply(safe_json_load)
+            df['quality_dict'] = df['quality_data'].apply(safe_json_load)
+            df['annotations_dict'] = df['annotations'].apply(safe_json_load)
+            
+            # Fill NaN values
+            numeric_cols = ['completeness', 'contamination', 'gene_count', 
+                          'trna_count', 'rrna_count', 'cds_count']
+            df[numeric_cols] = df[numeric_cols].fillna(0)
+            
+            logger.info(f"Retrieved {len(df)} MAGs from database")
+            logger.info(f"DataFrame columns: {df.columns.tolist()}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Error getting MAG data: {str(e)}", exc_info=True)
+            # Return an empty DataFrame if there's any error
+            return pd.DataFrame({
+                'name': [], 'completeness': [], 'contamination': [],
+                'gene_count': [], 'trna_count': [], 'rrna_count': [],
+                'cds_count': [], 'quality': []
+            })
+
+    def update_genome_browser(self, selected_rows):
+        """Helper function to update genome browser tracks."""
+        try:
+            logger.info(f"Updating genome browser with selected_rows: {selected_rows}")
+            
+            # Handle case with no selection
+            if not selected_rows:
+                logger.info("No MAG selected for genome browser")
+                return dashbio.Igv(
+                    id='genome-browser',
+                    reference={
+                        'id': 'genome',
+                        'name': 'No genome loaded',
+                        'fastaURL': None,
+                        'indexed': False,
+                        'tracks': []
+                    },
+                    style={'width': '100%', 'height': '400px'},
+                    minimumBases=50  # Add minimum bases to control zoom level
+                ), "Select a MAG to view its genome", {'display': 'block'}
+            
+            # Get MAG data with safe access
+            try:
+                selected_mag = self.mag_data.iloc[selected_rows[0]]
+                logger.info(f"Selected MAG: {selected_mag.get('name', 'unknown')}")
+            except (IndexError, AttributeError) as e:
+                logger.error(f"Error accessing selected MAG: {str(e)}")
+                return dashbio.Igv(
+                    id='genome-browser',
+                    reference={
+                        'id': 'genome',
+                        'name': 'Error loading genome',
+                        'fastaURL': None,
+                        'indexed': False,
+                        'tracks': []
+                    },
+                    style={'width': '100%', 'height': '400px'},
+                    minimumBases=50
+                ), f"Error accessing MAG data: {str(e)}", {'display': 'block'}
+            
+            warnings = []
+            debug_info = []
+            
+            # Get MAG name with robust handling
+            mag_name = None
+            for key in ['name', 'Name', 'id', 'ID']:
+                if key in selected_mag and selected_mag[key]:
+                    mag_name = str(selected_mag[key])
+                    break
+            
+            if not mag_name:
+                logger.error("Could not determine MAG name")
+                warnings.append("Could not determine MAG name")
+                mag_name = f"MAG_{selected_rows[0]}"  # Fallback name
+            
+            # Create reference configuration
+            reference = {
+                'id': 'genome',
+                'name': f"{mag_name} ({selected_mag.get('taxonomy', 'Unknown taxonomy')})",
+                'fastaURL': None,
+                'indexed': False,
+                'tracks': []
+            }
+            
+            # Add FASTA and FAI data if available
+            if 'fasta_file' in selected_mag and selected_mag['fasta_file'] and selected_mag['fasta_file'] != 'empty':
+                try:
+                    fasta_data = selected_mag['fasta_file']
+                    if not fasta_data or len(fasta_data.strip()) == 0:
+                        warnings.append("FASTA file is empty")
+                        debug_info.append(f"FASTA data length: {len(fasta_data) if fasta_data else 0}")
+                    else:
+                        # Create base64 URL for FASTA data
+                        try:
+                            fasta_bytes = fasta_data.encode()
+                            fasta_b64 = base64.b64encode(fasta_bytes).decode()
+                            
+                            # Add FAI data if available
+                            if 'fai_file' in selected_mag and selected_mag['fai_file'] and selected_mag['fai_file'] != 'empty':
+                                fai_data = selected_mag['fai_file']
+                                if fai_data and len(fai_data.strip()) > 0:
+                                    try:
+                                        fai_lines = fai_data.strip().split('\n')
+                                        sequences = []
+                                        for line in fai_lines:
+                                            parts = line.split('\t')
+                                            if len(parts) >= 2:
+                                                try:
+                                                    sequences.append({
+                                                        'name': parts[0],
+                                                        'length': int(parts[1])
+                                                    })
+                                                except (ValueError, IndexError) as e:
+                                                    logger.warning(f"Error parsing FAI line '{line}': {str(e)}")
+                                                    continue
+                                        
+                                        if sequences:
+                                            # Add sequence info directly to reference
+                                            reference.update({
+                                                'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                                'indexed': False,  # Tell IGV not to look for an index file
+                                                'sequences': sequences  # Provide sequence info directly
+                                            })
+                                            debug_info.append(f"FASTA and sequence info loaded successfully with {len(sequences)} sequences")
+                                        else:
+                                            warnings.append("No valid sequences found in FASTA index file")
+                                            # Fall back to using FASTA without index
+                                            reference.update({
+                                                'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                                'indexed': False
+                                            })
+                                    except Exception as e:
+                                        warnings.append("Error parsing FASTA index file - genome navigation may be limited")
+                                        logger.error(f"Error parsing FAI data for MAG {mag_name}: {str(e)}", exc_info=True)
+                                        debug_info.append(f"FAI parsing error: {str(e)}")
+                                        # Fall back to using FASTA without index
+                                        reference.update({
+                                            'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                            'indexed': False
+                                        })
+                                else:
+                                    warnings.append("FASTA index file is empty - genome navigation may be limited")
+                                    debug_info.append("FAI data is empty")
+                                    # Fall back to using FASTA without index
+                                    reference.update({
+                                        'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                        'indexed': False
+                                    })
+                            else:
+                                # No FAI data, try to generate sequences from FASTA
+                                try:
+                                    logger.info("No FAI data, attempting to parse sequences from FASTA")
+                                    sequences = []
+                                    parsed_sequences = self.parse_fasta_for_viewer(fasta_data)
+                                    
+                                    if parsed_sequences:
+                                        for seq in parsed_sequences:
+                                            sequences.append({
+                                                'name': seq['id'],
+                                                'length': len(seq['sequence'])
+                                            })
+                                        
+                                        reference.update({
+                                            'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                            'indexed': False,
+                                            'sequences': sequences
+                                        })
+                                        debug_info.append(f"Generated sequence info from FASTA with {len(sequences)} sequences")
+                                    else:
+                                        warnings.append("Could not parse sequences from FASTA")
+                                        reference.update({
+                                            'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                            'indexed': False
+                                        })
+                                except Exception as parse_error:
+                                    logger.error(f"Error parsing FASTA for sequences: {str(parse_error)}", exc_info=True)
+                                    warnings.append("Error parsing FASTA for sequences")
+                                    reference.update({
+                                        'fastaURL': f'data:application/octet-stream;charset=utf-8;base64,{fasta_b64}',
+                                        'indexed': False
+                                    })
+                        except Exception as encode_error:
+                            warnings.append(f"Error encoding FASTA data: {str(encode_error)}")
+                            logger.error(f"Error encoding FASTA data: {str(encode_error)}", exc_info=True)
+                            debug_info.append(f"FASTA encoding error: {str(encode_error)}")
+                except Exception as e:
+                    warnings.append(f"Error processing FASTA data: {str(e)}")
+                    logger.error(f"Error processing FASTA data for MAG {mag_name}: {str(e)}", exc_info=True)
+                    debug_info.append(f"FASTA error: {str(e)}")
+            else:
+                warnings.append("FASTA file missing - cannot display genome")
+                debug_info.append("No FASTA data available")
+            
+            # Add GFF track if available
+            if 'gff_file' in selected_mag and selected_mag['gff_file'] and selected_mag['gff_file'] != 'empty':
+                try:
+                    gff_data = selected_mag['gff_file']
+                    if gff_data and len(gff_data.strip()) > 0:
+                        # Create base64 URL for GFF data
+                        try:
+                            gff_bytes = gff_data.encode()
+                            gff_b64 = base64.b64encode(gff_bytes).decode()
+                            reference['tracks'].append({
+                                'name': 'Gene Annotations',
+                                'type': 'annotation',
+                                'format': 'gff3',
+                                'url': f'data:application/gff3;charset=utf-8;base64,{gff_b64}',
+                                'displayMode': 'EXPANDED',
+                                'height': 200,
+                                'indexed': False  # Tell IGV not to look for an index
+                            })
+                            debug_info.append(f"GFF data loaded successfully ({len(gff_bytes)} bytes)")
+                        except Exception as encode_error:
+                            warnings.append(f"Error encoding GFF data: {str(encode_error)}")
+                            logger.error(f"Error encoding GFF data: {str(encode_error)}", exc_info=True)
+                    else:
+                        warnings.append("GFF file is empty - no gene annotations will be shown")
+                        debug_info.append("GFF data is empty")
+                except Exception as e:
+                    warnings.append(f"Error processing GFF data: {str(e)}")
+                    logger.error(f"Error processing GFF data for MAG {mag_name}: {str(e)}", exc_info=True)
+                    debug_info.append(f"GFF error: {str(e)}")
+            else:
+                warnings.append("GFF file missing - gene annotations will not be shown")
+                debug_info.append("No GFF data available")
+            
+            # Prepare warning message with proper Dash formatting
+            warning_message = None
+            if warnings:
+                warning_message = html.Div([
+                    html.P(warning, style={'color': '#e74c3c', 'margin': '5px 0'}) for warning in warnings
+                ], style={'padding': '10px', 'background-color': '#fff3cd', 'border': '1px solid #ffeeba', 'border-radius': '4px'})
+                logger.warning(f"Genome browser warnings for MAG {mag_name}: {'; '.join(warnings)}")
+                logger.debug(f"Debug info: {'; '.join(debug_info)}")
+            
+            # Create the genome browser with error handling
+            try:
+                browser = dashbio.Igv(
+                    id='genome-browser',
+                    reference=reference,
+                    style={'width': '100%', 'height': '400px'},
+                    minimumBases=50  # Add minimum bases to control zoom level
+                )
+                return browser, warning_message, {'display': 'block' if warnings else 'none'}
+            except Exception as browser_error:
+                logger.error(f"Error creating IGV browser: {str(browser_error)}", exc_info=True)
+                return html.Div([
+                    html.H5("Error Creating Genome Browser", className="alert-heading"),
+                    html.P(f"An error occurred: {str(browser_error)}"),
+                    html.P("Try reloading the page or selecting a different MAG.")
+                ], className="alert alert-danger"), None, {'display': 'none'}
+                
+        except Exception as e:
+            logger.error(f"Error in update_genome_browser: {str(e)}", exc_info=True)
+            return html.Div([
+                html.H5("Error Creating Genome Browser", className="alert-heading"),
+                html.P(f"An error occurred: {str(e)}"),
+                html.P("Try reloading the page or selecting a different MAG.")
+            ], className="alert alert-danger"), None, {'display': 'none'}
+
+
+    def get_gff_data(self, mag_id):
+        """Get GFF data for the specified MAG."""
+        try:
+            logger.info(f"Getting GFF data for MAG {mag_id}")
+            
+            # Get MAG data with more robust matching
+            mag_data = self.mag_data[self.mag_data['name'].astype(str).str.strip() == str(mag_id).strip()]
+            if mag_data.empty:
+                # Try case-insensitive match
+                mag_data = self.mag_data[self.mag_data['name'].astype(str).str.lower() == str(mag_id).lower().strip()]
+                if mag_data.empty:
+                    logger.error(f"No MAG found with name {mag_id}")
+                    return None
+            
+            # Get GFF file content
+            gff_file = mag_data.iloc[0]['gff_file']
+            if not isinstance(gff_file, str) or not gff_file or gff_file == 'empty':
+                logger.error(f"Invalid or empty GFF file for MAG {mag_id}")
+                return None
+                
+            logger.info(f"GFF file length: {len(gff_file)} characters")
+            logger.info(f"GFF file first 100 chars: {gff_file[:100]}")
+            
+            # Parse GFF data
+            gff_data = []
+            line_count = 0
+            valid_lines = 0
+            
+            for line in gff_file.split('\n'):
+                line_count += 1
+                if line and not line.startswith('#'):
+                    try:
+                        parts = line.strip().split('\t')
+                        if len(parts) >= 8:
+                            valid_lines += 1
+                            seqid, source, feature, start, end, score, strand, phase = parts[:8]
+                            attributes = {}
+                            if len(parts) > 8:
+                                # Parse attributes (key=value pairs)
+                                for attr in parts[8].split(';'):
+                                    if '=' in attr:
+                                        key, value = attr.split('=', 1)
+                                        attributes[key.strip()] = value.strip()
+                            
+                            # Only include features we care about
+                            if feature in ['region', 'CDS', 'tRNA', 'rRNA']:
+                                feature_data = {
+                                    'type': feature,
+                                    'start': int(start),
+                                    'end': int(end),
+                                    'strand': 1 if strand == '+' else -1 if strand == '-' else 0,
+                                    'contig': seqid,
+                                    'product': attributes.get('product', ''),
+                                    'gene': attributes.get('gene', ''),
+                                    'protein_id': attributes.get('protein_id', ''),
+                                    'ec_number': attributes.get('eC_number', ''),
+                                    'function': attributes.get('function', '')
+                                }
+                                
+                                # Create a descriptive name for the feature
+                                if feature == 'CDS':
+                                    if feature_data['product']:
+                                        feature_data['name'] = feature_data['product']
+                                    elif feature_data['gene']:
+                                        feature_data['name'] = f"gene:{feature_data['gene']}"
+                                    elif feature_data['protein_id']:
+                                        feature_data['name'] = f"protein:{feature_data['protein_id']}"
+                                    else:
+                                        feature_data['name'] = "CDS"
+                                elif feature in ['tRNA', 'rRNA']:
+                                    feature_data['name'] = f"{feature} - {feature_data['product']}" if feature_data['product'] else feature
+                                else:
+                                    feature_data['name'] = feature
+                                
+                                gff_data.append(feature_data)
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Error parsing GFF line {line_count}: {line}, error: {str(e)}")
+                        continue
+            
+            logger.info(f"Processed {line_count} GFF lines, found {valid_lines} valid lines and {len(gff_data)} features")
+            
+            if len(gff_data) > 0:
+                # Log the first few entries to see what we're working with
+                logger.info(f"Sample contig IDs in GFF: {[f['contig'] for f in gff_data[:5]]}")
+                
+                # Count features by type
+                feature_counts = {}
+                for feature in gff_data:
+                    feature_type = feature['type']
+                    if feature_type not in feature_counts:
+                        feature_counts[feature_type] = 0
+                    feature_counts[feature_type] += 1
+                    
+                logger.info(f"Feature counts by type: {feature_counts}")
+            else:
+                logger.warning(f"No features found in GFF file for MAG {mag_id}")
+            
+            return gff_data
+            
+        except Exception as e:
+            logger.error(f"Error getting GFF data for MAG {mag_id}: {str(e)}")
+            return None
+
+    def _assess_quality(self, row):
+        """Assess MAG quality based on completeness and contamination."""
+        try:
+            # Handle None and convert to float safely
+            completeness = float(row.get('completeness', 0) or 0)
+            contamination = float(row.get('contamination', 0) or 0)
+            
+            if completeness >= 90 and contamination <= 5:
+                return 'High'
+            elif completeness >= 50 and contamination <= 10:
+                return 'Medium'
+            else:
+                return 'Low'
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid quality metrics for row: {row}, Error: {str(e)}")
+            return 'Unknown'
+
+    def _create_initial_figures(self, highlight_mag=None):
+        """Create initial figures for the MAGs app."""
+        figures = {}
+        
+        if self.mag_data.empty:
+            logger.warning("No MAG data available for creating figures")
+            empty_fig = go.Figure()
+            empty_fig.update_layout(
+                title="No MAG Data Available",
+                annotations=[{
+                    'text': "No MAG data found in database",
+                    'xref': "paper",
+                    'yref': "paper",
+                    'showarrow': False,
+                    'font': {'size': 20}
+                }]
+            )
+            return {
+                'quality_plot': empty_fig,
+                'gene_content_plot': empty_fig,
+                'rna_content_plot': empty_fig,
+                'kegg_plot': empty_fig
+            }
+        
+        # Quality assessment scatter plot
+        figures['quality_plot'] = self._create_quality_scatter(highlight_mag)
+        
+        # Gene content distribution
+        figures['gene_content_plot'] = self._create_gene_content_plot(highlight_mag)
+        
+        # RNA counts
+        figures['rna_content_plot'] = self._create_rna_counts_plot(highlight_mag)
+        
+        # KEGG pathway overview
+        figures['kegg_plot'] = self._create_kegg_overview(highlight_mag)
+        
+        return figures
+    
+    def _create_quality_scatter(self, highlight_mag=None):
+        """Create scatter plot of MAG quality."""
+        try:
+            df = self.mag_data
+            if df.empty:
+                return go.Figure()
+
+            # Create figure
+            fig = go.Figure()
+
+            # Plot points for each quality level
+            for quality in ['High', 'Medium', 'Low', 'Unknown']:
+                mask = df['quality'] == quality
+                if not any(mask):
+                    continue
+                    
+                color = {
+                    'High': '#2ecc71',
+                    'Medium': '#f1c40f',
+                    'Low': '#e74c3c',
+                    'Unknown': '#95a5a6'
+                }.get(quality, '#95a5a6')
+
+                # Get taxonomy info for hover
+                hover_data = []
+                for _, row in df[mask].iterrows():
+                    # Get taxonomy info
+                    taxonomy = row.get('taxonomy_dict', {})
+                    if isinstance(taxonomy, str):
+                        try:
+                            # Try to parse if it's a JSON string
+                            if taxonomy.startswith('{') or taxonomy.startswith('['):
+                                taxonomy = json.loads(taxonomy)
+                            else:
+                                # If it's just a plain string, use it directly
+                                taxonomy = {'species': taxonomy}
+                        except json.JSONDecodeError:
+                            taxonomy = {'species': taxonomy}
+
+                    # Create formatted taxonomy string
+                    tax_display = taxonomy.get('species', 'Unknown')
+                    if tax_display == 'Unknown' and isinstance(row.get('taxonomy'), str):
+                        tax_display = row.get('taxonomy')
+                    
+                    hover_data.append({
+                        'name': row['name'],
+                        'completeness': row['completeness'],
+                        'contamination': row['contamination'],
+                        'taxonomy': tax_display,
+                        'quality': quality
+                    })
+
+                fig.add_trace(go.Scatter(
+                    x=df[mask]['completeness'],
+                    y=df[mask]['contamination'],
+                    mode='markers',
+                    name=quality,
+                    marker=dict(
+                        color=color,
+                        size=10
+                    ),
+                    text=df[mask]['name'],
+                    customdata=[[d['name'], d['taxonomy']] for d in hover_data],  # Store name and taxonomy for click events
+                    hovertemplate="<b>%{text}</b><br>" +
+                                "Taxonomy: %{customdata[1]}<br>" +
+                                "Completeness: %{x:.1f}%<br>" +
+                                "Contamination: %{y:.1f}%<br>" +
+                                "Quality: " + quality + "<extra></extra>"
+                ))
+
+            # Update layout
+            fig.update_layout(
+                title="MAG Quality Assessment",
+                xaxis_title="Completeness (%)",
+                yaxis_title="Contamination (%)",
+                showlegend=True,
+                height=400
+            )
+
+            return fig
+
+        except Exception as e:
+            logger.error(f"Error creating quality scatter plot: {str(e)}")
+            return go.Figure()
+    
+    def _create_gene_content_plot(self, highlight_mag=None):
+        """Create bar plot of gene content distribution."""
+        try:
+            if self.mag_data.empty:
+                return go.Figure()
+
+            # Get gene counts from annotation dictionary
+            self.mag_data['gene_count'] = self.mag_data['annotations_dict'].apply(
+                lambda x: len(x.get('genes', [])) if isinstance(x, dict) else 0
+            )
+            
+            df = self.mag_data.sort_values('gene_count', ascending=False).head(20)
+            
+            # Create bar plot
+            fig = go.Figure()
+            
+            # Add bars
+            for idx, row in df.iterrows():
+                is_highlighted = highlight_mag is not None and row['name'] == highlight_mag
+                
+                fig.add_trace(go.Bar(
+                    x=[row['name']],
+                    y=[row['gene_count']],
+                    name=row['name'],
+                    showlegend=False,
+                    marker_color='#3498db' if not is_highlighted else '#e74c3c',
+                    opacity=1.0 if is_highlighted else 0.7,
+                    hovertemplate='<b>%{x}</b><br>' +
+                                'Gene Count: %{y}<br>' +
+                                '<extra></extra>'
+                ))
+            
+            # Update layout
+            fig.update_layout(
+                title='Gene Content Distribution (Top 20 MAGs)',
+                xaxis_title='MAG',
+                yaxis_title='Gene Count',
+                xaxis_tickangle=45,
+                showlegend=False,
+                hovermode='closest'
+            )
+            
+            return fig
+            
+        except Exception as e:
+            logger.error(f"Error creating gene content plot: {str(e)}", exc_info=True)
+            return go.Figure()
+    
+    def _create_rna_counts_plot(self, selected_rows=None, table_data=None):
+        """Create grouped bar plot of RNA gene counts."""
+        try:
+            if self.mag_data.empty:
+                return go.Figure()
+
+            # If selected rows provided, highlight that MAG
+            highlight_mag = None
+            if selected_rows is not None and table_data is not None and len(selected_rows) > 0:
+                highlight_mag = table_data[selected_rows[0]]['name']
+
+            # Get RNA counts from annotation dictionary
+            self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(
+                lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0
+            )
+            self.mag_data['rrna_count'] = self.mag_data['annotations_dict'].apply(
+                lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'rRNA']) if isinstance(x, dict) else 0
+            )
+            
+            df = self.mag_data.sort_values('rrna_count', ascending=False).head(20)
+            
+            # Create grouped bar plot
+            fig = go.Figure()
+            
+            # Add bars for each RNA type
+            for idx, row in df.iterrows():
+                is_highlighted = highlight_mag is not None and row['name'] == highlight_mag
+                opacity = 1.0 if is_highlighted else 0.7
+                
+                fig.add_trace(go.Bar(
+                    name=row['name'],
+                    x=['tRNA', 'rRNA'],
+                    y=[row['trna_count'], row['rrna_count']],
+                    showlegend=False,
+                    marker_color=['#3498db', '#2ecc71'] if not is_highlighted else ['#e74c3c', '#c0392b'],
+                    opacity=opacity,
+                    hovertemplate='<b>' + row['name'] + '</b><br>' +
+                                '%{x}: %{y}<br>' +
+                                '<extra></extra>'
+                ))
+            
+            # Update layout
+            fig.update_layout(
+                title='RNA Gene Content',
+                xaxis_title='RNA Type',
+                yaxis_title='Count',
+                barmode='group',
+                showlegend=False,
+                hovermode='closest'
+            )
+            
+            return fig
+            
+        except Exception as e:
+            logger.error(f"Error creating RNA counts plot: {str(e)}", exc_info=True)
+            return go.Figure()
+    
+    def _create_kegg_overview(self, selected_rows=None, table_data=None):
+        """Create heatmap of KEGG pathway presence."""
+        try:
+            if self.mag_data.empty:
+                return go.Figure()
+
+            # If selected rows provided, highlight that MAG
+            highlight_mag = None
+            if selected_rows is not None and table_data is not None and len(selected_rows) > 0:
+                highlight_mag = table_data[selected_rows[0]]['name']
+
+            # Extract KEGG data from dictionary
+            df = self.mag_data.copy()
+            df['kegg_pathways'] = df['quality_dict'].apply(
+                lambda x: list(x.keys()) if isinstance(x, dict) else []
+            )
+
+            # Get top 20 most common pathways
+            all_pathways = []
+            for pathways in df['kegg_pathways']:
+                all_pathways.extend(pathways)
+            top_pathways = pd.Series(all_pathways).value_counts().head(20).index.tolist()
+
+            # Create presence/absence matrix
+            presence_matrix = []
+            for _, row in df.iterrows():
+                presence_matrix.append([1 if p in row['kegg_pathways'] else 0 for p in top_pathways])
+
+            # Create heatmap
+            fig = go.Figure(data=go.Heatmap(
+                z=presence_matrix,
+                x=top_pathways,
+                y=df['name'],
+                colorscale=[[0, '#ffffff'], [1, '#2ecc71']],
+                showscale=False,
+                hoverongaps=False,
+                hovertemplate='MAG: %{y}<br>' +
+                            'Pathway: %{x}<br>' +
+                            'Present: %{z}<br>' +
+                            '<extra></extra>'
+            ))
+
+            # Update layout
+            fig.update_layout(
+                title='KEGG Pathway Presence',
+                xaxis_title='Pathway',
+                yaxis_title='MAG',
+                xaxis_tickangle=45,
+                height=600
+            )
+
+            return fig
+
+        except Exception as e:
+            logger.error(f"Error creating KEGG overview plot: {str(e)}", exc_info=True)
+            return go.Figure()
+    
+    def _create_table_data(self):
+        """Create data for the MAGs table."""
+        try:
+            if self.mag_data.empty:
+                logger.warning("No data available for table")
+                return []
+
+            # Create table data - ensure uniqueness
+            table_data = []
+            seen_names = set()
+            
+            for _, row in self.mag_data.iterrows():
+                # Skip if we've already seen this MAG name
+                if row.get('name') in seen_names:
+                    continue
+                seen_names.add(row.get('name'))
+                
+                # Get taxonomy info
+                taxonomy = row.get('taxonomy', {})
+                if isinstance(taxonomy, str):
+                    try:
+                        # Try to parse if it's a JSON string
+                        if taxonomy.startswith('{') or taxonomy.startswith('['):
+                            taxonomy = json.loads(taxonomy)
+                        else:
+                            # If it's just a plain string, use it directly
+                            taxonomy = taxonomy
+                    except (json.JSONDecodeError, TypeError):
+                        taxonomy = taxonomy
+
+                # Format taxonomy string based on available info
+                taxonomy_display = "Unknown"
+                if isinstance(taxonomy, dict):
+                    # Try to construct taxonomy string from dict
+                    tax_parts = []
+                    for level in ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']:
+                        if level in taxonomy and taxonomy[level]:
+                            tax_parts.append(taxonomy[level])
+                    if tax_parts:
+                        taxonomy_display = "; ".join(tax_parts)
+                elif isinstance(taxonomy, str) and taxonomy and taxonomy != 'empty':
+                    taxonomy_display = taxonomy
+                
+                # Calculate MAG size in Mbp if FASTA data is available
+                size_mbp = 0
+                n50_value = 0
+                contig_count = 0
+                
+                if 'fasta_file' in row and row['fasta_file'] and row['fasta_file'] != 'empty':
+                    try:
+                        # Parse FASTA to calculate genome size and contig count
+                        fasta_data = row['fasta_file']
+                        sequences = self.parse_fasta_for_viewer(fasta_data)
+                        if sequences:
+                            # Calculate total size
+                            total_size = sum(len(seq['sequence']) for seq in sequences)
+                            size_mbp = total_size / 1000000  # Convert to Mbp
+                            
+                            # Count contigs
+                            contig_count = len(sequences)
+                            
+                            # Calculate N50
+                            sorted_lengths = sorted([len(seq['sequence']) for seq in sequences], reverse=True)
+                            cumulative_size = 0
+                            for length in sorted_lengths:
+                                cumulative_size += length
+                                if cumulative_size >= total_size / 2:
+                                    n50_value = length
+                                    break
+                    except Exception as e:
+                        logger.warning(f"Error calculating MAG stats: {str(e)}")
+                
+                # Ensure numeric fields have proper values
+                completeness = float(row.get('completeness', 0) or 0)
+                contamination = float(row.get('contamination', 0) or 0)
+                quality = row.get('quality', self._assess_quality({'completeness': completeness, 'contamination': contamination}))
+                gc_content = float(row.get('gc_content', 0) or 0)
+                if gc_content == 0 and size_mbp > 0:
+                    # Calculate GC content if not provided
+                    try:
+                        if 'fasta_file' in row and row['fasta_file']:
+                            sequences = self.parse_fasta_for_viewer(row['fasta_file'])
+                            if sequences:
+                                gc_content = self._calculate_overall_gc(sequences)
+                    except Exception as e:
+                        logger.warning(f"Error calculating GC content: {str(e)}")
+                
+                # Format trna count
+                trnas = int(row.get('trna_count', 0) or 0)
+                
+                # Create table row with all available fields
+                table_row = {
+                    'name': row.get('name', ''),
+                    'completeness': completeness,
+                    'contamination': contamination,
+                    'Quality': quality,
+                    'size': size_mbp,
+                    'gc_content': gc_content,
+                    'n50': n50_value,
+                    'contigs': contig_count,
+                    'trnas': trnas,
+                    'taxonomy': taxonomy_display
+                }
+                table_data.append(table_row)
+
+            logger.info(f"Created table data with {len(table_data)} rows")
+            return table_data
+
+        except Exception as e:
+            logger.error(f"Error creating table data: {str(e)}", exc_info=True)
+            return []
+
+    def parse_fasta_for_viewer(self, fasta_data):
+        """Parse FASTA data for the sequence viewer, handling various input formats."""
+        try:
+            # Check if data is None or empty
+            if fasta_data is None or not fasta_data.strip():
+                logger.warning("Empty FASTA data provided to parser")
+                return []
+                
+            logger.info(f"Parsing FASTA data of length {len(fasta_data)}")
+            
+            # Check if this looks like FASTA
+            is_fasta_format = fasta_data.strip().startswith('>')
+            
+            # Handle non-FASTA format or base64 encoded data
+            if not is_fasta_format:
+                logger.info("Data doesn't appear to be in FASTA format, attempting base64 decode")
+                try:
+                    # Try to decode from base64
+                    decoded_data = base64.b64decode(fasta_data).decode('utf-8')
+                    if decoded_data.strip().startswith('>'):
+                        logger.info("Successfully decoded base64 data to FASTA format")
+                        fasta_data = decoded_data
+                    else:
+                        logger.warning("Decoded data is not in FASTA format")
+                        return []
+                except Exception as decode_error:
+                    logger.warning(f"Failed to decode potential base64 data: {str(decode_error)}")
+                    # Continue with original data, it might still be parseable
+            
+            # First try to parse with Biopython
+            sequences = []
+            try:
+                # Use StringIO to simulate a file
+                fasta_handle = io.StringIO(fasta_data)
+                records = list(SeqIO.parse(fasta_handle, "fasta"))
+                fasta_handle.close()
+                
+                logger.info(f"BioPython parsed {len(records)} FASTA records")
+                
+                # Check if we have valid records
+                if records:
+                    for record in records:
+                        if record.id and record.seq:
+                            sequences.append({
+                                'id': record.id,
+                                'sequence': str(record.seq),
+                                'description': record.description.replace(record.id, '').strip()
+                            })
+                    
+                    if sequences:
+                        logger.info(f"Successfully parsed {len(sequences)} sequences with BioPython")
+                        return sequences
+                
+                logger.warning("BioPython parsing returned no valid sequences")
+            except Exception as bio_error:
+                logger.warning(f"BioPython parsing failed: {str(bio_error)}")
+            
+            # Fallback to manual parsing if BioPython failed
+            logger.info("Attempting manual FASTA parsing as fallback")
+            
+            # Manual parsing logic
+            sequences = []
+            current_id = None
+            current_desc = None
+            current_seq = []
+            
+            for line in fasta_data.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if line.startswith('>'):
+                    # Save previous sequence if there was one
+                    if current_id and current_seq:
+                        sequences.append({
+                            'id': current_id,
+                            'sequence': ''.join(current_seq),
+                            'description': current_desc or ''
+                        })
+                        current_seq = []
+                    
+                    # Parse header line
+                    header = line[1:].strip()
+                    parts = header.split(None, 1)
+                    current_id = parts[0]
+                    current_desc = parts[1] if len(parts) > 1 else ''
+                else:
+                    # This is a sequence line
+                    # Validate that it contains valid sequence characters
+                    valid_chars = set('ACGTNacgtn')
+                    if any(c in valid_chars for c in line):  # Check if there's at least one valid nucleotide
+                        current_seq.append(line)
+            
+            # Don't forget to add the last sequence
+            if current_id and current_seq:
+                sequences.append({
+                    'id': current_id,
+                    'sequence': ''.join(current_seq),
+                    'description': current_desc or ''
+                })
+            
+            logger.info(f"Manual parsing extracted {len(sequences)} sequences")
+            
+            # Validate sequences
+            valid_sequences = []
+            for seq in sequences:
+                # Check for minimum sequence length
+                if len(seq['sequence']) >= 10:  # Arbitrary minimum length for a valid sequence
+                    valid_sequences.append(seq)
+                else:
+                    logger.warning(f"Discarding too short sequence: {seq['id']} (length: {len(seq['sequence'])})")
+            
+            if not valid_sequences:
+                logger.error("No valid sequences found in FASTA data")
+                return []
+                
+            logger.info(f"Final sequence count: {len(valid_sequences)}")
+            return valid_sequences
+            
+        except Exception as e:
+            logger.error(f"Error in parse_fasta_for_viewer: {str(e)}", exc_info=True)
+            return []
+
+    def create_layout(self):
+        """Create the Dash app layout."""
+        try:
+            table_data = self._create_table_data()
+            
+            # Define quality color settings
+            quality_colors = {
+                'High': 'rgba(46, 204, 113, 0.15)',    # Light green
+                'Medium': 'rgba(241, 196, 15, 0.15)',  # Light yellow
+                'Low': 'rgba(231, 76, 60, 0.15)',      # Light red
+                'Unknown': 'rgba(149, 165, 166, 0.15)' # Light gray
+            }
+            
+            # Create conditional style for rows based on quality
+            style_data_conditional = [
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': 'rgb(248, 248, 248)'
+                }
+            ]
+            
+            # Add quality-based styling
+            for quality, color in quality_colors.items():
+                style_data_conditional.append({
+                    'if': {'filter_query': '{Quality} = "' + quality + '"'},
+                    'backgroundColor': color,
+                })
+            
+            return html.Div([
+                html.H2("MAGs Analysis", className="mb-4"),
+                
+                # Filter controls - simplified
+                html.Div([
+                    html.Div([
+                        html.Label("Filter by Quality:", className="mr-2"),
+                        dcc.Dropdown(
+                            id='quality-filter',
+                            options=[
+                                {'label': 'All', 'value': 'all'},
+                                {'label': 'High Quality Only', 'value': 'high'},
+                                {'label': 'Medium Quality or Better', 'value': 'medium+'},
+                                {'label': 'Low Quality or Better', 'value': 'low+'}
+                            ],
+                            value='all',
+                            clearable=False,
+                            style={'width': '240px'}
+                        )
+                    ], style={'marginRight': '20px'}),
+                ], style={'display': 'flex', 'flexWrap': 'wrap', 'alignItems': 'center', 'marginBottom': '20px'}),
+                
+                # Quality scatter plot
+                dcc.Graph(
+                    id='quality-plot',
+                    figure=self._create_quality_scatter(),
+                    config={'displayModeBar': True, 'scrollZoom': True},
+                    style={'height': '500px'},
+                ),
+                
+                # MAG data table
+                html.Div([
+                    dash_table.DataTable(
+                        id='mag-table',
+                        columns=[
+                            {'name': 'Name', 'id': 'name'},
+                            {'name': 'Completeness', 'id': 'completeness', 'type': 'numeric', 'format': {'specifier': '.1f'}},
+                            {'name': 'Contamination', 'id': 'contamination', 'type': 'numeric', 'format': {'specifier': '.1f'}},
+                            {'name': 'Quality', 'id': 'Quality'},
+                            {'name': 'Size (Mbp)', 'id': 'size', 'type': 'numeric', 'format': {'specifier': '.2f'}},
+                            {'name': 'GC Content (%)', 'id': 'gc_content', 'type': 'numeric', 'format': {'specifier': '.1f'}},
+                            {'name': 'N50', 'id': 'n50', 'type': 'numeric', 'format': {'specifier': ',d'}},
+                            {'name': 'Contigs', 'id': 'contigs', 'type': 'numeric', 'format': {'specifier': ',d'}},
+                            {'name': 'tRNAs', 'id': 'trnas', 'type': 'numeric', 'format': {'specifier': ',d'}},
+                            {'name': 'Taxonomy', 'id': 'taxonomy'}
+                        ],
+                        data=table_data,
+                        page_size=20,  # Increased to 20 entries per page
+                        style_table={
+                            'overflowX': 'auto',
+                            'width': '100%',
+                            'minWidth': '100%',
+                            'height': '600px',  # Increased height to show more entries
+                            'maxHeight': '600px',
+                            'overflowY': 'auto'
+                        },
+                        style_header={
+                            'backgroundColor': 'rgb(230, 230, 230)',
+                            'fontWeight': 'bold',
+                            'textAlign': 'left',
+                            'padding': '10px',
+                            'height': 'auto',
+                            'whiteSpace': 'normal'
+                        },
+                        style_cell={
+                            'textAlign': 'left',
+                            'fontSize': '14px',
+                            'fontFamily': 'sans-serif',
+                            'padding': '8px',
+                            'whiteSpace': 'normal',
+                            'overflow': 'hidden',
+                            'textOverflow': 'ellipsis',
+                            'maxWidth': 0,  # This forces equal width columns that respect minWidth
+                        },
+                        style_cell_conditional=[
+                            {'if': {'column_id': 'name'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'completeness'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'contamination'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'Quality'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'size'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'gc_content'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'n50'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'contigs'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'trnas'}, 'width': '5%', 'minWidth': '50px'},
+                            {'if': {'column_id': 'taxonomy'}, 'width': '55%', 'minWidth': '400px'},
+                        ],
+                        style_data_conditional=style_data_conditional,
+                        row_selectable='single',
+                        selected_rows=[],
+                        page_action='native',
+                        sort_action='native',
+                        filter_action='native',
+                        export_format='csv'
+                    ),
+                ], style={'marginTop': '20px', 'marginBottom': '30px'}),
+                
+                # Gene search
+                html.Div([
+                    html.H4("Gene Search", className="section-title"),
+                    html.Div([
+                        dcc.Input(
+                            id='gene-search',
+                            type='text',
+                            placeholder='Enter gene name or function...',
+                            style={'width': '50%', 'marginRight': '10px', 'padding': '8px', 'borderRadius': '4px', 'border': '1px solid #ddd'}
+                        ),
+                        html.Button(
+                            'Search',
+                            id='gene-search-button',
+                            style={'backgroundColor': '#3498db', 'color': 'white', 'border': 'none', 'borderRadius': '4px', 'padding': '8px 15px', 'cursor': 'pointer'}
+                        )
+                    ], style={'marginBottom': '10px'}),
+                    # Search results area
+                    html.Div(
+                        id='gene-search-results',
+                        children=[
+                            html.Div("Search for genes by name or function. Select a MAG first to search within it.", 
+                                    style={'fontStyle': 'italic', 'color': '#666'})
+                        ],
+                        style={
+                            'marginTop': '10px', 
+                            'color': '#666', 
+                            'maxHeight': '150px', 
+                            'overflowY': 'auto',
+                            'padding': '8px',
+                            'border': '1px solid #eee',
+                            'borderRadius': '4px',
+                            'backgroundColor': '#f9f9f9'
+                        }
+                    )
+                ], style={'marginBottom': '20px'}),
+                
+                # New Store component to help with gene highlighting
+                dcc.Store(id='highlighted-genes', data=None),
+                dcc.Store(id='circos-plot-status', data={}),
+                
+                dcc.Tabs(
+                    id='mag-view-tabs',
+                    value='circos',  # Set default tab
+                    children=[
+                        dcc.Tab(
+                            label='CIRCOS Plot', 
+                            value='circos',
+                            className='custom-tab',
+                            selected_className='custom-tab--selected',
+                            children=[
+                                dcc.Loading(
+                                    id="loading-circos",
+                                    type="circle",
+                                    color="#3498db",
+                                    children=html.Div(
+                                        id='circos-plot',
+                                        style={'height': '1000px', 'width': '100%'}  # Increased height for better visibility
+                                    )
+                                )
+                            ]
+                        ),
+                        # Add new tab for Sequence Viewer
+                        dcc.Tab(
+                            label='Sequence Viewer',
+                            value='sequence',
+                            className='custom-tab',
+                            selected_className='custom-tab--selected',
+                            children=[
+                                html.Div([
+                                    # View options
+                                    html.Div([
+                                        html.Label("Select View:", className="mr-2"),
+                                        dcc.RadioItems(
+                                            id='sequence-view-type',
+                                            options=[
+                                                {'label': 'Whole Genome', 'value': 'whole-genome'},
+                                                {'label': 'Features', 'value': 'features'}
+                                            ],
+                                            value='whole-genome',
+                                            labelStyle={'marginRight': '30px'},  # Add spacing between radio options
+                                            style={'marginBottom': '15px'}  # Slightly increase bottom margin
+                                        ),
+                                        # Dropdown for sequence selection
+                                        html.Div([
+                                            html.Label("Select Sequence:", className="mr-2"),
+                                            dcc.Dropdown(
+                                                id='sequence-selector',
+                                                options=[],
+                                                placeholder='Select a contig...',
+                                                style={'width': '300px', 'display': 'inline-block', 'marginRight': '15px'}
+                                            ),
+                                        ], style={'marginBottom': '10px', 'marginTop': '10px'}),
+                                        # Copy controls
+                                        html.Div([
+                                            html.Label("Search Sequences:", className="mr-2"),
+                                            dcc.Input(
+                                                id='sequence-search-input',
+                                                type='text',
+                                                placeholder='Enter search term or regex...',
+                                                style={
+                                                    'width': '300px',
+                                                    'marginRight': '10px',
+                                                    'padding': '8px',
+                                                    'borderRadius': '4px',
+                                                    'border': '1px solid #ddd'
+                                                }
+                                            ),
+                                            html.Button(
+                                                'Search',
+                                                id='sequence-search-button',
+                                                style={
+                                                    'backgroundColor': '#3498db',
+                                                    'color': 'white',
+                                                    'border': 'none',
+                                                    'borderRadius': '4px',
+                                                    'padding': '8px 15px',
+                                                    'cursor': 'pointer',
+                                                    'fontWeight': 'bold'
+                                                }
+                                            ),
+                                            html.Div(id='search-match-count', style={'marginLeft': '10px', 'display': 'inline-block'})
+                                        ], style={'marginBottom': '10px', 'marginTop': '15px'}),
+                                        
+                                        # Search explanation
+                                        html.Div([
+                                            html.Small([
+                                                "Search sequences by header text. Supports ",
+                                                html.Span("regular expressions", style={'fontWeight': 'bold'}),
+                                                ". Matching sequences will be displayed for copying."
+                                            ], style={'color': '#666', 'fontStyle': 'italic', 'display': 'block', 'marginBottom': '5px'})
+                                        ]),
+                                    ], style={'padding': '15px', 'backgroundColor': '#f8f9fa', 'borderRadius': '5px', 'marginBottom': '15px'}),
+                                    
+                                    # Sequence viewer
+                                    html.Div([
+                                        dcc.Loading(
+                                            id="loading-sequence",
+                                            type="circle",
+                                            color="#3498db",
+                                            children=html.Div(id='sequence-viewer-container', style={'height': '600px', 'overflowY': 'auto'})
+                                        ),
+                                    ], style={'border': '1px solid #ddd', 'borderRadius': '5px', 'padding': '10px'})
+                                ])
+                            ]
+                        )
+                    ]
+                )
+            ], className="container-fluid")
+        except Exception as e:
+            logger.error(f"Error creating MAGs layout: {str(e)}", exc_info=True)
+            return html.Div([
+                html.H2("MAGs Analysis"),
+                html.Div([
+                    html.Div("Error loading MAG data. Please try refreshing the page.", className="alert alert-danger"),
+                    html.P(f"Error details: {str(e)}")
+                ])
+            ])
+
+    def create_dashbio_circos_plot(self, selected_row):
+        """Create a DashBio Circos plot for the selected MAG using GFF and FASTA data."""
+        try:
+            logger.info("Creating DashBio CIRCOS plot")
+            
+            # Check if a row is selected
+            if not selected_row:
+                logger.warning("No MAG selected for circos plot")
+                return html.Div("Please select a MAG to view its circos plot", className="no-data-message", id="circos-plot-content")
+            
+            # Get MAG name with robust handling
+            mag_name = None
+            for key in ['Name', 'name', 'id', 'ID']:
+                if key in selected_row and selected_row[key]:
+                    mag_name = str(selected_row[key])
+                    break
+            
+            if not mag_name:
+                logger.error(f"Could not determine MAG name from row: {selected_row}")
+                return html.Div("Could not determine MAG name", className="alert alert-danger", id="circos-plot-content")
+            
+            logger.info(f"Creating DashBio CIRCOS plot for MAG: {mag_name}")
+            
+            # Get MAG data from DataFrame
+            mag_data = self.mag_data
+            
+            # Check if mag_data is valid
+            if mag_data is None or mag_data.empty:
+                logger.warning("MAG data is empty, trying to reload")
+                mag_data = self.get_mag_data()
+                if mag_data is None or mag_data.empty:
+                    logger.error("Failed to load MAG data")
+                    return html.Div("Could not load MAG data", className="alert alert-danger")
+            
+            # Find the MAG with multiple fallback approaches
+            mag_matches = mag_data[mag_data['name'] == mag_name]
+            
+            # If no exact match, try case-insensitive
+            if mag_matches.empty:
+                logger.info(f"No exact match for MAG '{mag_name}', trying case-insensitive")
+                mag_matches = mag_data[mag_data['name'].astype(str).str.lower() == mag_name.lower()]
+            
+            # If still no match, try contains
+            if mag_matches.empty:
+                logger.info(f"No case-insensitive match, trying contains for MAG '{mag_name}'")
+                mag_matches = mag_data[mag_data['name'].astype(str).str.contains(mag_name, case=False, na=False)]
+            
+            if mag_matches.empty:
+                logger.error(f"MAG '{mag_name}' not found in database")
+                return html.Div(f"MAG '{mag_name}' not found in database", className="alert alert-danger")
+            
+            # Get the first matching MAG
+            mag_record = mag_matches.iloc[0]
+            
+            # Make sure we have FASTA data for this MAG
+            if 'fasta_file' not in mag_record or not mag_record['fasta_file'] or mag_record['fasta_file'] == 'empty':
+                logger.error(f"No FASTA data for MAG '{mag_name}'")
+                return html.Div(f"No FASTA sequence data available for MAG '{mag_name}'", className="alert alert-danger")
+            
+            # Check if GFF data is available
+            has_annotations = 'gff_file' in mag_record and mag_record['gff_file'] and mag_record['gff_file'] != 'empty'
+            
+            # Parse FASTA data
+            try:
+                fasta_data = mag_record['fasta_file']
+                sequences = self.parse_fasta_for_viewer(fasta_data)
+                
+                if not sequences:
+                    logger.error("No sequences parsed from FASTA data")
+                    return html.Div("No valid sequences found in FASTA data", className="alert alert-danger")
+                
+                logger.info(f"Found {len(sequences)} contigs in FASTA data")
+            except Exception as parse_error:
+                logger.error(f"Error parsing FASTA data: {str(parse_error)}", exc_info=True)
+                return html.Div(f"Error parsing sequence data: {str(parse_error)}", className="alert alert-danger")
+            
+            # Prepare data for Circos plot
+            try:
+                # Sort sequences by length (largest first) and limit to top 50
+                sequences.sort(key=lambda x: len(x['sequence']), reverse=True)
+                top_sequences = sequences[:50]  # Limit to top 50 largest contigs for visualization
+                
+                # Create layout data for Circos
+                layout_data = []
+                for i, seq in enumerate(top_sequences):
+                    contig_id = seq['id']
+                    contig_length = len(seq['sequence'])
+                    
+                    # Only include larger contigs
+                    if contig_length >= 1000:  # Minimum size filter
+                        layout_data.append({
+                            'id': contig_id,
+                            'len': contig_length,
+                            'color': f"hsl({(i * 10) % 360}, 70%, 50%)",
+                            'label': contig_id
+                        })
+                
+                # Create GC content heatmap track
+                gc_data = []
+                for seq in top_sequences:
+                    contig_id = seq['id']
+                    sequence = seq['sequence']
+                    
+                    # Calculate GC content in windows
+                    window_size = max(5000, int(len(sequence) / 100))  # Adjust window size based on sequence length
+                    
+                    for start in range(0, len(sequence), window_size):
+                        end = min(start + window_size, len(sequence))
+                        if end - start < 100:  # Skip very small remaining windows
+                            continue
+                            
+                        window = sequence[start:end]
+                        gc_count = window.upper().count('G') + window.upper().count('C')
+                        gc_percent = (gc_count / len(window)) * 100 if window else 0
+                        
+                        # Map GC percentage to a value between 0 and 1 for the heatmap
+                        # Typically, GC content ranges from 20-80%, so adjust accordingly
+                        value = max(0, min(1, (gc_percent - 20) / 60))
+                        
+                        gc_data.append({
+                            'block_id': contig_id,
+                            'start': start,
+                            'end': end,
+                            'value': value
+                        })
+                
+                # Parse GFF data for gene annotations if available
+                highlight_data = []
+                if has_annotations:
+                    gff_data = mag_record['gff_file']
+                    
+                    # Get set of contig IDs from layout data for quick lookup
+                    layout_contig_ids = {item['id'] for item in layout_data}
+                    
+                    try:
+                        # Parse GFF file
+                        for line in gff_data.splitlines():
+                            if line.startswith('#') or not line.strip():
+                                continue
+                                
+                            parts = line.split('\t')
+                            if len(parts) >= 8:
+                                contig_id = parts[0]
+                                
+                                # Only process features for contigs in our layout
+                                if contig_id in layout_contig_ids:
+                                    feature_type = parts[2]
+                                    start = int(parts[3])
+                                    end = int(parts[4])
+                                    strand = parts[6]
+                                    attributes = parts[8]
+                                    
+                                    # Only include genes and CDS features
+                                    if feature_type.lower() in ['gene', 'cds']:
+                                        # Determine color based on strand
+                                        color = "rgba(0, 150, 0, 0.7)" if strand == '+' else "rgba(150, 0, 0, 0.7)"
+                                        
+                                        # Get gene name if available
+                                        gene_name = None
+                                        for attr in attributes.split(';'):
+                                            if '=' in attr:
+                                                key, value = attr.split('=', 1)
+                                                if key.lower() in ['name', 'gene', 'product', 'id']:
+                                                    gene_name = value
+                                                    break
+                                        
+                                        highlight_data.append({
+                                            'block_id': contig_id,
+                                            'start': start,
+                                            'end': end,
+                                            'color': color,
+                                            'opacity': 0.7,
+                                            # Use object format for tooltips
+                                            'tooltipContent': {
+                                                'Name': gene_name or "Unknown",
+                                                'Type': feature_type,
+                                                'Position': f"{start}-{end}",
+                                                'Strand': strand
+                                            }
+                                        })
+                        
+                        logger.info(f"Parsed {len(highlight_data)} gene annotations from GFF data")
+                    except Exception as gff_error:
+                        logger.error(f"Error parsing GFF data: {str(gff_error)}", exc_info=True)
+                        # Continue without annotations
+                
+                # Create Circos component with the data
+                if layout_data:
+                    circos = dashbio.Circos(
+                        id='circos-plot',  # Match the ID used in callbacks
+                        layout=layout_data,
+                        size=800,
+                        config={
+                            'tooltipContent': {
+                                'source': 'block',
+                                'content': '{id}: {len:,} bp'
+                            },
+                            'labels': {
+                                'display': True,
+                                'size': 12,
+                                'color': '#333',
+                                'radialOffset': 25
+                            }
+                        },
+                        tracks=[
+                            # GC Content track - Enhanced with better color scale
+                            {
+                                'type': 'HEATMAP',
+                                'data': gc_data,
+                                'config': {
+                                    'innerRadius': 0.75,
+                                    'outerRadius': 0.85,
+                                    'color': 'YlGnBu',  # Better color scale for GC content
+                                    'colorScale': 'sequential',
+                                    'min': 0,
+                                    'max': 1,
+                                    'tooltipContent': {
+                                        'GC Content': 'value * 100 + "% GC"'
+                                    }
+                                }
+                            },
+                            # Gene annotation track (if available) - Enhanced with better colors
+                            {
+                                'type': 'HIGHLIGHT',
+                                'data': highlight_data,
+                                'config': {
+                                    'innerRadius': 0.55,
+                                    'outerRadius': 0.7,
+                                    'tooltipContent': [
+                                        {
+                                            'name': 'Name', 
+                                            'value': 'tooltipContent.Name'
+                                        },
+                                        {
+                                            'name': 'Type', 
+                                            'value': 'tooltipContent.Type'
+                                        },
+                                        {
+                                            'name': 'Position', 
+                                            'value': 'tooltipContent.Position'
+                                        },
+                                        {
+                                            'name': 'Strand', 
+                                            'value': 'tooltipContent.Strand'
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    )
+                    
+                    # Create a div with both the plot and some statistics - with a consistent ID
+                    return html.Div([
+                        html.Div([
+                            html.H5(f"Circos Plot - {mag_name}", style={'marginBottom': '15px'}),
+                            html.Button(
+                                "Download Plot as PNG",
+                                id="download-circos-button",
+                                style={
+                                    'backgroundColor': '#2ecc71',
+                                    'color': 'white',
+                                    'border': 'none',
+                                    'borderRadius': '4px',
+                                    'padding': '8px 15px',
+                                    'cursor': 'pointer',
+                                    'marginBottom': '15px',
+                                    'marginRight': '10px',
+                                    'fontWeight': 'bold'
+                                }
+                            ),
+                            html.Button(
+                                "Download Plot as SVG",
+                                id="download-circos-svg-button",
+                                style={
+                                    'backgroundColor': '#3498db',
+                                    'color': 'white',
+                                    'border': 'none',
+                                    'borderRadius': '4px',
+                                    'padding': '8px 15px',
+                                    'cursor': 'pointer',
+                                    'marginBottom': '15px',
+                                    'fontWeight': 'bold'
+                                }
+                            ),
+                            # Add download div to capture download data
+                            html.Div(id="circos-download-data"),
+                        ], style={'textAlign': 'left', 'marginBottom': '20px'}),
+                        html.Div([
+                            html.Div([
+                                html.H6("Genome Statistics"),
+                                html.Table([
+                                    html.Tr([html.Td("Total Contigs:"), html.Td(f"{len(sequences)}")]),
+                                    html.Tr([html.Td("Displayed Contigs:"), html.Td(f"{len(layout_data)}")]),
+                                    html.Tr([html.Td("Total Genome Size:"), html.Td(f"{sum(len(seq['sequence']) for seq in sequences):,} bp")]),
+                                    html.Tr([html.Td("Largest Contig:"), html.Td(f"{max(len(seq['sequence']) for seq in sequences):,} bp")]),
+                                    html.Tr([html.Td("GC Content:"), html.Td(f"{self._calculate_overall_gc(sequences):.1f}%")]),
+                                    html.Tr([html.Td("Genes:"), html.Td(f"{len(highlight_data)}" if highlight_data else "No annotation data")])
+                                ], style={'marginBottom': '20px'})
+                            ], style={'width': '25%', 'display': 'inline-block', 'verticalAlign': 'top', 'padding': '10px'}),
+                            html.Div([
+                                circos
+                            ], style={'width': '75%', 'display': 'inline-block', 'verticalAlign': 'top'})
+                        ], style={'display': 'flex', 'flexWrap': 'wrap'})
+                    ], id="circos-plot-content")
+                else:
+                    return html.Div("No contigs of sufficient size found for visualization", className="alert alert-warning", id="circos-plot-content")
+                    
+            except Exception as plot_error:
+                logger.error(f"Error creating DashBio CIRCOS plot: {str(plot_error)}", exc_info=True)
+                return html.Div([
+                    html.Div(f"Error creating CIRCOS plot: {str(plot_error)}", className="alert alert-danger"),
+                    html.Pre(f"Full error details:\n{traceback.format_exc()}", 
+                            style={"maxHeight": "200px", "overflow": "auto", "whiteSpace": "pre-wrap"})
+                ], id="circos-plot-content")
+                
+        except Exception as e:
+            logger.error(f"Error in create_dashbio_circos_plot: {str(e)}", exc_info=True)
+            return html.Div([
+                html.H5("Error Creating CIRCOS Plot", className="alert-heading"),
+                html.P(f"An error occurred: {str(e)}"),
+                html.P("Try reloading the page or selecting a different MAG.")
+            ], className="alert alert-danger", id="circos-plot-content")
+            
+    def _calculate_overall_gc(self, sequences):
+        """Calculate the overall GC content percentage across all sequences."""
+        total_gc = 0
+        total_length = 0
+        
+        for seq in sequences:
+            sequence = seq['sequence'].upper()
+            gc_count = sequence.count('G') + sequence.count('C')
+            total_gc += gc_count
+            total_length += len(sequence)
+            
+        if total_length == 0:
+            return 0
+            
+        return (total_gc / total_length) * 100

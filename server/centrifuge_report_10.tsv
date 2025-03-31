@@ -1,0 +1,10 @@
+name	taxID	taxRank	genomeSize	numReads	numUniqueReads	abundance
+Staphylococcus aureus	1280	species	2407768036	5	0	0.0
+Cutibacterium acnes	1747	species	32695595	1	1	0.0
+Methanobrevibacter smithii	2173	species	5387853	2	0	0.0
+Sphaerochaeta globosa str. Buddy	158189	strain	3316466	18	5	0.0
+Methanobrevibacter smithii ATCC 35061	420247	strain	1853160	2	2	0.0
+Treponema primitia ZAS-2	545694	strain	4059867	1	0	0.0
+Leadbettera azotonutricia ZAS-9	545695	strain	3855671	1	0	0.0
+Sediminispirochaeta smaragdinae DSM 11293	573413	strain	4653970	1	1	0.0
+Sphaerochaeta associata	1129264	species	3554903	455	442	0.0

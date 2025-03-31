@@ -1,0 +1,3488 @@
+import base64
+import io
+import json
+import re
+from typing import Any, List, Union
+import time
+import traceback
+import functools
+import logging
+from functools import lru_cache
+import hashlib
+import cProfile
+import pstats
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from datetime import datetime, timedelta
+import numpy as np
+import dash
+from dash import html, dcc, dash_table
+import dash_mantine_components as dmc
+import dash_bio as dashbio
+from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
+from django_plotly_dash import DjangoDash
+import plotly.graph_objects as go
+import plotly.express as px
+import plotly.io as pio
+from plotly.subplots import make_subplots
+import pandas as pd
+from dash_iconify import DashIconify
+from scipy.ndimage import gaussian_filter
+from scipy.stats import zscore
+from statsmodels.nonparametric.smoothers_lowess import lowess
+import dash_cytoscape as cyto
+
+from users.models import NanoporeRecord, Metadata, User, SequencingStatistics, MAG
+from . import taxonomy, correlations, qc, diversity, horizon, mags
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def get_current_user(request=None):
+    """Get the current user from the Django request context."""
+    if request and hasattr(request, 'user'):
+        return request.user
+    return None
+
+def benchmark(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start
+        logger.info(f"Function {func.__name__} took {duration:.2f} seconds to execute")
+        return result
+    return wrapper
+
+def profile(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        profiler = cProfile.Profile()
+        try:
+            return profiler.runcall(func, *args, **kwargs)
+        finally:
+            stats = pstats.Stats(profiler)
+            stats.sort_stats('cumulative')
+            logger.info(f"\n{'='*20} Profiling for {func.__name__} {'='*20}")
+            stats.print_stats(20)  # Print top 20 time-consuming operations
+    return wrapper
+
+class Index:
+    """
+    The Index class is the main class of the application.
+    It contains the main layout and callbacks.
+    """
+
+    def __init__(self, user_id):
+        self.start_time = time.time()
+        self.user_id = user_id
+        
+        # Initialize the Dash app with CDN resources and suppress callback exceptions
+        self.app = DjangoDash(
+            'Index',
+            add_bootstrap_links=True,
+            suppress_callback_exceptions=True,  # Add this back to handle callback registration
+            external_stylesheets=[
+                'https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css',
+                'https://cdn.jsdelivr.net/npm/@mantine/core@5.10.5/dist/mantine.min.css',
+            ],
+            external_scripts=[
+                'https://cdn.jsdelivr.net/npm/@mantine/core@5.10.5/dist/mantine.min.js',
+                'https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js',
+                'https://cdn.jsdelivr.net/npm/dash-iconify@0.1.2/dist/dash-iconify.min.js',
+                'https://cdn.jsdelivr.net/npm/ag-grid-community@28.2.1/dist/ag-grid-community.min.js',
+                'https://cdn.jsdelivr.net/npm/cytoscape@3.23.0/dist/cytoscape.min.js',
+            ],
+            meta_tags=[
+                {"name": "viewport", "content": "width=device-width, initial-scale=1"}
+            ]
+        )
+        
+        # Set a safe default template for plotly
+        import plotly.io as pio
+        pio.templates.default = "plotly_white"
+        
+        # Initialize cache with size limit
+        self._cache = {}
+        self._cache_timeout = 3600  # 1 hour cache timeout
+        self._cache_size_limit = 100  # Maximum number of items in cache
+        
+        logger.info("Starting Index initialization...")
+        
+        # Initialize data and apps sequentially to avoid threading issues
+        self._init_data()
+        self._init_apps()
+        self._init_callbacks()  # Initialize callbacks before layout
+        self._init_layout()
+        
+        total_time = time.time() - self.start_time
+        logger.info(f"Total initialization time: {total_time:.2f} seconds")
+
+    def _init_data(self):
+        """Initialize data with optimized database queries"""
+        if hasattr(self, 'df'):
+            return
+        
+        logger.info("Starting data initialization...")
+        
+        # Use select_related to optimize database queries
+        records = (NanoporeRecord.objects
+                   .filter(user_id=self.user_id)
+                   .select_related()
+                   .values())
+        
+        # Create DataFrame with optimized dtypes
+        self.df = pd.DataFrame.from_records(records)
+        
+        if len(self.df) > 0:
+            # Optimize memory usage
+            
+            # Pre-calculate common aggregations
+            self._precalculate_aggregations()
+        
+        logger.info(f"Data initialization complete. DataFrame shape: {self.df.shape}")
+
+    def _precalculate_aggregations(self):
+        """Pre-calculate common aggregations to improve performance"""
+        if len(self.df) == 0:
+            return
+        
+        # Calculate common aggregations
+        self.df_sorted = self.df.sort_values(['project_id', 'subproject', 'sample_id'])
+        self.unique_samples = self.df['sample_id'].unique()
+        self.unique_projects = self.df['project_id'].unique()
+        self.unique_dates = pd.to_datetime(self.df['date']).unique()
+        
+        # Store in cache
+        self._cache['aggregations'] = {
+            'sample_counts': self.df.groupby('sample_id').size().to_dict(),
+            'project_stats': self.df.groupby('project_id').agg({
+                'sample_id': 'nunique',
+                'taxonomy': 'count'
+            }).to_dict(),
+            'date_range': {
+                'min': self.unique_dates.min(),
+                'max': self.unique_dates.max()
+            }
+        }
+
+    def _init_apps(self):
+        """Initialize all dashboard apps sequentially"""
+        logger.info("Initializing apps...")
+        start = time.time()
+
+        # Initialize apps dictionary for navbar
+        self.apps = {}
+
+        # Initialize apps
+        
+        self.qc_app = qc.QC(self.user_id)
+        self.apps['/dashapp/qc'] = {'name': 'QC', 'instance': self.qc_app}
+        
+        self.taxonomy_app = taxonomy.Taxonomy(self.user_id)
+        self.apps['/dashapp/taxonomy'] = {'name': 'Taxonomy', 'instance': self.taxonomy_app}
+        
+        self.horizon_app = horizon.Horizon(self.user_id)
+        self.apps['/dashapp/horizon'] = {'name': 'Horizon', 'instance': self.horizon_app}
+        
+        self.diversity_app = diversity.Diversity(self.user_id)
+        self.apps['/dashapp/diversity'] = {'name': 'Diversity', 'instance': self.diversity_app}
+        
+        self.correlations_app = correlations.Correlations(self.user_id)
+        self.apps['/dashapp/correlations'] = {'name': 'Correlations', 'instance': self.correlations_app}
+
+        # Initialize MAGs app
+        try:
+            from dashboard.dashapp.mags import MAGs
+            self.mags_app = MAGs(self.user_id)
+            self.apps['/dashapp/mags'] = {'name': 'MAGs', 'instance': self.mags_app}
+            logger.info("MAGs app initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing MAGs app: {str(e)}", exc_info=True)
+            self.mags_app = None
+            self.apps['/dashapp/mags'] = {'name': 'MAGs', 'instance': None}
+        
+        duration = time.time() - start
+        logger.info(f"Apps initialized in {duration:.2f} seconds")
+
+    def _init_callbacks(self):
+        """Initialize all callbacks for the index page."""
+        from dash.dependencies import Input, Output, State 
+        from dash.exceptions import PreventUpdate
+        from dash import no_update
+        logger.info("Initializing callbacks...")
+        
+        # Add callback to update gene content plot
+        @self.app.callback(
+            Output('gene-content-plot', 'figure'),
+            [Input('mag-table', 'selected_rows'),
+             Input('mag-table', 'data')]
+        )
+        def update_gene_content_plot(selected_rows, table_data):
+            """Update gene content plot showing gene counts from MAGs."""
+            try:
+                # Default empty figure
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title='Gene Content Distribution (Top 20 MAGs)',
+                    xaxis_title='MAG',
+                    yaxis_title='Gene Count',
+                    showlegend=False,
+                    height=400
+                )
+                
+                # If no data, return empty figure
+                if not table_data or len(table_data) == 0:
+                    return empty_fig
+                
+                # Get the mag data from the mags app
+                mag_data = self.mags_app.mag_data
+                if mag_data is None or mag_data.empty:
+                    return empty_fig
+                
+                # Add gene counts based on CDS count since gene_count field doesn't exist
+                df = mag_data.copy()
+                df['gene_count'] = df['cds_count']
+                
+                # Get highlight mag if available
+                highlight_mag = None
+                if selected_rows and len(selected_rows) > 0 and selected_rows[0] < len(table_data):
+                    highlight_mag = table_data[selected_rows[0]].get('name')
+                
+                # Sort by gene count and get top 20
+                df = df.sort_values('gene_count', ascending=False).head(20)
+                
+                # Create figure
+                fig = go.Figure()
+                
+                # Add bars for each MAG
+                for idx, row in df.iterrows():
+                    mag_name = row['name']
+                    is_highlighted = highlight_mag is not None and mag_name == highlight_mag
+                    
+                    fig.add_trace(go.Bar(
+                        x=[mag_name],
+                        y=[row['gene_count']],
+                        name=mag_name,
+                        showlegend=False,
+                        marker_color='#3498db' if not is_highlighted else '#e74c3c',
+                        opacity=1.0 if is_highlighted else 0.7,
+                        hovertemplate='<b>%{x}</b><br>' +
+                                     'Gene Count: %{y}<br>' +
+                                     '<extra></extra>'
+                    ))
+                
+                # Update layout
+                fig.update_layout(
+                    title='Gene Content Distribution (Top 20 MAGs)',
+                    xaxis_title='MAG',
+                    yaxis_title='Gene Count',
+                    xaxis_tickangle=45,
+                    showlegend=False,
+                    hovermode='closest',
+                    height=400
+                )
+                
+                return fig
+                
+            except Exception as e:
+                logger.error(f"Error updating gene content plot: {str(e)}", exc_info=True)
+                # Return empty figure if there's an error
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title='Gene Content Distribution (Error occurred)',
+                    height=400
+                )
+                return empty_fig
+        
+        @self.app.callback(
+            [Output('horizon-plot-iframe', 'srcDoc'),
+             Output('horizon-plot-container', 'style')],
+            [Input('project-select-horizon', 'value'),
+             Input('subproject-select-horizon', 'value'),
+             Input('taxa-count', 'value')],
+            prevent_initial_call=False
+        )
+        def update_horizon_plot(selected_project, selected_subproject, taxa_count):
+            """Update the horizon plot based on project selection and taxa count."""
+            try:
+                print(f"\n=== Debug: update_horizon_plot callback ===")
+                print(f"Selected project: {selected_project}")
+                print(f"Selected subproject: {selected_subproject}")
+                print(f"Taxa count: {taxa_count}")
+                
+                # Ensure taxa_count is a valid number
+                taxa_count = int(taxa_count) if taxa_count else 20
+                
+                # Calculate the container height based on taxa count
+                # Base height (100px) + padding + height per taxon (50px) * number of taxa
+                container_height = 150 + (50 * taxa_count)
+                
+                # Get filtered data
+                df = self.df.copy()
+                if selected_project and selected_project != 'ALL':
+                    df = df[df['project_id'].astype(str) == str(selected_project)]
+                
+                # Filter by subproject if it exists in the dataframe
+                if selected_subproject and selected_subproject != 'ALL' and 'subproject' in df.columns:
+                    df = df[df['subproject'].astype(str) == str(selected_subproject)]
+                
+                if len(df) == 0:
+                    return "<p>No data available for the selected filters</p>", {
+                        "width": "100%", 
+                        "margin": "0", 
+                        "padding": "0",
+                        "height": f"{container_height}px",
+                        "position": "relative",
+                        "z-index": 0
+                    }
+                
+                # Generate the updated plot HTML
+                html_content = self.horizon_app._get_horizon_plot_html(
+                    df=df,
+                    taxa_count=taxa_count
+                )
+                
+                # Return both the updated HTML content and the new container style
+                return html_content, {
+                    "width": "100%", 
+                    "margin": "0", 
+                    "padding": "0",
+                    "height": f"{container_height}px",
+                    "position": "relative",
+                    "z-index": 0
+                }
+                
+            except Exception as e:
+                import traceback
+                print(f"Error in update_horizon_plot: {str(e)}")
+                traceback.print_exc()
+                return f"<p>Error generating plot: {str(e)}</p>", {
+                    "width": "100%", 
+                    "margin": "0", 
+                    "padding": "0",
+                    "height": "700px",  # Default fallback height
+                    "position": "relative",
+                    "z-index": 0
+                }
+        
+        # MAG callbacks
+        @self.app.callback(
+            [Output('mag-content', 'children'),
+             Output('mag-genome-warning', 'children'),
+             Output('mag-genome-warning', 'style'),
+             Output('mag-info-section', 'style')],
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_mag_content(selected_rows, table_data):
+            """Update the MAG content based on the selected MAG."""
+            if not selected_rows or not table_data:
+                return html.Div("Select a MAG to view details", className="alert alert-info"), "", {"display": "none"}, {"display": "none"}
+            
+            try:
+                selected_mag = table_data[selected_rows[0]]
+                mag_id = selected_mag.get("id")
+                warning = ""
+                warning_style = {"display": "none"}
+                
+                if not mag_id or not self.mags_app:
+                    return html.Div("Error: Invalid MAG selection", className="alert alert-danger"), "", {"display": "none"}, {"display": "none"}
+                
+                # Check for genome warnings
+                if selected_mag.get("Completeness", 0) < 80 or selected_mag.get("Contamination", 0) > 10:
+                    warning = html.Div([
+                        html.Strong("Warning: "),
+                        html.Span("This MAG does not meet quality standards (Comp. ≥80%, Cont. ≤10%).")
+                    ])
+                    warning_style = {
+                        "display": "block",
+                        "backgroundColor": "#fff3cd",
+                        "color": "#856404",
+                        "padding": "12px",
+                        "borderRadius": "4px",
+                        "marginBottom": "15px"
+                    }
+                
+                return html.Div([
+                    html.H4(f"MAG: {selected_mag.get('Name', 'Unknown')}"),
+                    html.P(f"Completeness: {selected_mag.get('Completeness', 'Unknown')}%, Contamination: {selected_mag.get('Contamination', 'Unknown')}%"),
+                ]), warning, warning_style, {"display": "block"}
+                
+            except Exception as e:
+                logger.error(f"Error updating MAG content: {str(e)}", exc_info=True)
+                return html.Div(f"Error loading MAG data: {str(e)}", className="alert alert-danger"), "", {"display": "none"}, {"display": "none"}
+                
+        @self.app.callback(
+            [
+                Output('mag-table', 'data'),
+                Output('mag-table', 'selected_rows')
+            ],
+            Input('session-id', 'data')
+        )
+        def update_mag_table(session_id):
+            """Update the MAG table."""
+            if not session_id:
+                raise PreventUpdate
+            return self.mags_app.update_mag_table()
+
+        @self.app.callback(
+            Output('genome-browser', 'children'),
+            [
+                Input('mag-table', 'selected_rows'),
+                Input('mag-table', 'data')
+            ]
+        )
+        def update_genome_browser(selected_rows, table_data):
+            """Update the genome browser."""
+            if not selected_rows:
+                raise PreventUpdate
+            return self.mags_app.create_genome_browser(selected_rows, table_data)
+
+        @self.app.callback(
+            Output('search-results', 'children'),
+            [
+                Input('annotation-search', 'value'),
+                Input('mag-table', 'selected_rows'),
+                Input('mag-table', 'data')
+            ]
+        )
+        def update_search_results(search_term, selected_rows, table_data):
+            """Update the annotation search results."""
+            if not search_term or not selected_rows:
+                return html.Div("Enter a search term and select a MAG to search its annotations.")
+            
+            # Get selected MAG
+            selected_mag = table_data[selected_rows[0]]['Name']
+            
+            # Search annotations
+            results = self.mags_app.search_annotations(selected_mag, search_term)
+            
+            if not results:
+                return html.Div(f"No matches found for '{search_term}'")
+            
+            # Create results table
+            return dash_table.DataTable(
+                data=results,
+                columns=[
+                    {'name': 'Type', 'id': 'type'},
+                    {'name': 'Contig', 'id': 'contig'},
+                    {'name': 'Position', 'id': 'position'},
+                    {'name': 'Strand', 'id': 'strand'},
+                    {'name': 'Matched In', 'id': 'matched_field'},
+                    {'name': 'Value', 'id': 'matched_value'}
+                ],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left'},
+                style_data_conditional=[{
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': 'rgb(248, 248, 248)'
+                }],
+                page_size=5
+            )
+
+        # Correlations callbacks - merged duplicates
+        @self.app.callback(
+            [Output("download-metadata-csv", "data"),
+             Output("download-corr-csv", "data"),
+             Output("notification-output", "children"),
+             Output("heatmap-dendrogram", "figure")],
+            [Input("download-csv-button", "n_clicks"),
+             Input("btn-download-corr", "n_clicks"),
+             Input("upload-data", "contents")],
+            [State("upload-data", "filename")],
+            prevent_initial_call=True
+        )
+        def handle_correlations_callbacks(template_clicks, corr_clicks, upload_contents, upload_filename):
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise PreventUpdate
+            
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            # Initialize default return values
+            template_data = no_update
+            corr_data = no_update
+            notification = no_update
+            heatmap = no_update
+            
+            try:
+                if trigger_id == "download-csv-button" and template_clicks:
+                    # Handle template download
+                    df = pd.DataFrame(columns=['sample_id', 'meta_1', 'meta_2', 'meta_3'])
+                    template_data = dcc.send_data_frame(df.to_csv, "metadata_template.csv", index=False)
+                
+                elif trigger_id == "btn-download-corr" and corr_clicks:
+                    # Handle correlations download
+                    if self.correlations_app.correlation_matrix is not None:
+                        corr_data = dcc.send_data_frame(self.correlations_app.correlation_matrix.to_csv, "correlations.csv", index=False)
+                
+                elif trigger_id == "upload-data" and upload_contents:
+                    # Handle file upload
+                    content_type, content_string = upload_contents.split(',')
+                    decoded = base64.b64decode(content_string)
+                    
+                    if 'csv' in upload_filename:
+                        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+                    elif 'xls' in upload_filename:
+                        df = pd.read_excel(io.BytesIO(decoded))
+                    else:
+                        notification = dmc.Alert("Unsupported file type", color="red")
+                        return template_data, corr_data, notification, heatmap
+
+                    # Process the uploaded file
+                    self.correlations_app.meta_df = df
+                    self.correlations_app.correlation_scores = self.correlations_app.compute_correlations_for_taxonomies(
+                        self.correlations_app.nanopore_df, self.correlations_app.meta_df, self.correlations_app.corr_method, 'taxonomy')
+                    
+                    notification = dmc.Alert("File uploaded and processed successfully", color="green")
+                    # Update heatmap after successful upload
+                    heatmap = self.correlations_app.create_heatmap()
+
+            except Exception as e:
+                notification = dmc.Alert(f"Error: {str(e)}", color="red")
+                logger.error(f"Error in handle_correlations_callbacks: {str(e)}")
+                logger.error(traceback.format_exc())
+            
+            return template_data, corr_data, notification, heatmap
+
+        @self.app.callback(
+            [Output("app-subtitle", "children"),
+             Output("page-content", "children"),
+             Output("header-title", "children")],
+            [Input("url", "pathname")],
+            prevent_initial_call=False
+        )
+        def update_page_content(pathname):
+            if pathname is None:
+                return "Welcome", html.Div("Please select an app from the menu."), "MMonitor"
+                
+            if pathname in self.apps:
+                app_info = self.apps[pathname]
+                try:
+                    app_instance = app_info['instance']
+                    # Add debug logging
+                    logger.info(f"Loading app {app_info['name']} with instance {app_instance}")
+                    
+                    if hasattr(app_instance, 'layout'):
+                        app_layout = app_instance.layout
+                    elif hasattr(app_instance, 'app'):
+                        app_layout = app_instance.app.layout
+                    else:
+                        logger.error(f"App {app_info['name']} has no layout")
+                        return "Error", html.Div(f"Error: App {app_info['name']} has no layout"), "MMonitor"
+                    
+                    logger.info(f"Successfully loaded app: {app_info['name']}")
+                    return app_info['name'], app_layout, "MMonitor"
+                except Exception as e:
+                    logger.error(f"Error loading app {app_info['name']}: {str(e)}")
+                    return "Error", html.Div(f"Error loading app: {str(e)}"), "MMonitor"
+            else:
+                return "Welcome", html.Div("Please select an app from the menu."), "MMonitor"
+
+        @self.app.callback(
+            [Output("graph1", "figure"),
+             Output("download-plot", "data")],
+            [Input("legend-items-input", "value"),
+             Input("export-svg-button", "n_clicks"),
+             Input("plot-type-dropdown-tax", "value"),
+             Input("tax-rank-dropdown-tax", "value"),
+             Input("use-date-checkbox-tax", "checked"),
+             Input("sample-select-value-tax", "value"),
+             Input("slider-tax", "value"),
+             Input("legend-toggle-checkbox-tax", "checked")],
+            [State("width-input", "value"),
+             State("height-input", "value"),
+             State("graph1", "figure")],
+            prevent_initial_call=True
+        )
+        def update_and_export_plot(n_items, n_clicks, plot_type, tax_rank, use_date, selected_samples, n_taxa, show_legend, width, height, figure):
+            """Update the plot based on user selections and export if requested."""
+            try:
+                ctx = dash.callback_context
+                triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+                
+                logger.info(f"Plot update triggered by: {triggered_id} with {len(selected_samples) if selected_samples else 0} samples selected")
+                
+                # Initialize download_data to no_update
+                download_data = no_update
+                
+                
+                # Prevent update if critical inputs are missing
+                if not plot_type or not tax_rank:
+                    logger.warning("Missing plot type or taxonomic rank")
+                    return no_update, no_update
+                
+                # Handle case when no samples are selected
+                if not selected_samples or len(selected_samples) == 0:
+                    logger.info("No samples selected, showing empty plot with message")
+                    empty_fig = go.Figure()
+                    empty_fig.add_annotation(
+                        text="No samples selected - please select samples to display data",
+                        xref="paper", yref="paper",
+                        x=0.5, y=0.5, showarrow=False,
+                        font=dict(size=20)
+                    )
+                    return empty_fig, no_update
+                
+                # If triggered by sample selection, always create a new plot
+                if triggered_id == "sample-select-value-tax":
+                    logger.info("Sample selection changed, creating completely new plot")
+                    df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                    
+                    # Create new plot based on selected type
+                    if plot_type == 'stackedbar':
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'groupedbar':
+                        fig = self.taxonomy_app.plot_grouped_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'area':
+                        fig = self.taxonomy_app.plot_area(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'line':
+                        fig = self.taxonomy_app.plot_line(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'heatmap':
+                        fig = self.taxonomy_app.plot_heatmap(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'scatter':
+                        fig = self.taxonomy_app.plot_scatter(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'pie' and len(selected_samples) == 1:
+                        # For pie chart, we need exactly one sample
+                        fig = self.taxonomy_app.plot_pie(df_filtered, selected_samples[0], tax_rank)
+                    else:
+                        # Default to stacked bar if invalid type
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                
+                # If triggered by export button
+                elif triggered_id == "export-svg-button" and n_clicks:
+                    logger.info("Export button clicked, preparing SVG file")
+                    try:
+                        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+                        filename = f"taxonomy_plot_{current_time}.svg"
+                        
+                        fig = figure  # Use current figure for export
+                        if width and height:
+                            fig['layout']['width'] = width
+                            fig['layout']['height'] = height
+                        
+                        # Convert the figure to SVG format
+                        svg_data = pio.to_image(fig, format='svg')
+                        
+                        # Set up the download with the SVG data
+                        download_data = dict(content=svg_data.decode('utf-8'), filename=filename)
+                        return figure, download_data
+                    except Exception as e:
+                        logger.error(f"Error exporting plot: {str(e)}", exc_info=True)
+                        return no_update, no_update
+                
+                # For all other triggers, create a new plot
+                else:
+                    df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                    
+                    # Create new plot based on selected type
+                    if plot_type == 'stackedbar':
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'groupedbar':
+                        fig = self.taxonomy_app.plot_grouped_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'area':
+                        fig = self.taxonomy_app.plot_area(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'line':
+                        fig = self.taxonomy_app.plot_line(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'heatmap':
+                        fig = self.taxonomy_app.plot_heatmap(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'scatter':
+                        fig = self.taxonomy_app.plot_scatter(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'pie' and len(selected_samples) == 1:
+                        # For pie chart, we need exactly one sample
+                        fig = self.taxonomy_app.plot_pie(df_filtered, selected_samples[0], tax_rank)
+                    else:
+                        # Default to stacked bar if invalid type
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                
+                # Apply common styling and limit to top n_taxa items if specified
+                if n_taxa and isinstance(n_taxa, int) and n_taxa > 0:
+                    logger.info(f"Limiting visualization to top {n_taxa} taxa")
+                    # The sorting and limitation is now handled by each plotting function
+                
+                if show_legend is not None:
+                    fig.update_layout(showlegend=show_legend)
+                
+                # Update legend visibility based on abundance if n_items is set
+                if n_items:
+                    logger.info(f"Updating legend visibility for top {n_items} items")
+                    trace_abundances = []
+                    for i, trace in enumerate(fig.data):
+                        try:
+                            total = sum(trace.y) if hasattr(trace, 'y') and trace.y is not None else 0
+                            trace_abundances.append((total, i))
+                        except Exception as e:
+                            logger.error(f"Error calculating abundance for trace {i}: {str(e)}")
+                            trace_abundances.append((0, i))
+                    
+                    # Sort by abundance and get indices of traces to hide in legend
+                    trace_abundances.sort(key=lambda x: x[0], reverse=True)
+                    hidden_indices = {idx for _, idx in trace_abundances[n_items:]}
+                    
+                    # Update showlegend for each trace
+                    for i in range(len(fig.data)):
+                        if i < len(fig.data) and hasattr(fig.data[i], 'showlegend'):
+                            fig.data[i].showlegend = i not in hidden_indices
+                
+                logger.info("Successfully created plot")
+                return fig, no_update
+                
+            except Exception as e:
+                logger.error(f"Error in update_and_export_plot: {str(e)}", exc_info=True)
+                empty_fig = go.Figure()
+                empty_fig.add_annotation(
+                    text=f"An error occurred: {str(e)}",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.5, showarrow=False,
+                    font=dict(size=20)
+                )
+                return empty_fig, no_update
+
+        @self.app.callback(
+            [Output("sample-select-value-tax", "value"),
+             Output("project-dropdown-tax", "value"),
+             Output("subproject-dropdown-tax", "value"),
+             Output("date-dropdown-tax", "value")],
+            [Input("project-dropdown-tax", "value"),
+             Input("subproject-dropdown-tax", "value"),
+             Input("date-dropdown-tax", "value"),
+             Input("refresh-taxonomy-button", "n_clicks")],
+            prevent_initial_call=True
+        )
+        def update_taxonomy_sample_selection(project, subproject, date, n_clicks):
+            """Update sample selection based on project, subproject, and date filters."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise PreventUpdate
+                
+            # Log which input triggered the callback
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+            logger.info(f"Sample selection triggered by: {trigger_id}")
+                
+            # If refresh button was clicked, clear the taxonomy app cache and reload data
+            if trigger_id == "refresh-taxonomy-button":
+                logger.info("Refresh button clicked, reloading taxonomy data")
+                self.taxonomy_app._clear_cache()
+                # Get the fresh dataframe
+                df = self.taxonomy_app.df.copy()
+                logger.info(f"Reloaded taxonomy data with {len(df)} records")
+                logger.info(f"Unique sample IDs after reload: {df['sample_id'].unique().tolist()}")
+            else:
+                df = self.taxonomy_app.df.copy()
+            
+            # Apply filters if they exist and aren't 'ALL'
+            if project and project != 'ALL':
+                df = df[df['project_id'].astype(str) == str(project)]
+            if subproject and subproject != 'ALL':
+                df = df[df['subproject'].astype(str) == str(subproject)]
+            if date and date != 'ALL':
+                df = df[df['date'].astype(str) == str(date)]
+                
+            # Get unique sample IDs after filtering
+            filtered_samples = df['sample_id'].unique().tolist()
+            
+            # Log the result for debugging
+            logger.info(f"Filtered samples: {len(filtered_samples)} samples found")
+            logger.info(f"Filtered sample IDs: {filtered_samples}")
+            
+            # Return the filtered sample list and preserve the filter values
+            return filtered_samples, project, subproject, date
+
+        @self.app.callback(
+            Output('sample_select_value_diversity', 'value'),
+            [Input('project-dropdown-diversity', 'value'),
+             Input('subproject-dropdown-diversity', 'value'),
+             Input('date-dropdown-diversity', 'value')],
+            prevent_initial_call=True
+        )
+        def update_diversity_sample_selection(project, subproject, date):
+            df = self.diversity_app.df
+            if project != 'ALL':
+                df = df[df['project_id'] == project]
+            if subproject != 'ALL':
+                df = df[df['subproject'] == subproject]
+            if date != 'ALL':
+                df = df[df['date'].astype(str) == date]  # Convert date to string for comparison
+            return tuple(df['sample_id'].unique())  # Convert list to tuple
+
+        @self.app.callback(
+            [Output('alpha_diversities_plot1', 'figure'),
+             Output('alpha_diversities_plot2', 'figure'),
+             Output('beta_diversity_heatmap', 'figure'),
+             Output('pcoa_plot_container', 'figure'),
+             Output('rarefaction-plot', 'figure')],
+            [Input('sample_select_value_diversity', 'value'),
+             Input('diversity_metric_dropdown', 'value'),
+             Input('project-dropdown-diversity', 'value'),
+             Input('subproject-dropdown-diversity', 'value'),
+             Input('date-dropdown-diversity', 'value'),
+             Input('color-by-dropdown', 'value'),
+             Input('kmeans-input', 'value'),
+             Input('arrow-toggle', 'value'),
+             Input('pcoa-3d-toggle', 'value')],
+            prevent_initial_call=False
+        )
+        def update_diversity_plots(selected_samples, diversity_metric, project, subproject, date, color_by, k_value, show_arrows, is_3d):
+            try:
+                # Set default values if none provided
+                if not selected_samples:
+                    selected_samples = list(self.diversity_app.df['sample_id'].unique())[:20]  # Take first 20 samples for better initial view
+                elif isinstance(selected_samples, tuple):
+                    selected_samples = list(selected_samples)
+                
+                # Set defaults for all parameters
+                diversity_metric = diversity_metric or "shannon"  # Default to Shannon
+                project = project or "ALL"
+                subproject = subproject or "ALL"
+                date = date or "ALL"
+                color_by = color_by or "project"
+                k_value = k_value or 3
+                show_arrows = bool(show_arrows)
+                is_3d = bool(is_3d)
+
+                # Get the plots from diversity app with improved error handling
+                try:
+                    plots = self.diversity_app.update_diversity_plots(
+                        selected_samples=selected_samples,
+                        diversity_metric=diversity_metric,
+                        project=project,
+                        subproject=subproject,
+                        date=date,
+                        color_by=color_by,
+                        k_value=k_value,
+                        show_arrows=show_arrows,
+                        is_3d=is_3d
+                    )
+                    
+                    if not plots or len(plots) != 5:
+                        logger.error("Invalid number of plots returned")
+                        raise ValueError("Invalid number of plots returned")
+                    
+                    return plots
+                    
+                except Exception as e:
+                    logger.error(f"Error in diversity app update_diversity_plots: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    raise
+                
+            except Exception as e:
+                logger.error(f"Error in update_diversity_plots: {str(e)}")
+                logger.error(traceback.format_exc())
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title="Error in diversity plots",
+                    annotations=[{
+                        'text': str(e),
+                        'xref': 'paper',
+                        'yref': 'paper',
+                        'showarrow': False,
+                        'font': {'size': 14}
+                    }]
+                )
+                return [empty_fig] * 5
+
+        @self.app.callback(
+            Output('average-read-length-plot', 'figure'),
+            [Input('sample-dropdown-qc', 'value')],
+            prevent_initial_call=True
+        )
+        def update_qc_plots(selected_sample):
+            if not selected_sample:
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title="No sample selected",
+                    annotations=[{
+                        'text': "Please select a sample to display QC plots",
+                        'xref': 'paper',
+                        'yref': 'paper',
+                        'showarrow': False,
+                        'font': {'size': 14}
+                    }]
+                )
+                return empty_fig
+
+            try:
+                # Get QC plots with improved styling
+                qc_plots = self.qc_app.update_qc_plots(selected_sample)
+                distribution_plots = self.qc_app.create_quality_distribution_plots(selected_sample)
+                
+                # Create subplots
+                fig = make_subplots(
+                    rows=2, cols=2,
+                    subplot_titles=(
+                        "Read Length Distribution",
+                        "GC Content Distribution",
+                        "Cumulative Bases",
+                        "Quality Score Distribution"
+                    )
+                )
+                
+                # Add traces to appropriate subplots
+                for i, plot in enumerate(qc_plots + distribution_plots):
+                    row = (i // 2) + 1
+                    col = (i % 2) + 1
+                    
+                    for trace in plot.data:
+                        # Fix for GC content plot (normalize and smooth)
+                        if i == 1:  # GC Content plot
+                            if hasattr(trace, 'y') and len(trace.y) > 0:
+                                # Normalize
+                                trace.y = trace.y / np.sum(trace.y)
+                                # Smooth using moving average
+                                trace.y = pd.Series(trace.y).rolling(window=5, center=True).mean()
+                        
+                        # Fix for cumulative bases plot
+                        elif i == 2:  # Cumulative Bases plot
+                            if hasattr(trace, 'y') and len(trace.y) > 0:
+                                # Ensure monotonically increasing
+                                trace.y = np.cumsum(np.abs(trace.y))
+                        
+                        fig.add_trace(trace, row=row, col=col)
+                
+                # Check if this is likely 16S data (average read length around 1500 bp)
+                avg_read_length = self.qc_app.get_average_read_length(selected_sample)
+                if 1300 <= avg_read_length <= 1700:  # Typical 16S range
+                    # Add 16S reference line to read length plot
+                    fig.add_hline(
+                        y=1500,
+                        line=dict(color="red", width=2, dash="dash"),
+                        annotation_text="Typical 16S length (1500 bp)",
+                        annotation_position="top right",
+                        row=1, col=1
+                    )
+                
+                # Update layout with better styling
+                fig.update_layout(
+                    template="plotly_white",
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    ),
+                    margin=dict(l=50, r=50, t=100, b=50),
+                    font=dict(family="Arial", size=12),
+                    height=800,
+                    title=dict(
+                        text=f"QC Metrics for Sample: {selected_sample}",
+                        x=0.5,
+                        xanchor="center"
+                    )
+                )
+                
+                # Update axes for better readability
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                
+                # Specific updates for each subplot
+                fig.update_xaxes(title_text="Read Length (bp)", row=1, col=1)
+                fig.update_yaxes(title_text="Count", row=1, col=1)
+                
+                fig.update_xaxes(title_text="GC Content (%)", row=1, col=2)
+                fig.update_yaxes(title_text="Frequency", row=1, col=2)
+                
+                fig.update_xaxes(title_text="Read Length (bp)", row=2, col=1)
+                fig.update_yaxes(title_text="Cumulative Bases", row=2, col=1)
+                
+                fig.update_xaxes(title_text="Quality Score", row=2, col=2)
+                fig.update_yaxes(title_text="Count", row=2, col=2)
+                
+                return fig
+                
+            except Exception as e:
+                print(f"Error in update_qc_plots: {str(e)}")
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title="Error loading QC plots",
+                    annotations=[{
+                        'text': str(e),
+                        'xref': 'paper',
+                        'yref': 'paper',
+                        'showarrow': False,
+                        'font': {'size': 14}
+                    }]
+                )
+                return empty_fig
+
+        @self.app.callback(
+            [Output('read-length-dist', 'figure'),
+             Output('quality-dist', 'figure'),
+             Output('gc-dist', 'figure'),
+             Output('base-composition', 'figure')],
+            [Input('sample-selector', 'value')]
+        )
+        def update_qc_sample_plots(selected_sample):
+            """Update QC plots for the selected sample."""
+            if not hasattr(self, 'user_id'):
+                return [go.Figure() for _ in range(4)]
+
+            try:
+                # Use the cached QC instance
+                qc_instance = self.qc_app
+                
+                # If no sample is selected, use the first available sample
+                if not selected_sample and hasattr(qc_instance, 'stats_df') and not qc_instance.stats_df.empty:
+                    selected_sample = qc_instance.stats_df['sample_name'].iloc[0]
+                
+                if not selected_sample:
+                    return [go.Figure() for _ in range(4)]
+
+                # Let QC class handle the plot creation with caching
+                return qc_instance.update_qc_plots(selected_sample)
+                
+            except Exception as e:
+                logger.error(f"Error in update_qc_sample_plots: {str(e)}")
+                return [go.Figure() for _ in range(4)]
+
+        @self.app.callback(
+            Output("analysis-output", "children"),
+            Input("analyze-button", "n_clicks"),
+            [State("sample-select-value-tax", "value")],
+            prevent_initial_call=True
+        )
+        def analyze_taxonomy_button_clicked(n_clicks, selected_samples):
+            if n_clicks is None:
+                raise PreventUpdate
+            
+            try:
+                # Filter data for selected samples
+                df_to_analyze = self.taxonomy_app.df_sorted.copy()
+                if selected_samples:
+                    df_to_analyze = df_to_analyze[df_to_analyze['sample_id'].isin(selected_samples)]
+                
+                if df_to_analyze.empty:
+                    return "No data found for selected samples"
+                
+                # Generate analysis
+                analysis_json = self.taxonomy_app.analyze_taxonomy_data(df_to_analyze)
+                
+                return analysis_json
+                
+            except Exception as e:
+                error_msg = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "debug_info": {
+                        "selected_samples": selected_samples,
+                        "df_shape": self.taxonomy_app.df_sorted.shape if hasattr(self.taxonomy_app, 'df_sorted') else None
+                    }
+                }
+                return json.dumps(error_msg)
+
+        @self.app.callback(
+            Output('date-range-picker', 'disabled'),
+            [Input('use-date-range', 'checked')]
+        )
+        def toggle_date_picker(use_date_range):
+            return not use_date_range
+
+        @self.app.callback(
+            Output("download-pdf", "data"),
+            Input("download-pdf-button", "n_clicks"),
+            [State('project-select-horizon', 'value'),
+             State('subproject-select-horizon', 'value'),
+             State('taxa-count', 'value')],
+            prevent_initial_call=True
+        )
+        def download_horizon_pdf(n_clicks, selected_project, selected_subproject, taxa_count):
+            if not n_clicks:
+                raise PreventUpdate
+
+            try:
+                print("\n=== Debug: download_horizon_pdf ===")
+                print(f"Generating PNG for project: {selected_project}")
+                
+                # Get filtered data
+                df = self.horizon_app.df.copy()
+                if selected_project and selected_project != 'ALL':
+                    df = df[df['project_id'].astype(str).str.strip() == str(selected_project).strip()]
+                if selected_subproject and selected_subproject != 'ALL':
+                    df = df[df['subproject_id'].astype(str).str.strip() == str(selected_subproject).strip()]
+                
+                
+                if len(df) == 0:
+                    raise PreventUpdate
+                
+                # Generate plot HTML with download flag
+                html_content = self.horizon_app._get_horizon_plot_html(
+                    df=df,
+                    taxa_count=taxa_count or 20,
+                    download_triggered=True
+                )
+                
+                if html_content is None:
+                    raise PreventUpdate
+
+                # Return empty data since the download is handled by JavaScript
+                return None
+                
+            except Exception as e:
+                print(f"Error in download_horizon_pdf: {str(e)}")
+                traceback.print_exc()
+                raise PreventUpdate
+
+        @self.app.callback(
+            Output("loading-overlay-content", "children"),
+            [Input("project-select-horizon", "value"),
+             Input("subproject-select-horizon", "value"),
+             Input("taxa-count", "value")],
+            prevent_initial_call=True
+        )
+        def update_loading_overlay(selected_project, selected_subproject, taxa_count):
+            """Update loading overlay when inputs change."""
+            return ""  # Return empty string to trigger loading animation
+
+        @self.app.callback(
+            Output('circos-plot', 'children'),
+            [
+                Input('mag-table', 'selected_rows'),
+                Input('gene-search-button', 'n_clicks')
+            ],
+            [State('mag-table', 'data'),
+             State('gene-search', 'value')],
+            prevent_initial_call=False
+        )
+        def update_circos_plot(selected_rows, search_clicks, table_data, search_term):
+            """Update the circos plot based on the selected MAG."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return html.Div("Select a MAG from the table to view the circos plot.", className="alert alert-info")
+            
+            try:
+                if not selected_rows or not table_data:
+                    return html.Div("Select a MAG from the table to view the circos plot.", className="alert alert-info")
+                
+                selected_row = table_data[selected_rows[0]]
+                if self.mags_app:
+                    return self.mags_app.create_dashbio_circos_plot(selected_row)
+                else:
+                    return html.Div("MAGs app not initialized properly.", className="alert alert-danger")
+            except Exception as e:
+                logger.error(f"Error updating circos plot: {str(e)}", exc_info=True)
+                return html.Div(f"Error: {str(e)}", className="alert alert-danger")
+
+        @self.app.callback(
+            Output("download-svg-taxonomy", "data"),
+            [Input("btn-download-taxonomy-svg", "n_clicks")],
+            [State("graph1", "figure"),
+             State("width-input", "value"),
+             State("height-input", "value")],
+            prevent_initial_call=True
+        )
+        def download_taxonomy_svg(n_clicks, figure, width, height):
+            """Download taxonomy figure as SVG."""
+            if not n_clicks or not figure:
+                raise PreventUpdate
+                
+            try:
+                logger.info("Exporting taxonomy figure as SVG")
+                
+                # Make a copy of the figure to modify
+                fig = figure.copy()
+                
+                # Apply width and height if provided
+                if width and height:
+                    fig['layout']['width'] = width
+                    fig['layout']['height'] = height
+                
+                # Convert the figure to SVG format
+                svg_data = pio.to_image(fig, format='svg')
+                
+                # Generate the timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"taxonomy_plot_{timestamp}.svg"
+                
+                # Return the SVG data
+                return dict(
+                    content=svg_data.decode('utf-8'),
+                    filename=filename
+                )
+            except Exception as e:
+                logger.error(f"Error exporting taxonomy SVG: {str(e)}", exc_info=True)
+                raise PreventUpdate
+
+        @self.app.callback(
+            Output("download-csv", "data"),
+            [Input("btn-download-csv-taxonomy", "n_clicks")],
+            [State("sample-select-value-tax", "value")],
+            prevent_initial_call=True
+        )
+        def download_taxonomy_csv(n_clicks, selected_samples):
+            """Download all taxonomy data as CSV."""
+            if not n_clicks or not selected_samples:
+                raise PreventUpdate
+                
+            try:
+                logger.info(f"Exporting full taxonomy data for {len(selected_samples) if selected_samples else 0} samples")
+                # Filter data for selected samples
+                df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                
+                # Get normalized counts
+                normalized_counts_df = self.taxonomy_app.calculate_normalized_counts()
+                
+                # Merge with normalized counts (if available)
+                if normalized_counts_df is not None and not normalized_counts_df.empty:
+                    # Make sure to merge on the right columns
+                    merge_columns = ['sample_id', 'taxonomy']
+                    df_filtered = pd.merge(
+                        df_filtered,
+                        normalized_counts_df[['sample_id', 'taxonomy', 'normalized_count']],
+                        on=merge_columns,
+                        how='left'
+                    )
+                
+                # Clean up the dataframe before export - exclude internal columns and fix formatting
+                export_columns = [
+                    'taxonomy', 'tax_genus', 'tax_family', 'tax_order', 'tax_class', 'tax_phylum', 'tax_superkingdom',
+                    'sample_id', 'project_id', 'subproject', 'date',
+                    'abundance', 'count', 'normalized_count'
+                ]
+                
+                # Only include columns that exist in the dataframe
+                export_columns = [col for col in export_columns if col in df_filtered.columns]
+                
+                # Create a clean export dataframe
+                export_df = df_filtered[export_columns].copy()
+                
+                # Rename columns to be more descriptive
+                column_renames = {
+                    'abundance': 'relative_abundance',
+                    'count': 'raw_count',
+                    'normalized_count': 'normalized_count_per_10M_bases'
+                }
+                export_df.rename(columns={k: v for k, v in column_renames.items() if k in export_df.columns}, inplace=True)
+                
+                # Generate the timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"taxonomy_data_{timestamp}.csv"
+                
+                # Return the data as CSV
+                return dict(
+                    content=export_df.to_csv(index=False),
+                    filename=filename
+                )
+            except Exception as e:
+                logger.error(f"Error exporting taxonomy CSV: {str(e)}", exc_info=True)
+                raise PreventUpdate
+
+        @self.app.callback(
+            Output("download-counts", "data"),
+            [Input("btn-download-counts-taxonomy", "n_clicks")],
+            [State("sample-select-value-tax", "value"),
+             State("tax-rank-dropdown-tax", "value")],
+            prevent_initial_call=True
+        )
+        def download_taxonomy_counts(n_clicks, selected_samples, tax_rank):
+            """Download taxonomy count data as CSV."""
+            if not n_clicks or not selected_samples:
+                raise PreventUpdate
+                
+            try:
+                logger.info(f"Exporting taxonomy count data for {len(selected_samples) if selected_samples else 0} samples")
+                
+                # Filter data for selected samples
+                df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                
+                # Generate pivot table of counts by taxonomic rank
+                if tax_rank not in df_filtered.columns and tax_rank != "species":
+                    tax_rank = "species"  # Default to species if selected rank not found
+                
+                # For species level, we use the 'taxonomy' column
+                pivot_column = tax_rank if tax_rank != "species" else "taxonomy"
+                
+                # Get normalized counts
+                normalized_counts_df = self.taxonomy_app.calculate_normalized_counts()
+                
+                # If we have normalized counts, merge them into our filtered data
+                if normalized_counts_df is not None and not normalized_counts_df.empty:
+                    # Make sure to merge on the right columns
+                    merge_columns = ['sample_id', 'taxonomy']
+                    df_filtered = pd.merge(
+                        df_filtered,
+                        normalized_counts_df[['sample_id', 'taxonomy', 'normalized_count']],
+                        on=merge_columns,
+                        how='left'
+                    )
+                    
+                    # Fill NA values with 0 for normalized_count
+                    if 'normalized_count' in df_filtered.columns:
+                        df_filtered['normalized_count'].fillna(0, inplace=True)
+                
+                # Create pivot tables for raw counts, abundances, and normalized counts (if available)
+                raw_counts_pivot = df_filtered.pivot_table(
+                    index=[pivot_column], 
+                    columns=['sample_id'], 
+                    values='count', 
+                    aggfunc='sum',
+                    fill_value=0
+                )
+                
+                abundance_pivot = df_filtered.pivot_table(
+                    index=[pivot_column], 
+                    columns=['sample_id'], 
+                    values='abundance', 
+                    aggfunc='sum',
+                    fill_value=0
+                )
+                
+                # Add prefixes with clear descriptions to distinguish column types
+                raw_counts_pivot.columns = [f"raw_count_{col}" for col in raw_counts_pivot.columns]
+                abundance_pivot.columns = [f"relative_abundance_{col}" for col in abundance_pivot.columns]
+                
+                # Join the two pivot tables
+                combined_pivot = raw_counts_pivot.join(abundance_pivot)
+                
+                # Add normalized counts if available
+                if 'normalized_count' in df_filtered.columns:
+                    normalized_counts_pivot = df_filtered.pivot_table(
+                        index=[pivot_column], 
+                        columns=['sample_id'], 
+                        values='normalized_count', 
+                        aggfunc='sum',
+                        fill_value=0
+                    )
+                    normalized_counts_pivot.columns = [f"normalized_count_per_10M_bases_{col}" for col in normalized_counts_pivot.columns]
+                    combined_pivot = combined_pivot.join(normalized_counts_pivot)
+                
+                # Generate the timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"taxonomy_counts_{tax_rank}_{timestamp}.csv"
+                
+                # Return the data as CSV
+                return dict(
+                    content=combined_pivot.reset_index().to_csv(index=False),
+                    filename=filename
+                )
+            except Exception as e:
+                logger.error(f"Error exporting taxonomy counts CSV: {str(e)}", exc_info=True)
+                raise PreventUpdate
+            
+        @self.app.callback(
+            Output('sequence-selector', 'options'),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_sequence_options(selected_rows, table_data):
+            """Update sequence selector dropdown options when a MAG is selected."""
+            try:
+                if not selected_rows or not table_data:
+                    logger.warning("No rows selected or no table data available")
+                    return []
+                
+                # Get selected row data
+                selected_row = table_data[selected_rows[0]]
+                logger.info(f"Selected row data: {selected_row}")
+                
+                # Find the MAG name - try both 'Name' and 'name' fields
+                selected_mag_name = None
+                for key in ['Name', 'name']:
+                    if key in selected_row and selected_row[key]:
+                        selected_mag_name = selected_row[key]
+                        break
+                
+                if not selected_mag_name:
+                    logger.error("Could not find name in selected row")
+                    return []
+                
+                logger.info(f"Looking for MAG with name: '{selected_mag_name}'")
+                
+                # Get MAG data
+                mag_data = self.mags_app.mag_data
+                
+                if mag_data is None or mag_data.empty:
+                    logger.warning("mag_data is empty, trying to reload from database")
+                    mag_data = self.mags_app.get_mag_data()
+                    if mag_data is None or mag_data.empty:
+                        logger.error("Failed to load MAG data from database")
+                        return []
+                
+                # Try multiple approaches to find the matching MAG
+                # First try exact match
+                mag_matches = mag_data[mag_data['name'] == selected_mag_name]
+                
+                # If no exact match, try case-insensitive
+                if mag_matches.empty:
+                    mag_matches = mag_data[mag_data['name'].astype(str).str.lower() == selected_mag_name.lower()]
+                    
+                # If still no match, try contains
+                if mag_matches.empty:
+                    mag_matches = mag_data[mag_data['name'].astype(str).str.contains(selected_mag_name, case=False, na=False)]
+                
+                if mag_matches.empty:
+                    logger.error(f"No MAG data found for '{selected_mag_name}'")
+                    logger.info(f"Available MAGs: {mag_data['name'].tolist()[:5]}...")
+                    return []
+                
+                # Get the first matching MAG
+                mag_record = mag_matches.iloc[0]
+                logger.info(f"Found MAG data: {mag_record['name']}")
+                
+                # Check if FASTA data exists
+                if 'fasta_file' not in mag_record or not mag_record['fasta_file'] or mag_record['fasta_file'] == 'empty':
+                    logger.error(f"No FASTA data found for MAG {selected_mag_name}")
+                    return []
+                    
+                # Parse the FASTA data
+                fasta_data = mag_record['fasta_file']
+                sequences = self.mags_app.parse_fasta_for_viewer(fasta_data)
+                
+                if not sequences:
+                    logger.error("No sequences parsed from FASTA data")
+                    return []
+                    
+                # Create dropdown options
+                options = []
+                for record in sequences:
+                    seq_id = record['id']
+                    seq_len = len(record['sequence'])
+                    options.append({
+                        'label': f"{seq_id} ({seq_len:,} bp)", 
+                        'value': seq_id
+                    })
+                    
+                logger.info(f"Created {len(options)} dropdown options")
+                return options
+                
+            except Exception as e:
+                logger.error(f"Error in update_sequence_options: {str(e)}", exc_info=True)
+                return []
+        
+        # Fix for sequence selector dropdown
+        @self.app.callback(
+            Output('sequence-selector', 'options'),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_sequence_selector(selected_rows, table_data):
+            """Update sequence selector dropdown options based on selected MAG."""
+            if not selected_rows or not table_data:
+                return []
+                
+            try:
+                selected_row = table_data[selected_rows[0]]
+                if not selected_row or not self.mags_app:
+                    return []
+                    
+                # Get FASTA data
+                fasta_data = selected_row.get('fasta_file', '')
+                if not fasta_data:
+                    return []
+                    
+                # Parse the FASTA to get sequences
+                sequences = self.mags_app.parse_fasta_for_viewer(fasta_data)
+                if not sequences:
+                    return []
+                    
+                # Create dropdown options
+                options = []
+                for seq in sequences:
+                    seq_id = seq.get('id', '')
+                    length = len(seq.get('sequence', ''))
+                    options.append({
+                        'label': f"{seq_id} ({length:,} bp)",
+                        'value': seq_id
+                    })
+                    
+                # Sort by length (largest first)
+                options = sorted(options, key=lambda x: int(x['label'].split('(')[1].split(' bp)')[0].replace(',', '')), reverse=True)
+                
+                return options
+                
+            except Exception as e:
+                logger.error(f"Error updating sequence selector: {str(e)}", exc_info=True)
+                return []
+                
+        # Set default sequence when options change
+        @self.app.callback(
+            Output('sequence-selector', 'value'),
+            [Input('sequence-selector', 'options')],
+            prevent_initial_call=True
+        )
+        def set_default_sequence(options):
+            """Set the default sequence to the first option when options change."""
+            if not options or len(options) == 0:
+                return None
+            return options[0]['value']
+
+        @self.app.callback(
+            Output('sequence-viewer-container', 'children'),
+            [Input('mag-table', 'selected_rows'),
+             Input('sequence-selector', 'value'),
+             Input('gene-search-button', 'n_clicks')],
+            [State('mag-table', 'data'),
+             State('gene-search', 'value')]
+        )
+        def update_sequence_viewer(selected_rows, selected_sequence, search_clicks, table_data, search_term):
+            """Update the sequence viewer."""
+            try:
+                if not selected_rows or not table_data:
+                    return html.Div("Select a MAG from the table to view sequences.", className="alert alert-info")
+                
+                if not selected_sequence:
+                    return html.Div("Select a sequence from the dropdown above.", className="alert alert-info")
+                
+                selected_mag = table_data[selected_rows[0]]
+                mag_id = selected_mag.get("id", "")
+                
+                if not mag_id or not self.mags_app:
+                    return html.Div("Error: Invalid MAG or sequence selection", className="alert alert-danger")
+                
+                # Get the FASTA data
+                try:
+                    fasta_data = self.mags_app.get_mag_data().get(mag_id, {}).get("fasta", {})
+                    if not fasta_data:
+                        return html.Div("No sequence data available for this MAG.", className="alert alert-warning")
+                    
+                    # Find the selected sequence
+                    sequence_data = None
+                    for seq in fasta_data:
+                        if seq.get("header") == selected_sequence:
+                            sequence_data = seq
+                            break
+                    
+                    if not sequence_data:
+                        return html.Div(f"Sequence '{selected_sequence}' not found.", className="alert alert-warning")
+                    
+                    sequence = sequence_data.get("sequence", "")
+                    header = sequence_data.get("header", "")
+                    
+                    # Format the sequence for display
+                    formatted_sequence = ""
+                    for i in range(0, len(sequence), 60):
+                        chunk = sequence[i:i+60]
+                        formatted_lines = [chunk[j:j+10] for j in range(0, len(chunk), 10)]
+                        formatted_sequence += " ".join(formatted_lines) + "\n"
+                    
+                    # Handle search if needed
+                    highlight_positions = []
+                    match_info = ""
+                    if search_term and search_clicks:
+                        search_term = search_term.upper()
+                        sequence_upper = sequence.upper()
+                        start_pos = 0
+                        match_count = 0
+                        while True:
+                            pos = sequence_upper.find(search_term, start_pos)
+                            if pos == -1:
+                                break
+                            highlight_positions.append(pos)
+                            match_count += 1
+                            start_pos = pos + 1
+                        
+                        if match_count > 0:
+                            match_info = f"Found {match_count} matches for '{search_term}'"
+                        else:
+                            match_info = f"No matches found for '{search_term}'"
+                    
+                    return html.Div([
+                        html.Div(match_info, id="match-info", style={"marginBottom": "10px", "fontWeight": "bold"} if match_info else {"display": "none"}),
+                        html.Div([
+                            html.Pre([
+                                html.Code(
+                                    f">{header}\n{formatted_sequence}",
+                                    style={"whiteSpace": "pre-wrap", "wordBreak": "break-all"}
+                                )
+                            ], style={"backgroundColor": "#f5f5f5", "padding": "15px", "borderRadius": "4px", "maxHeight": "500px", "overflowY": "auto"})
+                        ], id="sequence-text-content")
+                    ])
+                    
+                except Exception as e:
+                    logger.error(f"Error retrieving sequence data: {str(e)}", exc_info=True)
+                    return html.Div(f"Error retrieving sequence data: {str(e)}", className="alert alert-danger")
+                
+            except Exception as e:
+                logger.error(f"Error updating sequence viewer: {str(e)}", exc_info=True)
+                return html.Div(f"Error: {str(e)}", className="alert alert-danger")
+
+        @self.app.callback(
+            Output('copy-status', 'children'),
+            [Input('copy-all-button', 'n_clicks'),
+             Input('copy-selected-button', 'n_clicks')]
+        )
+        def copy_sequence_to_clipboard(n_clicks_all, n_clicks_selected):
+            """Display appropriate copy instructions."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return ""
+            
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            if button_id == 'copy-all-button':
+                return html.Div([
+                    html.P("Click in the yellow box, press Cmd+A to select all, then Cmd+C to copy.", 
+                          style={'color': 'green', 'fontWeight': 'bold', 'marginBottom': '0px'})
+                ])
+            elif button_id == 'copy-selected-button':
+                return html.Div([
+                    html.P("Select the text you want in the yellow box, then press Cmd+C to copy.", 
+                          style={'color': 'green', 'fontWeight': 'bold', 'marginBottom': '0px'})
+                ])
+            
+            return ""
+
+        def search_sequence_content(n_clicks, search_text, view_type, selected_rows, selected_sequence, table_data, current_viewer):
+            """Search and highlight matches in sequence content."""
+            if not n_clicks or not search_text or not current_viewer:
+                return dash.no_update, dash.no_update
+            
+            # ... existing function body ...
+            
+            return dash.no_update, dash.no_update
+
+        # CSS styling is handled through inline styles
+
+    def _create_mags_content(self):
+        """Create the MAGs content."""
+        return html.Div([
+            # Display warnings
+            html.Div(id='mag-genome-warning', className="alert alert-warning", style={'display': 'none'}),
+            
+            # Top controls
+            html.Div([
+                html.Div([
+                    html.Label("Visualization Type"),
+                    dcc.RadioItems(
+                        id='viz-toggle',
+                        options=[
+                            {'label': 'Genome Browser', 'value': 'browser'},
+                            {'label': 'CIRCOS Plot', 'value': 'circos'}
+                        ],
+                        value='browser',
+                        labelStyle={'display': 'inline-block', 'marginRight': '10px'}
+                    )
+                ], style={'flex': 1})
+            ], style={'display': 'flex', 'marginBottom': '20px'}),
+            
+            # Rest of the MAG content
+            html.Div(id='mag-content'),
+            
+            # Add gene content plot section
+            html.Div([
+                html.H4("Gene Content Distribution", className="section-title"),
+                dcc.Graph(id='gene-content-plot', style={'height': '400px'})
+            ], className="section-container", style={'marginTop': '20px'}),
+            
+            # MAG info section
+            html.Div(id='mag-info-section', style={'display': 'none'}, children=[
+                # Overview section
+                html.Div([
+                    html.H4("MAG Overview", className="section-title"),
+                    html.Div(id='mag-overview', className="overview-container")
+                ], className="section-container"),
+                
+                # Genome section
+                html.Div([
+                    html.H4("Genome Visualization", className="section-title"),
+                    html.Div([
+                        # Controls for sequence viewer
+                        html.Div([
+                            dcc.Dropdown(id='sequence-selector', placeholder="Select a contig...", style={'width': '100%'}),
+                            dcc.RadioItems(
+                                id='sequence-view-type',
+                                options=[
+                                    {'label': 'Whole Genome', 'value': 'whole-genome'},
+                                    {'label': 'Features', 'value': 'features'}
+                                ],
+                                value='whole-genome',
+                                labelStyle={'display': 'inline-block', 'marginRight': '10px'}
+                            ),
+                            html.Div([
+                                html.Button("Copy All", id="copy-all-button", className="btn btn-sm btn-primary"),
+                                html.Div(id="copy-status", style={'marginLeft': '10px', 'display': 'inline-block'})
+                            ], style={'marginTop': '10px'})
+                        ], style={'marginBottom': '15px'}),
+                        
+                        # Sequence viewer container
+                        html.Div(id='sequence-viewer-container', style={'border': '1px solid #ddd', 'borderRadius': '5px', 'padding': '10px'}),
+                        
+                        # Add download buttons container
+                        html.Div([
+                            html.Button("Download Genome (FASTA)", id="download-genome-button", className="btn btn-primary mr-2"),
+                            html.Button("Download Annotations (GFF)", id="download-annotations-button", className="btn btn-secondary")
+                        ], style={'marginTop': '15px'}),
+                        dcc.Download(id="download-genome"),
+                        dcc.Download(id="download-annotations")
+                    ], className="content-section")
+                ], className="section-container"),
+                
+                # Genome analysis
+                html.Div([
+                    html.H4("Gene Search", className="section-title"),
+                    html.Div([
+                        dcc.Input(id='gene-search', type='text', placeholder='Search for gene or product...', style={'width': '80%'}),
+                        html.Button('Search', id='gene-search-button', className="btn btn-primary ml-2")
+                    ], style={'marginBottom': '10px'}),
+                    html.Div(id='gene-search-results')
+                ], className="section-container"),
+            ])
+        ])
+        
+    def _init_layout(self):
+        """Initialize layout for the dashboard."""
+        # Hidden components
+        hidden_components = html.Div([
+            # Data components 
+            dcc.Store(id='session-id', storage_type='session'),
+            dcc.Location(id='redirect', refresh=True),
+            dcc.Download(id="download-svg"),
+            dcc.Download(id="download-csv"),
+            dcc.Download(id="download-legend-svg"),
+            dcc.Download(id="horizon-plot-download"),
+            dcc.Download(id="download-pdf"),
+            
+            # Empty container for horizon plot
+            html.Div(id="horizon-plot-container", style={'display': 'none'}),
+            
+            # Use div instead of iframe to avoid security issues
+            html.Div(id="horizon-plot-content", style={'display': 'none'}),
+            
+            # Store components
+            dcc.Store(id="initialization-store"),
+            dcc.Store(id="data-store"),
+            
+            # Add a hidden div for the format template fix
+            html.Div(id='fix-format-template-issue', style={'display': 'none'})
+        ], id='hidden-components', style={'display': 'none'})
+
+        # Main layout
+        main_layout = dmc.MantineProvider(
+            theme={
+                "colorScheme": "light",
+                "primaryColor": "indigo",
+            },
+            children=[
+                dmc.Container(
+                    children=[
+                        dmc.NotificationsProvider(
+                            children=[
+                                dcc.Location(id='url', refresh=False),
+                                dmc.Header(
+                                    height=70,
+                                    p="md",
+                                    children=[
+                                        dmc.Group(
+                                            [
+                                                dmc.Text(id="header-title", size="xl", weight=700),
+                                            ],
+                                            position="apart",
+                                            spacing="xl",
+                                        )
+                                    ],
+                                ),
+                                dmc.Grid(
+                                    children=[
+                                        dmc.Col(
+                                            self._create_navbar(),
+                                            span=2
+                                        ),
+                                        dmc.Col(
+                                            html.Div(id='page-content'),
+                                            span=10
+                                        ),
+                                    ],
+                                    gutter="md",
+                                ),
+                                hidden_components,
+                                dmc.LoadingOverlay(
+                                    html.Div(id="loading-overlay-content"),
+                                    loaderProps={"variant": "dots", "color": "blue", "size": "xl"},
+                                    style={
+                                        "position": "fixed",
+                                        "top": "20px",
+                                        "left": "20px",
+                                        "zIndex": "1000",
+                                        "width": "40px",
+                                        "height": "40px"
+                                    }
+                                ),
+                                dcc.Loading(
+                                    id="pdf-loading",
+                                    type="circle",
+                                    children=[html.Div(id="pdf-loading-content")],
+                                    style={
+                                        "position": "fixed",
+                                        "top": "20px",
+                                        "right": "20px",
+                                        "zIndex": "1000"
+                                    }
+                                ),
+                            ]
+                        )
+                    ],
+                    fluid=True,
+                    style={'width': '100%', 'padding': '0px'}
+                )
+            ],
+            withGlobalStyles=True,
+            withNormalizeCSS=True
+        )
+        
+        self.app.layout = main_layout
+
+    def _get_app_icon(self, app_name: str) -> str:
+        """Get the icon name for a given app."""
+        # For custom image apps, use a special prefix to indicate custom icons
+        custom_icons = {
+            'Taxonomy': 'custom:microorganism.png',
+            'MAGs': 'custom:circ-chromosome.png'
+        }
+        
+        if app_name in custom_icons:
+            return custom_icons[app_name]
+            
+        # Standard iconify icons
+        icon_map = {
+            'Horizon': 'mdi:chart-timeline',
+            'Diversity': 'tabler:chart-scatter-3d',
+            'Correlations': 'carbon:qq-plot',
+            'QC': 'material-symbols:fact-check-outline'
+        }
+        return icon_map.get(app_name, 'mdi:application')
+
+    def _get_cache_key(self, prefix, *args, **kwargs):
+        """Generate a cache key from arguments"""
+        key_dict = {
+            'args': args,
+            'kwargs': kwargs,
+            'user_id': self.user_id
+        }
+        key_str = json.dumps(key_dict, sort_keys=True)
+        return f"{prefix}:{hashlib.md5(key_str.encode()).hexdigest()}"
+
+    @lru_cache(maxsize=128)
+    def _get_cached_data(self):
+        """Optimized data fetching with caching"""
+        cache_key = f"data_{self.user_id}"
+        
+        # Try to get from cache first
+        if cache_key in self._cache:
+            cache_data = self._cache[cache_key]
+            if time.time() - cache_data['timestamp'] < self._cache_timeout:
+                logger.info("Using cached data")
+                return cache_data['data']
+        
+        logger.info("Fetching fresh data from database")
+        start = time.time()
+        
+        # Fetch data in chunks for better memory management
+        chunk_size = 1000
+        records = []
+        for offset in range(0, NanoporeRecord.objects.filter(user_id=self.user_id).count(), chunk_size):
+            chunk = NanoporeRecord.objects.filter(user_id=self.user_id)[offset:offset + chunk_size]
+            records.extend(chunk.values())
+        
+        df = pd.DataFrame.from_records(records)
+        
+        # Optimize dataframe
+        
+        # Cache the result
+        self._cache[cache_key] = {
+            'data': df,
+            'timestamp': time.time()
+        }
+        
+        duration = time.time() - start
+        logger.info(f"Data fetching and processing took {duration:.2f} seconds")
+        
+        return df
+
+    def _optimize_dataframe(self, df):
+        """Optimize DataFrame memory usage"""
+        start = time.time()
+        
+        # Convert date columns to datetime
+        date_cols = [col for col in df.columns if 'date' in col.lower()]
+        for col in date_cols:
+            df[col] = pd.to_datetime(df[col], errors='ignore')
+        
+        # Optimize numeric columns
+        for col in df.select_dtypes(include=['float64']).columns:
+            df[col] = pd.to_numeric(df[col], downcast='float')
+        
+        for col in df.select_dtypes(include=['int64']).columns:
+            df[col] = pd.to_numeric(df[col], downcast='integer')
+        
+        # Categorize string columns with low cardinality
+        for col in df.select_dtypes(include=['object']).columns:
+            unique_ratio = df[col].nunique() / len(df)
+            if unique_ratio < 0.5:  # If less than 50% unique values
+                df[col] = df[col].astype('category')
+        
+        duration = time.time() - start
+        memory_usage = df.memory_usage(deep=True).sum() / 1024**2
+        logger.info(f"DataFrame optimization took {duration:.2f} seconds. Memory usage: {memory_usage:.2f} MB")
+        
+        return df
+
+    def _create_navbar(self):
+        """Create the navigation bar with app links"""
+        nav_links = []
+        
+        for url, values in self.apps.items():
+            icon_value = self._get_app_icon(values['name'])
+            
+            # Check if this is a custom icon (with the custom: prefix)
+            if isinstance(icon_value, str) and icon_value.startswith('custom:'):
+                # Extract the filename from the custom icon
+                icon_file = icon_value.split(':', 1)[1]
+                
+                # Use proper static URL for the image
+                if icon_file == 'microorganism.png':
+                    # For Taxonomy, use a DashIconify icon instead of a custom image
+                    nav_link = dmc.NavLink(
+                        label=values['name'],
+                        icon=DashIconify(icon="fluent-emoji-high-contrast:microbe", width=30),
+                        href=url,
+                    )
+                elif icon_file == 'circ-chromosome.png':
+                    # For MAGs, use a DashIconify icon instead of a custom image
+                    nav_link = dmc.NavLink(
+                        label=values['name'],
+                        icon=DashIconify(icon="mdi:dna", width=30),
+                        href=url,
+                    )
+                else:
+                    # Fallback to standard icon
+                    nav_link = dmc.NavLink(
+                        label=values['name'],
+                        icon=DashIconify(icon="mdi:application", width=30),
+                        href=url,
+                    )
+            else:
+                # For standard icons, use DashIconify
+                nav_link = dmc.NavLink(
+                    label=values['name'],
+                    icon=DashIconify(icon=icon_value, width=30),
+                    href=url,
+                )
+            
+            nav_links.append(nav_link)
+        
+        return dmc.Navbar(
+            fixed=True,
+            width={"base": 180},
+            p="md",
+            children=[
+                dmc.ScrollArea(
+                    offsetScrollbars=True,
+                    type="hover",
+                    children=[
+                        dmc.Stack([
+                            dmc.Text("MMonitor", weight=700, size="lg", mb=5),  # Add title at the top
+                            dmc.Text(id="app-subtitle", size="xs", color="dimmed"),
+                            dmc.Divider(mb=20),
+                            *nav_links
+                        ])
+                    ]
+                )
+            ],
+        )
+
+
+    def _register_callbacks(self):
+        """Register all callbacks for the dashboard."""
+        # This method should be used to register any callbacks that are not already registered
+        # in _init_callbacks method. It's called after _init_callbacks.
+        logger.info("Registering additional callbacks...")
+        
+        # Fix for FormatTemplate.number issue
+        @self.app.callback(
+            Output('session-id', 'data', allow_duplicate=True),
+            Input('session-id', 'data'),
+            prevent_initial_call=True
+        )
+        def fix_format_template_issues(session_id):
+            # This is a dummy callback to register the fix
+            # The actual fix is to use Format(precision=X, scheme=Scheme.fixed)
+            # instead of FormatTemplate.number(X) in all tables
+            return session_id
+            
+        # Fix for plotly.js 404 error
+        # Add plotly.js as an external script to ensure it's loaded correctly
+        if 'https://cdn.plot.ly/plotly-latest.min.js' not in self.app.external_scripts:
+            self.app.external_scripts.append('https://cdn.plot.ly/plotly-latest.min.js')
+        
+        # Fix for circos plot update
+        @self.app.callback(
+            Output('circos-plot', 'children', allow_duplicate=True),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')],
+            prevent_initial_call=True
+        )
+        def update_circos_on_selection(selected_rows, table_data):
+            """Update the circos plot when a MAG is selected."""
+            if not selected_rows or not table_data:
+                return html.Div("Select a MAG from the table to view the circos plot.", className="alert alert-info")
+            
+            try:
+                selected_row = table_data[selected_rows[0]]
+                if self.mags_app:
+                    return self.mags_app.create_dashbio_circos_plot(selected_row)
+                else:
+                    return html.Div("MAGs app not initialized properly.", className="alert alert-danger")
+            except Exception as e:
+                logger.error(f"Error updating circos plot: {str(e)}", exc_info=True)
+                return html.Div(f"Error: {str(e)}", className="alert alert-danger")
+                
+        # Fix for sequence selector dropdown
+        @self.app.callback(
+            Output('sequence-selector', 'options'),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_sequence_selector(selected_rows, table_data):
+            """Update sequence selector dropdown options based on selected MAG."""
+            if not selected_rows or not table_data:
+                return []
+                
+            try:
+                selected_row = table_data[selected_rows[0]]
+                if not selected_row or not self.mags_app:
+                    return []
+                    
+                # Get FASTA data
+                fasta_data = selected_row.get('fasta_file', '')
+                if not fasta_data:
+                    return []
+                    
+                # Parse the FASTA to get sequences
+                sequences = self.mags_app.parse_fasta_for_viewer(fasta_data)
+                if not sequences:
+                    return []
+                    
+                # Create dropdown options
+                options = []
+                for seq in sequences:
+                    seq_id = seq.get('id', '')
+                    length = len(seq.get('sequence', ''))
+                    options.append({
+                        'label': f"{seq_id} ({length:,} bp)",
+                        'value': seq_id
+                    })
+                    
+                # Sort by length (largest first)
+                options = sorted(options, key=lambda x: int(x['label'].split('(')[1].split(' bp)')[0].replace(',', '')), reverse=True)
+                
+                return options
+                
+            except Exception as e:
+                logger.error(f"Error updating sequence selector: {str(e)}", exc_info=True)
+                return []
+                
+        # Set default sequence when options change
+        @self.app.callback(
+            Output('sequence-selector', 'value'),
+            [Input('sequence-selector', 'options')],
+            prevent_initial_call=True
+        )
+        def set_default_sequence(options):
+            """Set the default sequence to the first option when options change."""
+            if not options or len(options) == 0:
+                return None
+            return options[0]['value']
+                
+        # Fix for horizon plot (remove iframe)
+        @self.app.callback(
+            [Output('horizon-plot-content', 'children'),
+             Output('horizon-plot-container', 'style')],
+            [Input('project-select-horizon', 'value'),
+             Input('subproject-select-horizon', 'value'),
+             Input('taxa-count', 'value')],
+            prevent_initial_call=False
+        )
+        def update_horizon_plot(selected_project, selected_subproject, taxa_count):
+            """Update the horizon plot using a div instead of iframe."""
+            try:
+                # Get filtered data
+                df = self.horizon_app.df.copy()
+                if selected_project and selected_project != 'ALL':
+                    df = df[df['project_id'].astype(str) == str(selected_project)]
+                
+                # Filter by subproject if it exists in the dataframe
+                if selected_subproject and selected_subproject != 'ALL' and 'subproject' in df.columns:
+                    df = df[df['subproject'].astype(str) == str(selected_subproject)]
+                
+                if len(df) == 0:
+                    return html.Div("No data available for the selected filters"), {"display": "none"}
+                
+                # Generate the updated plot HTML
+                html_content = self.horizon_app._get_horizon_plot_html(
+                    df=df,
+                    taxa_count=taxa_count or 20
+                )
+                
+                # Create container style
+                container_style = {
+                    "width": "100%", 
+                    "margin": "0", 
+                    "padding": "0",
+                    "display": "block",
+                    "position": "relative",
+                    "z-index": 0
+                }
+                
+                return html.Div(dangerouslySetInnerHTML={"__html": html_content}), container_style
+                
+            except Exception as e:
+                logger.error(f"Error updating horizon plot: {str(e)}", exc_info=True)
+                return html.Div(f"Error: {str(e)}"), {"display": "none"}
+        
+        # MAG callbacks
+        @self.app.callback(
+            [Output('mag-content', 'children'),
+             Output('mag-genome-warning', 'children'),
+             Output('mag-genome-warning', 'style'),
+             Output('mag-info-section', 'style')],
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_mag_content(selected_rows, table_data):
+            """Update the MAG content based on the selected MAG."""
+            if not selected_rows or not table_data:
+                return html.Div("Select a MAG to view details", className="alert alert-info"), "", {"display": "none"}, {"display": "none"}
+            
+            try:
+                selected_mag = table_data[selected_rows[0]]
+                mag_id = selected_mag.get("id")
+                warning = ""
+                warning_style = {"display": "none"}
+                
+                if not mag_id or not self.mags_app:
+                    return html.Div("Error: Invalid MAG selection", className="alert alert-danger"), "", {"display": "none"}, {"display": "none"}
+                
+                # Check for genome warnings
+                if selected_mag.get("Completeness", 0) < 80 or selected_mag.get("Contamination", 0) > 10:
+                    warning = html.Div([
+                        html.Strong("Warning: "),
+                        html.Span("This MAG does not meet quality standards (Comp. ≥80%, Cont. ≤10%).")
+                    ])
+                    warning_style = {
+                        "display": "block",
+                        "backgroundColor": "#fff3cd",
+                        "color": "#856404",
+                        "padding": "12px",
+                        "borderRadius": "4px",
+                        "marginBottom": "15px"
+                    }
+                
+                return html.Div([
+                    html.H4(f"MAG: {selected_mag.get('Name', 'Unknown')}"),
+                    html.P(f"Completeness: {selected_mag.get('Completeness', 'Unknown')}%, Contamination: {selected_mag.get('Contamination', 'Unknown')}%"),
+                ]), warning, warning_style, {"display": "block"}
+                
+            except Exception as e:
+                logger.error(f"Error updating MAG content: {str(e)}", exc_info=True)
+                return html.Div(f"Error loading MAG data: {str(e)}", className="alert alert-danger"), "", {"display": "none"}, {"display": "none"}
+                
+        @self.app.callback(
+            [
+                Output('mag-table', 'data'),
+                Output('mag-table', 'selected_rows')
+            ],
+            Input('session-id', 'data')
+        )
+        def update_mag_table(session_id):
+            """Update the MAG table."""
+            if not session_id:
+                raise PreventUpdate
+            return self.mags_app.update_mag_table()
+
+        @self.app.callback(
+            Output('genome-browser', 'children'),
+            [
+                Input('mag-table', 'selected_rows'),
+                Input('mag-table', 'data')
+            ]
+        )
+        def update_genome_browser(selected_rows, table_data):
+            """Update the genome browser."""
+            if not selected_rows:
+                raise PreventUpdate
+            return self.mags_app.create_genome_browser(selected_rows, table_data)
+
+        @self.app.callback(
+            Output('search-results', 'children'),
+            [
+                Input('annotation-search', 'value'),
+                Input('mag-table', 'selected_rows'),
+                Input('mag-table', 'data')
+            ]
+        )
+        def update_search_results(search_term, selected_rows, table_data):
+            """Update the annotation search results."""
+            if not search_term or not selected_rows:
+                return html.Div("Enter a search term and select a MAG to search its annotations.")
+            
+            # Get selected MAG
+            selected_mag = table_data[selected_rows[0]]['Name']
+            
+            # Search annotations
+            results = self.mags_app.search_annotations(selected_mag, search_term)
+            
+            if not results:
+                return html.Div(f"No matches found for '{search_term}'")
+            
+            # Create results table
+            return dash_table.DataTable(
+                data=results,
+                columns=[
+                    {'name': 'Type', 'id': 'type'},
+                    {'name': 'Contig', 'id': 'contig'},
+                    {'name': 'Position', 'id': 'position'},
+                    {'name': 'Strand', 'id': 'strand'},
+                    {'name': 'Matched In', 'id': 'matched_field'},
+                    {'name': 'Value', 'id': 'matched_value'}
+                ],
+                style_table={'overflowX': 'auto'},
+                style_cell={'textAlign': 'left'},
+                style_data_conditional=[{
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': 'rgb(248, 248, 248)'
+                }],
+                page_size=5
+            )
+
+        # Correlations callbacks - merged duplicates
+        @self.app.callback(
+            [Output("download-metadata-csv", "data"),
+             Output("download-corr-csv", "data"),
+             Output("notification-output", "children"),
+             Output("heatmap-dendrogram", "figure")],
+            [Input("download-csv-button", "n_clicks"),
+             Input("btn-download-corr", "n_clicks"),
+             Input("upload-data", "contents")],
+            [State("upload-data", "filename")],
+            prevent_initial_call=True
+        )
+        def handle_correlations_callbacks(template_clicks, corr_clicks, upload_contents, upload_filename):
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise PreventUpdate
+            
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            # Initialize default return values
+            template_data = no_update
+            corr_data = no_update
+            notification = no_update
+            heatmap = no_update
+            
+            try:
+                if trigger_id == "download-csv-button" and template_clicks:
+                    # Handle template download
+                    df = pd.DataFrame(columns=['sample_id', 'meta_1', 'meta_2', 'meta_3'])
+                    template_data = dcc.send_data_frame(df.to_csv, "metadata_template.csv", index=False)
+                
+                elif trigger_id == "btn-download-corr" and corr_clicks:
+                    # Handle correlations download
+                    if self.correlations_app.correlation_matrix is not None:
+                        corr_data = dcc.send_data_frame(self.correlations_app.correlation_matrix.to_csv, "correlations.csv", index=False)
+                
+                elif trigger_id == "upload-data" and upload_contents:
+                    # Handle file upload
+                    content_type, content_string = upload_contents.split(',')
+                    decoded = base64.b64decode(content_string)
+                    
+                    if 'csv' in upload_filename:
+                        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+                    elif 'xls' in upload_filename:
+                        df = pd.read_excel(io.BytesIO(decoded))
+                    else:
+                        notification = dmc.Alert("Unsupported file type", color="red")
+                        return template_data, corr_data, notification, heatmap
+
+                    # Process the uploaded file
+                    self.correlations_app.meta_df = df
+                    self.correlations_app.correlation_scores = self.correlations_app.compute_correlations_for_taxonomies(
+                        self.correlations_app.nanopore_df, self.correlations_app.meta_df, self.correlations_app.corr_method, 'taxonomy')
+                    
+                    notification = dmc.Alert("File uploaded and processed successfully", color="green")
+                    # Update heatmap after successful upload
+                    heatmap = self.correlations_app.create_heatmap()
+
+            except Exception as e:
+                notification = dmc.Alert(f"Error: {str(e)}", color="red")
+                logger.error(f"Error in handle_correlations_callbacks: {str(e)}")
+                logger.error(traceback.format_exc())
+            
+            return template_data, corr_data, notification, heatmap
+
+        @self.app.callback(
+            [Output("app-subtitle", "children"),
+             Output("page-content", "children"),
+             Output("header-title", "children")],
+            [Input("url", "pathname")],
+            prevent_initial_call=False
+        )
+        def update_page_content(pathname):
+            if pathname is None:
+                return "Welcome", html.Div("Please select an app from the menu."), "MMonitor"
+                
+            if pathname in self.apps:
+                app_info = self.apps[pathname]
+                try:
+                    app_instance = app_info['instance']
+                    # Add debug logging
+                    logger.info(f"Loading app {app_info['name']} with instance {app_instance}")
+                    
+                    if hasattr(app_instance, 'layout'):
+                        app_layout = app_instance.layout
+                    elif hasattr(app_instance, 'app'):
+                        app_layout = app_instance.app.layout
+                    else:
+                        logger.error(f"App {app_info['name']} has no layout")
+                        return "Error", html.Div(f"Error: App {app_info['name']} has no layout"), "MMonitor"
+                    
+                    logger.info(f"Successfully loaded app: {app_info['name']}")
+                    return app_info['name'], app_layout, "MMonitor"
+                except Exception as e:
+                    logger.error(f"Error loading app {app_info['name']}: {str(e)}")
+                    return "Error", html.Div(f"Error loading app: {str(e)}"), "MMonitor"
+            else:
+                return "Welcome", html.Div("Please select an app from the menu."), "MMonitor"
+
+        @self.app.callback(
+            [Output("graph1", "figure"),
+             Output("download-plot", "data")],
+            [Input("legend-items-input", "value"),
+             Input("export-svg-button", "n_clicks"),
+             Input("plot-type-dropdown-tax", "value"),
+             Input("tax-rank-dropdown-tax", "value"),
+             Input("use-date-checkbox-tax", "checked"),
+             Input("sample-select-value-tax", "value"),
+             Input("slider-tax", "value"),
+             Input("legend-toggle-checkbox-tax", "checked")],
+            [State("width-input", "value"),
+             State("height-input", "value"),
+             State("graph1", "figure")],
+            prevent_initial_call=True
+        )
+        def update_and_export_plot(n_items, n_clicks, plot_type, tax_rank, use_date, selected_samples, n_taxa, show_legend, width, height, figure):
+            """Update the plot based on user selections and export if requested."""
+            try:
+                ctx = dash.callback_context
+                triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+                
+                logger.info(f"Plot update triggered by: {triggered_id} with {len(selected_samples) if selected_samples else 0} samples selected")
+                
+                # Initialize download_data to no_update
+                download_data = no_update
+                
+                
+                # Prevent update if critical inputs are missing
+                if not plot_type or not tax_rank:
+                    logger.warning("Missing plot type or taxonomic rank")
+                    return no_update, no_update
+                
+                # Handle case when no samples are selected
+                if not selected_samples or len(selected_samples) == 0:
+                    logger.info("No samples selected, showing empty plot with message")
+                    empty_fig = go.Figure()
+                    empty_fig.add_annotation(
+                        text="No samples selected - please select samples to display data",
+                        xref="paper", yref="paper",
+                        x=0.5, y=0.5, showarrow=False,
+                        font=dict(size=20)
+                    )
+                    return empty_fig, no_update
+                
+                # If triggered by sample selection, always create a new plot
+                if triggered_id == "sample-select-value-tax":
+                    logger.info("Sample selection changed, creating completely new plot")
+                    df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                    
+                    # Create new plot based on selected type
+                    if plot_type == 'stackedbar':
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'groupedbar':
+                        fig = self.taxonomy_app.plot_grouped_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'area':
+                        fig = self.taxonomy_app.plot_area(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'line':
+                        fig = self.taxonomy_app.plot_line(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'heatmap':
+                        fig = self.taxonomy_app.plot_heatmap(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'scatter':
+                        fig = self.taxonomy_app.plot_scatter(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'pie' and len(selected_samples) == 1:
+                        # For pie chart, we need exactly one sample
+                        fig = self.taxonomy_app.plot_pie(df_filtered, selected_samples[0], tax_rank)
+                    else:
+                        # Default to stacked bar if invalid type
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                
+                # If triggered by export button
+                elif triggered_id == "export-svg-button" and n_clicks:
+                    logger.info("Export button clicked, preparing SVG file")
+                    try:
+                        current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+                        filename = f"taxonomy_plot_{current_time}.svg"
+                        
+                        fig = figure  # Use current figure for export
+                        if width and height:
+                            fig['layout']['width'] = width
+                            fig['layout']['height'] = height
+                        
+                        # Convert the figure to SVG format
+                        svg_data = pio.to_image(fig, format='svg')
+                        
+                        # Set up the download with the SVG data
+                        download_data = dict(content=svg_data.decode('utf-8'), filename=filename)
+                        return figure, download_data
+                    except Exception as e:
+                        logger.error(f"Error exporting plot: {str(e)}", exc_info=True)
+                        return no_update, no_update
+                
+                # For all other triggers, create a new plot
+                else:
+                    df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                    
+                    # Create new plot based on selected type
+                    if plot_type == 'stackedbar':
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'groupedbar':
+                        fig = self.taxonomy_app.plot_grouped_bar(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'area':
+                        fig = self.taxonomy_app.plot_area(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'line':
+                        fig = self.taxonomy_app.plot_line(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'heatmap':
+                        fig = self.taxonomy_app.plot_heatmap(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'scatter':
+                        fig = self.taxonomy_app.plot_scatter(df_filtered, use_date, tax_rank)
+                    elif plot_type == 'pie' and len(selected_samples) == 1:
+                        # For pie chart, we need exactly one sample
+                        fig = self.taxonomy_app.plot_pie(df_filtered, selected_samples[0], tax_rank)
+                    else:
+                        # Default to stacked bar if invalid type
+                        fig = self.taxonomy_app.plot_stacked_bar(df_filtered, use_date, tax_rank)
+                
+                # Apply common styling and limit to top n_taxa items if specified
+                if n_taxa and isinstance(n_taxa, int) and n_taxa > 0:
+                    logger.info(f"Limiting visualization to top {n_taxa} taxa")
+                    # The sorting and limitation is now handled by each plotting function
+                
+                if show_legend is not None:
+                    fig.update_layout(showlegend=show_legend)
+                
+                # Update legend visibility based on abundance if n_items is set
+                if n_items:
+                    logger.info(f"Updating legend visibility for top {n_items} items")
+                    trace_abundances = []
+                    for i, trace in enumerate(fig.data):
+                        try:
+                            total = sum(trace.y) if hasattr(trace, 'y') and trace.y is not None else 0
+                            trace_abundances.append((total, i))
+                        except Exception as e:
+                            logger.error(f"Error calculating abundance for trace {i}: {str(e)}")
+                            trace_abundances.append((0, i))
+                    
+                    # Sort by abundance and get indices of traces to hide in legend
+                    trace_abundances.sort(key=lambda x: x[0], reverse=True)
+                    hidden_indices = {idx for _, idx in trace_abundances[n_items:]}
+                    
+                    # Update showlegend for each trace
+                    for i in range(len(fig.data)):
+                        if i < len(fig.data) and hasattr(fig.data[i], 'showlegend'):
+                            fig.data[i].showlegend = i not in hidden_indices
+                
+                logger.info("Successfully created plot")
+                return fig, no_update
+                
+            except Exception as e:
+                logger.error(f"Error in update_and_export_plot: {str(e)}", exc_info=True)
+                empty_fig = go.Figure()
+                empty_fig.add_annotation(
+                    text=f"An error occurred: {str(e)}",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.5, showarrow=False,
+                    font=dict(size=20)
+                )
+                return empty_fig, no_update
+
+        @self.app.callback(
+            [Output("sample-select-value-tax", "value"),
+             Output("project-dropdown-tax", "value"),
+             Output("subproject-dropdown-tax", "value"),
+             Output("date-dropdown-tax", "value")],
+            [Input("project-dropdown-tax", "value"),
+             Input("subproject-dropdown-tax", "value"),
+             Input("date-dropdown-tax", "value"),
+             Input("refresh-taxonomy-button", "n_clicks")],
+            prevent_initial_call=True
+        )
+        def update_taxonomy_sample_selection(project, subproject, date, n_clicks):
+            """Update sample selection based on project, subproject, and date filters."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                raise PreventUpdate
+                
+            # Log which input triggered the callback
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
+            logger.info(f"Sample selection triggered by: {trigger_id}")
+                
+            # If refresh button was clicked, clear the taxonomy app cache and reload data
+            if trigger_id == "refresh-taxonomy-button":
+                logger.info("Refresh button clicked, reloading taxonomy data")
+                self.taxonomy_app._clear_cache()
+                # Get the fresh dataframe
+                df = self.taxonomy_app.df.copy()
+                logger.info(f"Reloaded taxonomy data with {len(df)} records")
+                logger.info(f"Unique sample IDs after reload: {df['sample_id'].unique().tolist()}")
+            else:
+                df = self.taxonomy_app.df.copy()
+            
+            # Apply filters if they exist and aren't 'ALL'
+            if project and project != 'ALL':
+                df = df[df['project_id'].astype(str) == str(project)]
+            if subproject and subproject != 'ALL':
+                df = df[df['subproject'].astype(str) == str(subproject)]
+            if date and date != 'ALL':
+                df = df[df['date'].astype(str) == str(date)]
+                
+            # Get unique sample IDs after filtering
+            filtered_samples = df['sample_id'].unique().tolist()
+            
+            # Log the result for debugging
+            logger.info(f"Filtered samples: {len(filtered_samples)} samples found")
+            logger.info(f"Filtered sample IDs: {filtered_samples}")
+            
+            # Return the filtered sample list and preserve the filter values
+            return filtered_samples, project, subproject, date
+
+        @self.app.callback(
+            Output('sample_select_value_diversity', 'value'),
+            [Input('project-dropdown-diversity', 'value'),
+             Input('subproject-dropdown-diversity', 'value'),
+             Input('date-dropdown-diversity', 'value')],
+            prevent_initial_call=True
+        )
+        def update_diversity_sample_selection(project, subproject, date):
+            df = self.diversity_app.df
+            if project != 'ALL':
+                df = df[df['project_id'] == project]
+            if subproject != 'ALL':
+                df = df[df['subproject'] == subproject]
+            if date != 'ALL':
+                df = df[df['date'].astype(str) == date]  # Convert date to string for comparison
+            return tuple(df['sample_id'].unique())  # Convert list to tuple
+
+        @self.app.callback(
+            [Output('alpha_diversities_plot1', 'figure'),
+             Output('alpha_diversities_plot2', 'figure'),
+             Output('beta_diversity_heatmap', 'figure'),
+             Output('pcoa_plot_container', 'figure'),
+             Output('rarefaction-plot', 'figure')],
+            [Input('sample_select_value_diversity', 'value'),
+             Input('diversity_metric_dropdown', 'value'),
+             Input('project-dropdown-diversity', 'value'),
+             Input('subproject-dropdown-diversity', 'value'),
+             Input('date-dropdown-diversity', 'value'),
+             Input('color-by-dropdown', 'value'),
+             Input('kmeans-input', 'value'),
+             Input('arrow-toggle', 'value'),
+             Input('pcoa-3d-toggle', 'value')],
+            prevent_initial_call=False
+        )
+        def update_diversity_plots(selected_samples, diversity_metric, project, subproject, date, color_by, k_value, show_arrows, is_3d):
+            try:
+                # Set default values if none provided
+                if not selected_samples:
+                    selected_samples = list(self.diversity_app.df['sample_id'].unique())[:20]  # Take first 20 samples for better initial view
+                elif isinstance(selected_samples, tuple):
+                    selected_samples = list(selected_samples)
+                
+                # Set defaults for all parameters
+                diversity_metric = diversity_metric or "shannon"  # Default to Shannon
+                project = project or "ALL"
+                subproject = subproject or "ALL"
+                date = date or "ALL"
+                color_by = color_by or "project"
+                k_value = k_value or 3
+                show_arrows = bool(show_arrows)
+                is_3d = bool(is_3d)
+
+                # Get the plots from diversity app with improved error handling
+                try:
+                    plots = self.diversity_app.update_diversity_plots(
+                        selected_samples=selected_samples,
+                        diversity_metric=diversity_metric,
+                        project=project,
+                        subproject=subproject,
+                        date=date,
+                        color_by=color_by,
+                        k_value=k_value,
+                        show_arrows=show_arrows,
+                        is_3d=is_3d
+                    )
+                    
+                    if not plots or len(plots) != 5:
+                        logger.error("Invalid number of plots returned")
+                        raise ValueError("Invalid number of plots returned")
+                    
+                    return plots
+                    
+                except Exception as e:
+                    logger.error(f"Error in diversity app update_diversity_plots: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    raise
+                
+            except Exception as e:
+                logger.error(f"Error in update_diversity_plots: {str(e)}")
+                logger.error(traceback.format_exc())
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title="Error in diversity plots",
+                    annotations=[{
+                        'text': str(e),
+                        'xref': 'paper',
+                        'yref': 'paper',
+                        'showarrow': False,
+                        'font': {'size': 14}
+                    }]
+                )
+                return [empty_fig] * 5
+
+        @self.app.callback(
+            Output('average-read-length-plot', 'figure'),
+            [Input('sample-dropdown-qc', 'value')],
+            prevent_initial_call=True
+        )
+        def update_qc_plots(selected_sample):
+            if not selected_sample:
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title="No sample selected",
+                    annotations=[{
+                        'text': "Please select a sample to display QC plots",
+                        'xref': 'paper',
+                        'yref': 'paper',
+                        'showarrow': False,
+                        'font': {'size': 14}
+                    }]
+                )
+                return empty_fig
+
+            try:
+                # Get QC plots with improved styling
+                qc_plots = self.qc_app.update_qc_plots(selected_sample)
+                distribution_plots = self.qc_app.create_quality_distribution_plots(selected_sample)
+                
+                # Create subplots
+                fig = make_subplots(
+                    rows=2, cols=2,
+                    subplot_titles=(
+                        "Read Length Distribution",
+                        "GC Content Distribution",
+                        "Cumulative Bases",
+                        "Quality Score Distribution"
+                    )
+                )
+                
+                # Add traces to appropriate subplots
+                for i, plot in enumerate(qc_plots + distribution_plots):
+                    row = (i // 2) + 1
+                    col = (i % 2) + 1
+                    
+                    for trace in plot.data:
+                        # Fix for GC content plot (normalize and smooth)
+                        if i == 1:  # GC Content plot
+                            if hasattr(trace, 'y') and len(trace.y) > 0:
+                                # Normalize
+                                trace.y = trace.y / np.sum(trace.y)
+                                # Smooth using moving average
+                                trace.y = pd.Series(trace.y).rolling(window=5, center=True).mean()
+                        
+                        # Fix for cumulative bases plot
+                        elif i == 2:  # Cumulative Bases plot
+                            if hasattr(trace, 'y') and len(trace.y) > 0:
+                                # Ensure monotonically increasing
+                                trace.y = np.cumsum(np.abs(trace.y))
+                        
+                        fig.add_trace(trace, row=row, col=col)
+                
+                # Check if this is likely 16S data (average read length around 1500 bp)
+                avg_read_length = self.qc_app.get_average_read_length(selected_sample)
+                if 1300 <= avg_read_length <= 1700:  # Typical 16S range
+                    # Add 16S reference line to read length plot
+                    fig.add_hline(
+                        y=1500,
+                        line=dict(color="red", width=2, dash="dash"),
+                        annotation_text="Typical 16S length (1500 bp)",
+                        annotation_position="top right",
+                        row=1, col=1
+                    )
+                
+                # Update layout with better styling
+                fig.update_layout(
+                    template="plotly_white",
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    ),
+                    margin=dict(l=50, r=50, t=100, b=50),
+                    font=dict(family="Arial", size=12),
+                    height=800,
+                    title=dict(
+                        text=f"QC Metrics for Sample: {selected_sample}",
+                        x=0.5,
+                        xanchor="center"
+                    )
+                )
+                
+                # Update axes for better readability
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                
+                # Specific updates for each subplot
+                fig.update_xaxes(title_text="Read Length (bp)", row=1, col=1)
+                fig.update_yaxes(title_text="Count", row=1, col=1)
+                
+                fig.update_xaxes(title_text="GC Content (%)", row=1, col=2)
+                fig.update_yaxes(title_text="Frequency", row=1, col=2)
+                
+                fig.update_xaxes(title_text="Read Length (bp)", row=2, col=1)
+                fig.update_yaxes(title_text="Cumulative Bases", row=2, col=1)
+                
+                fig.update_xaxes(title_text="Quality Score", row=2, col=2)
+                fig.update_yaxes(title_text="Count", row=2, col=2)
+                
+                return fig
+                
+            except Exception as e:
+                print(f"Error in update_qc_plots: {str(e)}")
+                empty_fig = go.Figure()
+                empty_fig.update_layout(
+                    title="Error loading QC plots",
+                    annotations=[{
+                        'text': str(e),
+                        'xref': 'paper',
+                        'yref': 'paper',
+                        'showarrow': False,
+                        'font': {'size': 14}
+                    }]
+                )
+                return empty_fig
+
+        @self.app.callback(
+            [Output('read-length-dist', 'figure'),
+             Output('quality-dist', 'figure'),
+             Output('gc-dist', 'figure'),
+             Output('base-composition', 'figure')],
+            [Input('sample-selector', 'value')]
+        )
+        def update_qc_sample_plots(selected_sample):
+            """Update QC plots for the selected sample."""
+            if not hasattr(self, 'user_id'):
+                return [go.Figure() for _ in range(4)]
+
+            try:
+                # Use the cached QC instance
+                qc_instance = self.qc_app
+                
+                # If no sample is selected, use the first available sample
+                if not selected_sample and hasattr(qc_instance, 'stats_df') and not qc_instance.stats_df.empty:
+                    selected_sample = qc_instance.stats_df['sample_name'].iloc[0]
+                
+                if not selected_sample:
+                    return [go.Figure() for _ in range(4)]
+
+                # Let QC class handle the plot creation with caching
+                return qc_instance.update_qc_plots(selected_sample)
+                
+            except Exception as e:
+                logger.error(f"Error in update_qc_sample_plots: {str(e)}")
+                return [go.Figure() for _ in range(4)]
+
+        @self.app.callback(
+            Output("analysis-output", "children"),
+            Input("analyze-button", "n_clicks"),
+            [State("sample-select-value-tax", "value")],
+            prevent_initial_call=True
+        )
+        def analyze_taxonomy_button_clicked(n_clicks, selected_samples):
+            if n_clicks is None:
+                raise PreventUpdate
+            
+            try:
+                # Filter data for selected samples
+                df_to_analyze = self.taxonomy_app.df_sorted.copy()
+                if selected_samples:
+                    df_to_analyze = df_to_analyze[df_to_analyze['sample_id'].isin(selected_samples)]
+                
+                if df_to_analyze.empty:
+                    return "No data found for selected samples"
+                
+                # Generate analysis
+                analysis_json = self.taxonomy_app.analyze_taxonomy_data(df_to_analyze)
+                
+                return analysis_json
+                
+            except Exception as e:
+                error_msg = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                    "debug_info": {
+                        "selected_samples": selected_samples,
+                        "df_shape": self.taxonomy_app.df_sorted.shape if hasattr(self.taxonomy_app, 'df_sorted') else None
+                    }
+                }
+                return json.dumps(error_msg)
+
+        @self.app.callback(
+            Output('date-range-picker', 'disabled'),
+            [Input('use-date-range', 'checked')]
+        )
+        def toggle_date_picker(use_date_range):
+            return not use_date_range
+
+        @self.app.callback(
+            Output("download-pdf", "data"),
+            Input("download-pdf-button", "n_clicks"),
+            [State('project-select-horizon', 'value'),
+             State('subproject-select-horizon', 'value'),
+             State('taxa-count', 'value')],
+            prevent_initial_call=True
+        )
+        def download_horizon_pdf(n_clicks, selected_project, selected_subproject, taxa_count):
+            if not n_clicks:
+                raise PreventUpdate
+
+            try:
+                print("\n=== Debug: download_horizon_pdf ===")
+                print(f"Generating PNG for project: {selected_project}")
+                
+                # Get filtered data
+                df = self.horizon_app.df.copy()
+                if selected_project and selected_project != 'ALL':
+                    df = df[df['project_id'].astype(str).str.strip() == str(selected_project).strip()]
+                if selected_subproject and selected_subproject != 'ALL':
+                    df = df[df['subproject_id'].astype(str).str.strip() == str(selected_subproject).strip()]
+                
+                
+                if len(df) == 0:
+                    raise PreventUpdate
+                
+                # Generate plot HTML with download flag
+                html_content = self.horizon_app._get_horizon_plot_html(
+                    df=df,
+                    taxa_count=taxa_count or 20,
+                    download_triggered=True
+                )
+                
+                if html_content is None:
+                    raise PreventUpdate
+
+                # Return empty data since the download is handled by JavaScript
+                return None
+                
+            except Exception as e:
+                print(f"Error in download_horizon_pdf: {str(e)}")
+                traceback.print_exc()
+                raise PreventUpdate
+
+        @self.app.callback(
+            Output("loading-overlay-content", "children"),
+            [Input("project-select-horizon", "value"),
+             Input("subproject-select-horizon", "value"),
+             Input("taxa-count", "value")],
+            prevent_initial_call=True
+        )
+        def update_loading_overlay(selected_project, selected_subproject, taxa_count):
+            """Update loading overlay when inputs change."""
+            return ""  # Return empty string to trigger loading animation
+
+        @self.app.callback(
+            Output('circos-plot', 'children'),
+            [
+                Input('mag-table', 'selected_rows'),
+                Input('gene-search-button', 'n_clicks')
+            ],
+            [State('mag-table', 'data'),
+             State('gene-search', 'value')],
+            prevent_initial_call=False
+        )
+        def update_circos_plot(selected_rows, search_clicks, table_data, search_term):
+            """Update the circos plot based on the selected MAG."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return html.Div("Select a MAG from the table to view the circos plot.", className="alert alert-info")
+            
+            try:
+                if not selected_rows or not table_data:
+                    return html.Div("Select a MAG from the table to view the circos plot.", className="alert alert-info")
+                
+                selected_row = table_data[selected_rows[0]]
+                if self.mags_app:
+                    return self.mags_app.create_dashbio_circos_plot(selected_row)
+                else:
+                    return html.Div("MAGs app not initialized properly.", className="alert alert-danger")
+            except Exception as e:
+                logger.error(f"Error updating circos plot: {str(e)}", exc_info=True)
+                return html.Div(f"Error: {str(e)}", className="alert alert-danger")
+
+        @self.app.callback(
+            Output("download-svg-taxonomy", "data"),
+            [Input("btn-download-taxonomy-svg", "n_clicks")],
+            [State("graph1", "figure"),
+             State("width-input", "value"),
+             State("height-input", "value")],
+            prevent_initial_call=True
+        )
+        def download_taxonomy_svg(n_clicks, figure, width, height):
+            """Download taxonomy figure as SVG."""
+            if not n_clicks or not figure:
+                raise PreventUpdate
+                
+            try:
+                logger.info("Exporting taxonomy figure as SVG")
+                
+                # Make a copy of the figure to modify
+                fig = figure.copy()
+                
+                # Apply width and height if provided
+                if width and height:
+                    fig['layout']['width'] = width
+                    fig['layout']['height'] = height
+                
+                # Convert the figure to SVG format
+                svg_data = pio.to_image(fig, format='svg')
+                
+                # Generate the timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"taxonomy_plot_{timestamp}.svg"
+                
+                # Return the SVG data
+                return dict(
+                    content=svg_data.decode('utf-8'),
+                    filename=filename
+                )
+            except Exception as e:
+                logger.error(f"Error exporting taxonomy SVG: {str(e)}", exc_info=True)
+                raise PreventUpdate
+
+        @self.app.callback(
+            Output("download-csv", "data"),
+            [Input("btn-download-csv-taxonomy", "n_clicks")],
+            [State("sample-select-value-tax", "value")],
+            prevent_initial_call=True
+        )
+        def download_taxonomy_csv(n_clicks, selected_samples):
+            """Download all taxonomy data as CSV."""
+            if not n_clicks or not selected_samples:
+                raise PreventUpdate
+                
+            try:
+                logger.info(f"Exporting full taxonomy data for {len(selected_samples) if selected_samples else 0} samples")
+                # Filter data for selected samples
+                df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                
+                # Get normalized counts
+                normalized_counts_df = self.taxonomy_app.calculate_normalized_counts()
+                
+                # Merge with normalized counts (if available)
+                if normalized_counts_df is not None and not normalized_counts_df.empty:
+                    # Make sure to merge on the right columns
+                    merge_columns = ['sample_id', 'taxonomy']
+                    df_filtered = pd.merge(
+                        df_filtered,
+                        normalized_counts_df[['sample_id', 'taxonomy', 'normalized_count']],
+                        on=merge_columns,
+                        how='left'
+                    )
+                
+                # Clean up the dataframe before export - exclude internal columns and fix formatting
+                export_columns = [
+                    'taxonomy', 'tax_genus', 'tax_family', 'tax_order', 'tax_class', 'tax_phylum', 'tax_superkingdom',
+                    'sample_id', 'project_id', 'subproject', 'date',
+                    'abundance', 'count', 'normalized_count'
+                ]
+                
+                # Only include columns that exist in the dataframe
+                export_columns = [col for col in export_columns if col in df_filtered.columns]
+                
+                # Create a clean export dataframe
+                export_df = df_filtered[export_columns].copy()
+                
+                # Rename columns to be more descriptive
+                column_renames = {
+                    'abundance': 'relative_abundance',
+                    'count': 'raw_count',
+                    'normalized_count': 'normalized_count_per_10M_bases'
+                }
+                export_df.rename(columns={k: v for k, v in column_renames.items() if k in export_df.columns}, inplace=True)
+                
+                # Generate the timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"taxonomy_data_{timestamp}.csv"
+                
+                # Return the data as CSV
+                return dict(
+                    content=export_df.to_csv(index=False),
+                    filename=filename
+                )
+            except Exception as e:
+                logger.error(f"Error exporting taxonomy CSV: {str(e)}", exc_info=True)
+                raise PreventUpdate
+
+        @self.app.callback(
+            Output("download-counts", "data"),
+            [Input("btn-download-counts-taxonomy", "n_clicks")],
+            [State("sample-select-value-tax", "value"),
+             State("tax-rank-dropdown-tax", "value")],
+            prevent_initial_call=True
+        )
+        def download_taxonomy_counts(n_clicks, selected_samples, tax_rank):
+            """Download taxonomy count data as CSV."""
+            if not n_clicks or not selected_samples:
+                raise PreventUpdate
+                
+            try:
+                logger.info(f"Exporting taxonomy count data for {len(selected_samples) if selected_samples else 0} samples")
+                
+                # Filter data for selected samples
+                df_filtered = self.taxonomy_app.df[self.taxonomy_app.df['sample_id'].isin(selected_samples)]
+                
+                # Generate pivot table of counts by taxonomic rank
+                if tax_rank not in df_filtered.columns and tax_rank != "species":
+                    tax_rank = "species"  # Default to species if selected rank not found
+                
+                # For species level, we use the 'taxonomy' column
+                pivot_column = tax_rank if tax_rank != "species" else "taxonomy"
+                
+                # Get normalized counts
+                normalized_counts_df = self.taxonomy_app.calculate_normalized_counts()
+                
+                # If we have normalized counts, merge them into our filtered data
+                if normalized_counts_df is not None and not normalized_counts_df.empty:
+                    # Make sure to merge on the right columns
+                    merge_columns = ['sample_id', 'taxonomy']
+                    df_filtered = pd.merge(
+                        df_filtered,
+                        normalized_counts_df[['sample_id', 'taxonomy', 'normalized_count']],
+                        on=merge_columns,
+                        how='left'
+                    )
+                    
+                    # Fill NA values with 0 for normalized_count
+                    if 'normalized_count' in df_filtered.columns:
+                        df_filtered['normalized_count'].fillna(0, inplace=True)
+                
+                # Create pivot tables for raw counts, abundances, and normalized counts (if available)
+                raw_counts_pivot = df_filtered.pivot_table(
+                    index=[pivot_column], 
+                    columns=['sample_id'], 
+                    values='count', 
+                    aggfunc='sum',
+                    fill_value=0
+                )
+                
+                abundance_pivot = df_filtered.pivot_table(
+                    index=[pivot_column], 
+                    columns=['sample_id'], 
+                    values='abundance', 
+                    aggfunc='sum',
+                    fill_value=0
+                )
+                
+                # Add prefixes with clear descriptions to distinguish column types
+                raw_counts_pivot.columns = [f"raw_count_{col}" for col in raw_counts_pivot.columns]
+                abundance_pivot.columns = [f"relative_abundance_{col}" for col in abundance_pivot.columns]
+                
+                # Join the two pivot tables
+                combined_pivot = raw_counts_pivot.join(abundance_pivot)
+                
+                # Add normalized counts if available
+                if 'normalized_count' in df_filtered.columns:
+                    normalized_counts_pivot = df_filtered.pivot_table(
+                        index=[pivot_column], 
+                        columns=['sample_id'], 
+                        values='normalized_count', 
+                        aggfunc='sum',
+                        fill_value=0
+                    )
+                    normalized_counts_pivot.columns = [f"normalized_count_per_10M_bases_{col}" for col in normalized_counts_pivot.columns]
+                    combined_pivot = combined_pivot.join(normalized_counts_pivot)
+                
+                # Generate the timestamp for the filename
+                timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"taxonomy_counts_{tax_rank}_{timestamp}.csv"
+                
+                # Return the data as CSV
+                return dict(
+                    content=combined_pivot.reset_index().to_csv(index=False),
+                    filename=filename
+                )
+            except Exception as e:
+                logger.error(f"Error exporting taxonomy counts CSV: {str(e)}", exc_info=True)
+                raise PreventUpdate
+            
+        @self.app.callback(
+            Output('sequence-selector', 'options'),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_sequence_options(selected_rows, table_data):
+            """Update sequence selector dropdown options when a MAG is selected."""
+            try:
+                if not selected_rows or not table_data:
+                    logger.warning("No rows selected or no table data available")
+                    return []
+                
+                # Get selected row data
+                selected_row = table_data[selected_rows[0]]
+                logger.info(f"Selected row data: {selected_row}")
+                
+                # Find the MAG name - try both 'Name' and 'name' fields
+                selected_mag_name = None
+                for key in ['Name', 'name']:
+                    if key in selected_row and selected_row[key]:
+                        selected_mag_name = selected_row[key]
+                        break
+                
+                if not selected_mag_name:
+                    logger.error("Could not find name in selected row")
+                    return []
+                
+                logger.info(f"Looking for MAG with name: '{selected_mag_name}'")
+                
+                # Get MAG data
+                mag_data = self.mags_app.mag_data
+                
+                if mag_data is None or mag_data.empty:
+                    logger.warning("mag_data is empty, trying to reload from database")
+                    mag_data = self.mags_app.get_mag_data()
+                    if mag_data is None or mag_data.empty:
+                        logger.error("Failed to load MAG data from database")
+                        return []
+                
+                # Try multiple approaches to find the matching MAG
+                # First try exact match
+                mag_matches = mag_data[mag_data['name'] == selected_mag_name]
+                
+                # If no exact match, try case-insensitive
+                if mag_matches.empty:
+                    mag_matches = mag_data[mag_data['name'].astype(str).str.lower() == selected_mag_name.lower()]
+                    
+                # If still no match, try contains
+                if mag_matches.empty:
+                    mag_matches = mag_data[mag_data['name'].astype(str).str.contains(selected_mag_name, case=False, na=False)]
+                
+                if mag_matches.empty:
+                    logger.error(f"No MAG data found for '{selected_mag_name}'")
+                    logger.info(f"Available MAGs: {mag_data['name'].tolist()[:5]}...")
+                    return []
+                
+                # Get the first matching MAG
+                mag_record = mag_matches.iloc[0]
+                logger.info(f"Found MAG data: {mag_record['name']}")
+                
+                # Check if FASTA data exists
+                if 'fasta_file' not in mag_record or not mag_record['fasta_file'] or mag_record['fasta_file'] == 'empty':
+                    logger.error(f"No FASTA data found for MAG {selected_mag_name}")
+                    return []
+                    
+                # Parse the FASTA data
+                fasta_data = mag_record['fasta_file']
+                sequences = self.mags_app.parse_fasta_for_viewer(fasta_data)
+                
+                if not sequences:
+                    logger.error("No sequences parsed from FASTA data")
+                    return []
+                    
+                # Create dropdown options
+                options = []
+                for record in sequences:
+                    seq_id = record['id']
+                    seq_len = len(record['sequence'])
+                    options.append({
+                        'label': f"{seq_id} ({seq_len:,} bp)", 
+                        'value': seq_id
+                    })
+                    
+                logger.info(f"Created {len(options)} dropdown options")
+                return options
+                
+            except Exception as e:
+                logger.error(f"Error in update_sequence_options: {str(e)}", exc_info=True)
+                return []
+        
+        # Fix for sequence selector dropdown
+        @self.app.callback(
+            Output('sequence-selector', 'options'),
+            [Input('mag-table', 'selected_rows')],
+            [State('mag-table', 'data')]
+        )
+        def update_sequence_selector(selected_rows, table_data):
+            """Update sequence selector dropdown options based on selected MAG."""
+            if not selected_rows or not table_data:
+                return []
+                
+            try:
+                selected_row = table_data[selected_rows[0]]
+                if not selected_row or not self.mags_app:
+                    return []
+                    
+                # Get FASTA data
+                fasta_data = selected_row.get('fasta_file', '')
+                if not fasta_data:
+                    return []
+                    
+                # Parse the FASTA to get sequences
+                sequences = self.mags_app.parse_fasta_for_viewer(fasta_data)
+                if not sequences:
+                    return []
+                    
+                # Create dropdown options
+                options = []
+                for seq in sequences:
+                    seq_id = seq.get('id', '')
+                    length = len(seq.get('sequence', ''))
+                    options.append({
+                        'label': f"{seq_id} ({length:,} bp)",
+                        'value': seq_id
+                    })
+                    
+                # Sort by length (largest first)
+                options = sorted(options, key=lambda x: int(x['label'].split('(')[1].split(' bp)')[0].replace(',', '')), reverse=True)
+                
+                return options
+                
+            except Exception as e:
+                logger.error(f"Error updating sequence selector: {str(e)}", exc_info=True)
+                return []
+                
+        # Set default sequence when options change
+        @self.app.callback(
+            Output('sequence-selector', 'value'),
+            [Input('sequence-selector', 'options')],
+            prevent_initial_call=True
+        )
+        def set_default_sequence(options):
+            """Set the default sequence to the first option when options change."""
+            if not options or len(options) == 0:
+                return None
+            return options[0]['value']
+
+        @self.app.callback(
+            Output('sequence-viewer-container', 'children'),
+            [Input('mag-table', 'selected_rows'),
+             Input('sequence-selector', 'value'),
+             Input('gene-search-button', 'n_clicks')],
+            [State('mag-table', 'data'),
+             State('gene-search', 'value')]
+        )
+        def update_sequence_viewer(selected_rows, selected_sequence, search_clicks, table_data, search_term):
+            """Update the sequence viewer."""
+            try:
+                if not selected_rows or not table_data:
+                    return html.Div("Select a MAG from the table to view sequences.", className="alert alert-info")
+                
+                if not selected_sequence:
+                    return html.Div("Select a sequence from the dropdown above.", className="alert alert-info")
+                
+                selected_mag = table_data[selected_rows[0]]
+                mag_id = selected_mag.get("id", "")
+                
+                if not mag_id or not self.mags_app:
+                    return html.Div("Error: Invalid MAG or sequence selection", className="alert alert-danger")
+                
+                # Get the FASTA data
+                try:
+                    fasta_data = self.mags_app.get_mag_data().get(mag_id, {}).get("fasta", {})
+                    if not fasta_data:
+                        return html.Div("No sequence data available for this MAG.", className="alert alert-warning")
+                    
+                    # Find the selected sequence
+                    sequence_data = None
+                    for seq in fasta_data:
+                        if seq.get("header") == selected_sequence:
+                            sequence_data = seq
+                            break
+                    
+                    if not sequence_data:
+                        return html.Div(f"Sequence '{selected_sequence}' not found.", className="alert alert-warning")
+                    
+                    sequence = sequence_data.get("sequence", "")
+                    header = sequence_data.get("header", "")
+                    
+                    # Format the sequence for display
+                    formatted_sequence = ""
+                    for i in range(0, len(sequence), 60):
+                        chunk = sequence[i:i+60]
+                        formatted_lines = [chunk[j:j+10] for j in range(0, len(chunk), 10)]
+                        formatted_sequence += " ".join(formatted_lines) + "\n"
+                    
+                    # Handle search if needed
+                    highlight_positions = []
+                    match_info = ""
+                    if search_term and search_clicks:
+                        search_term = search_term.upper()
+                        sequence_upper = sequence.upper()
+                        start_pos = 0
+                        match_count = 0
+                        while True:
+                            pos = sequence_upper.find(search_term, start_pos)
+                            if pos == -1:
+                                break
+                            highlight_positions.append(pos)
+                            match_count += 1
+                            start_pos = pos + 1
+                        
+                        if match_count > 0:
+                            match_info = f"Found {match_count} matches for '{search_term}'"
+                        else:
+                            match_info = f"No matches found for '{search_term}'"
+                    
+                    return html.Div([
+                        html.Div(match_info, id="match-info", style={"marginBottom": "10px", "fontWeight": "bold"} if match_info else {"display": "none"}),
+                        html.Div([
+                            html.Pre([
+                                html.Code(
+                                    f">{header}\n{formatted_sequence}",
+                                    style={"whiteSpace": "pre-wrap", "wordBreak": "break-all"}
+                                )
+                            ], style={"backgroundColor": "#f5f5f5", "padding": "15px", "borderRadius": "4px", "maxHeight": "500px", "overflowY": "auto"})
+                        ], id="sequence-text-content")
+                    ])
+                    
+                except Exception as e:
+                    logger.error(f"Error retrieving sequence data: {str(e)}", exc_info=True)
+                    return html.Div(f"Error retrieving sequence data: {str(e)}", className="alert alert-danger")
+                
+            except Exception as e:
+                logger.error(f"Error updating sequence viewer: {str(e)}", exc_info=True)
+                return html.Div(f"Error: {str(e)}", className="alert alert-danger")
+
+        @self.app.callback(
+            Output('copy-status', 'children'),
+            [Input('copy-all-button', 'n_clicks'),
+             Input('copy-selected-button', 'n_clicks')]
+        )
+        def copy_sequence_to_clipboard(n_clicks_all, n_clicks_selected):
+            """Display appropriate copy instructions."""
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return ""
+            
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            if button_id == 'copy-all-button':
+                return html.Div([
+                    html.P("Click in the yellow box, press Cmd+A to select all, then Cmd+C to copy.", 
+                          style={'color': 'green', 'fontWeight': 'bold', 'marginBottom': '0px'})
+                ])
+            elif button_id == 'copy-selected-button':
+                return html.Div([
+                    html.P("Select the text you want in the yellow box, then press Cmd+C to copy.", 
+                          style={'color': 'green', 'fontWeight': 'bold', 'marginBottom': '0px'})
+                ])
+            
+            return ""
+
+        def search_sequence_content(n_clicks, search_text, view_type, selected_rows, selected_sequence, table_data, current_viewer):
+            """Search and highlight matches in sequence content."""
+            if not n_clicks or not search_text or not current_viewer:
+                return dash.no_update, dash.no_update
+            
+            # ... existing function body ...
+            
+            return dash.no_update, dash.no_update
+
+        # CSS styling is handled through inline styles
+
+    def _create_mags_content(self):
+        """Create the MAGs content."""
+        return html.Div([
+            # Display warnings
+            html.Div(id='mag-genome-warning', className="alert alert-warning", style={'display': 'none'}),
+            
+            # Top controls
+            html.Div([
+                html.Div([
+                    html.Label("Visualization Type"),
+                    dcc.RadioItems(
+                        id='viz-toggle',
+                        options=[
+                            {'label': 'Genome Browser', 'value': 'browser'},
+                            {'label': 'CIRCOS Plot', 'value': 'circos'}
+                        ],
+                        value='browser',
+                        labelStyle={'display': 'inline-block', 'marginRight': '10px'}
+                    )
+                ], style={'flex': 1})
+            ], style={'display': 'flex', 'marginBottom': '20px'}),
+            
+            # Rest of the MAG content
+            html.Div(id='mag-content'),
+            
+            # Add gene content plot section
+            html.Div([
+                html.H4("Gene Content Distribution", className="section-title"),
+                dcc.Graph(id='gene-content-plot', style={'height': '400px'})
+            ], className="section-container", style={'marginTop': '20px'}),
+            
+            # MAG info section
+            html.Div(id='mag-info-section', style={'display': 'none'}, children=[
+                # Overview section
+                html.Div([
+                    html.H4("MAG Overview", className="section-title"),
+                    html.Div(id='mag-overview', className="overview-container")
+                ], className="section-container"),
+                
+                # Genome section
+                html.Div([
+                    html.H4("Genome Visualization", className="section-title"),
+                    html.Div([
+                        # Controls for sequence viewer
+                        html.Div([
+                            dcc.Dropdown(id='sequence-selector', placeholder="Select a contig...", style={'width': '100%'}),
+                            dcc.RadioItems(
+                                id='sequence-view-type',
+                                options=[
+                                    {'label': 'Whole Genome', 'value': 'whole-genome'},
+                                    {'label': 'Features', 'value': 'features'}
+                                ],
+                                value='whole-genome',
+                                labelStyle={'display': 'inline-block', 'marginRight': '10px'}
+                            ),
+                            html.Div([
+                                html.Button("Copy All", id="copy-all-button", className="btn btn-sm btn-primary"),
+                                html.Div(id="copy-status", style={'marginLeft': '10px', 'display': 'inline-block'})
+                            ], style={'marginTop': '10px'})
+                        ], style={'marginBottom': '15px'}),
+                        
+                        # Sequence viewer container
+                        html.Div(id='sequence-viewer-container', style={'border': '1px solid #ddd', 'borderRadius': '5px', 'padding': '10px'}),
+                        
+                        # Add download buttons container
+                        html.Div([
+                            html.Button("Download Genome (FASTA)", id="download-genome-button", className="btn btn-primary mr-2"),
+                            html.Button("Download Annotations (GFF)", id="download-annotations-button", className="btn btn-secondary")
+                        ], style={'marginTop': '15px'}),
+                        dcc.Download(id="download-genome"),
+                        dcc.Download(id="download-annotations")
+                    ], className="content-section")
+                ], className="section-container"),
+                
+                # Genome analysis
+                html.Div([
+                    html.H4("Gene Search", className="section-title"),
+                    html.Div([
+                        dcc.Input(id='gene-search', type='text', placeholder='Search for gene or product...', style={'width': '80%'}),
+                        html.Button('Search', id='gene-search-button', className="btn btn-primary ml-2")
+                    ], style={'marginBottom': '10px'}),
+                    html.Div(id='gene-search-results')
+                ], className="section-container"),
+            ])
+        ])
+        

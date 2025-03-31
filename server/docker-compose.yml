@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    command: gunicorn --chdir mmonitor --workers 3 --bind :8025 mmonitor.wsgi:application
+    volumes:
+      - .:/app
+      - static_volume:/app/static
+      - media_volume:/app/media
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_DATABASE: mmonitor
+      MYSQL_USER: mmonitoruser
+      MYSQL_PASSWORD: mmonitorpass
+      MYSQL_ROOT_PASSWORD: rootpass
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - /etc/nginx/ssl:/etc/nginx/ssl
+      - static_volume:/static
+      - media_volume:/media
+    depends_on:
+      - web
+
+volumes:
+  mysql_data:
+  static_volume:
+  media_volume:

@@ -1,0 +1,909 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="banner-container">
+    <div class="banner-gradient"></div>
+    <img src="{% static 'images/mmonitor_banner.png' %}" alt="" class="banner-image" />
+</div>
+
+<div class="page-wrapper">
+    <div class="content-container">
+        <div class="download-section">
+            <h2>Download <span class="version">v0.2.0</span></h2>
+            <p>Mac and Linux builds are available on <a href="https://www.github.com/lucast122/MMonitor"
+                    target="_blank">GitHub</a></p>
+        </div>
+
+        <section>
+            <h2>Introduction</h2>
+            <p>MMonitor is software designed for monitoring metagenomes over time, using data from nanopore sequencing.
+                It includes a Python application for desktop use, which manages the analysis of sequence data and
+                metadata for taxonomic and functional insight, as well as quality control. The accompanying webserver
+                Dashboard provides a platform for users to view their analysis results after logging in. Developed with
+                input from laboratory researchers, MMonitor supports real-time data analysis to offer immediate sample
+                overviews, and is flexible for use on personal computers or via external servers for enhanced processing
+                capabilities.</p>
+
+            <section class="workflow-section">
+                <div class="workflow-container">
+                    <img src="{% static 'images/mmonitor-overview.png' %}" alt="MMonitor Workflow Overview"
+                        class="workflow-image">
+                    <div class="workflow-description">
+                        <div class="workflow-step">
+                            <div class="step-header">
+                                <span class="step-letter">A</span>
+                                <h3>Workflow</h3>
+                            </div>
+                            <p>Get started by preparing your samples and running them through nanopore
+                                sequencing. MMonitor consists of two parts: the Desktop application that you'll need to
+                                download
+                                to run the analysis pipelines, and this web Dashboard where you can view and explore
+                                your
+                                results.</p>
+                            <p>Once your sequencing is complete, MMonitor Desktop will automatically process your raw
+                                data
+                                and make the results available in your personal dashboard. You can monitor the analysis
+                                progress
+                                in real-time as your data comes in.</p>
+                        </div>
+
+                        <div class="workflow-step">
+                            <div class="step-header">
+                                <span class="step-letter">B</span>
+                                <h3>Analysis Pipeline</h3>
+                            </div>
+                            <p>MMonitor Desktop runs your sequencing data through our optimized pipeline. Your reads are
+                                first quality controlled to ensure the best results. Then, it performs two
+                                types of analysis depending on input data:</p>
+                            <ul class="analysis-types">
+                                <li>Identify what organisms are in your sample using taxonomic profiling</li>
+                                <li>Assemble and annotate complete genomes from your data using metagenome assembly and
+                                    binning</li>
+                            </ul>
+                            <p>Each genome is automatically checked for quality and annotated with functional
+                                information.
+                            </p>
+                        </div>
+
+
+                        <div class="workflow-step">
+                            <div class="step-header">
+                                <span class="step-letter">C</span>
+                                <h3>Dashboard Apps</h3>
+                            </div>
+                            <div class="dashboard-apps">
+                                <div class="app-item" data-image="{% static 'images/qc.png' %}" data-title="QC">
+                                    <div class="app-content">
+                                        <h4>QC</h4>
+                                        <p>Overview of common quality metrics of the input data</p>
+                                    </div>
+                                    <div class="app-preview">
+                                        <img src="{% static 'images/qc.png' %}" alt="QC Dashboard Preview">
+                                        <div class="preview-overlay">Click to enlarge</div>
+                                    </div>
+                                </div>
+                                <div class="app-item" data-image="{% static 'images/tax.png' %}" data-title="Taxonomy">
+                                    <div class="app-content">
+                                        <h4>Taxonomy</h4>
+                                        <p>Analyze the taxonomic composition of metagenome samples</p>
+                                    </div>
+                                    <div class="app-preview">
+                                        <img src="{% static 'images/tax.png' %}" alt="Taxonomy Dashboard Preview">
+                                        <div class="preview-overlay">Click to enlarge</div>
+                                    </div>
+                                </div>
+                                <div class="app-item" data-image="{% static 'images/diversity.png' %}"
+                                    data-title="Diversity">
+                                    <div class="app-content">
+                                        <h4>Diversity</h4>
+                                        <p>Overview of diversity metrics, including alpha and beta diversity, PCoA plots
+                                            and
+                                            rarefaction curves</p>
+                                    </div>
+                                    <div class="app-preview">
+                                        <img src="{% static 'images/diversity.png' %}"
+                                            alt="Diversity Dashboard Preview">
+                                        <div class="preview-overlay">Click to enlarge</div>
+                                    </div>
+                                </div>
+                                <div class="app-item" data-image="{% static 'images/corr.png' %}"
+                                    data-title="Correlations">
+                                    <div class="app-content">
+                                        <h4>Correlations</h4>
+                                        <p>Correlate metagenomic data with external metadata to highlight important
+                                            variables</p>
+                                    </div>
+                                    <div class="app-preview">
+                                        <img src="{% static 'images/corr.png' %}" alt="Correlations Dashboard Preview">
+                                        <div class="preview-overlay">Click to enlarge</div>
+                                    </div>
+                                </div>
+                                <div class="app-item" data-image="{% static 'images/mags.png' %}" data-title="MAGs">
+                                    <div class="app-content">
+                                        <h4>MAGs</h4>
+                                        <p>Analyze MAGs with genome visualization and annotations</p>
+                                    </div>
+                                    <div class="app-preview">
+                                        <img src="{% static 'images/mags.png' %}" alt="MAGs Dashboard Preview">
+                                        <div class="preview-overlay">Click to enlarge</div>
+                                    </div>
+                                </div>
+                                <div class="app-item" data-image="{% static 'images/hor.png' %}" data-title="Horizon">
+                                    <div class="app-content">
+                                        <h4>Horizon</h4>
+                                        <p>Visualize taxonomic abundance changes over time with interactive horizon
+                                            charts
+                                        </p>
+                                    </div>
+                                    <div class="app-preview">
+                                        <img src="{% static 'images/hor.png' %}" alt="Horizon Dashboard Preview">
+                                        <div class="preview-overlay">Click to enlarge</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Image Modal -->
+                            <div id="imageModal" class="modal">
+                                <div class="modal-content">
+                                    <span class="close-button" onclick="closeModal()">&times;</span>
+                                    <h3 id="modalTitle"></h3>
+
+                                    <!-- Image container with loading indicator -->
+                                    <div class="image-container">
+                                        <div class="image-loading">
+                                            <div class="spinner"></div>
+                                            <p>Loading image...</p>
+                                        </div>
+                                        <img id="modalImage" src="" alt="App Preview">
+                                    </div>
+
+                                    <!-- Image caption -->
+                                    <p id="modalDescription" class="modal-description"></p>
+
+                                    <!-- Image controls -->
+                                    <div class="modal-controls">
+                                        <button class="nav-button prev-button" onclick="navigateImages(-1)">&larr;
+                                            Previous</button>
+                                        <div class="zoom-controls">
+                                            <button onclick="scaleImage(0.9)" title="Zoom Out">-</button>
+                                            <button onclick="scaleImage(1)" title="Reset Zoom">Reset</button>
+                                            <button onclick="scaleImage(1.1)" title="Zoom In">+</button>
+                                        </div>
+                                        <button class="nav-button next-button" onclick="navigateImages(1)">Next
+                                            &rarr;</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="installation-section">
+                <div class="content-wrapper">
+                    <h2>Installation and Documentation</h2>
+                    <p>For installation instructions and detailed documentation, please visit our
+                        <a href="https://www.github.com/lucast122/MMonitor" target="_blank">GitHub repository</a>.
+                    </p>
+                </div>
+            </section>
+    </div>
+</div>
+
+<style>
+    /* Page wrapper to handle background */
+    .page-wrapper {
+        background-color: #ffffff;
+        width: 100%;
+        min-height: calc(100vh - 60px);
+        padding: 2rem 0;
+    }
+
+    /* Banner styles specific to index page */
+    .banner-container {
+        width: 100%;
+        background-color: #16262C;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: none;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .banner-gradient {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(180deg,
+                #16262C 0%,
+                #16262C 12%,
+                rgba(255, 255, 255, 0.95) 12.5%,
+                rgba(255, 255, 255, 1) 13%);
+        z-index: 1;
+    }
+
+    .banner-image {
+        width: 100%;
+        max-width: 1200px;
+        height: auto;
+        display: block;
+        margin: 0;
+        padding: 0;
+        position: relative;
+        z-index: 2;
+    }
+
+    .content-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 1rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .download-section,
+    section {
+        text-align: center;
+        margin: 2rem 0;
+        padding: 2rem;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 1px solid #eaeaea;
+    }
+
+    .version {
+        color: #228be6;
+        font-weight: 600;
+    }
+
+    h2 {
+        color: #16262C;
+        border-bottom: 2px solid #228be6;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        font-weight: 600;
+    }
+
+    p {
+        color: #444444;
+        line-height: 1.7;
+        font-size: 1.05rem;
+    }
+
+    a {
+        color: #228be6;
+        text-decoration: none;
+        transition: color 0.2s ease;
+    }
+
+    a:hover {
+        color: #1971c2;
+        text-decoration: underline;
+    }
+
+    /* Workflow section styles */
+    .workflow-section {
+        margin: 3rem 0;
+    }
+
+    .workflow-container {
+        width: 100%;
+        margin: 2rem 0;
+        border-radius: 8px;
+        overflow: hidden;
+        background-color: #ffffff;
+        padding: 0;
+    }
+
+    .workflow-image {
+        width: 100%;
+        height: auto;
+        display: block;
+        max-width: 1000px;
+        margin: 0 auto;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    .workflow-description {
+        text-align: left;
+        margin-top: 0;
+        padding: 2rem;
+        background-color: #ffffff;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .workflow-step {
+        margin-bottom: 2.5rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid #eaeaea;
+    }
+
+    .workflow-step:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+
+    .step-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.2rem;
+    }
+
+    .step-letter {
+        color: #16262C;
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin-right: 1.2rem;
+        letter-spacing: 0.5px;
+        text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.05);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .step-header h3 {
+        margin: 0;
+        color: #16262C;
+        font-size: 1.25rem;
+        font-weight: 500;
+        padding-top: 4px;
+    }
+
+    .analysis-types {
+        list-style: none;
+        padding-left: 1.5rem;
+        margin: 1rem 0;
+    }
+
+    .analysis-types li {
+        position: relative;
+        padding: 0.5rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .analysis-types li:before {
+        content: "•";
+        color: #228be6;
+        font-weight: bold;
+        position: absolute;
+        left: 0;
+    }
+
+    .dashboard-apps {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .app-item {
+        background-color: #ffffff;
+        padding: 1.1rem;
+        border-radius: 8px;
+        border-left: 4px solid #228be6;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .app-item:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #1971c2;
+    }
+
+    .app-content {
+        position: relative;
+        z-index: 2;
+        transition: all 0.3s ease;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .app-item:hover .app-content {
+        opacity: 0;
+        /* Make text completely disappear */
+    }
+
+    .app-item h4 {
+        color: #16262C;
+        margin: 0 0 0.5rem 0;
+        font-size: 1.15rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+
+    .app-item p {
+        margin: 0;
+        font-size: 0.92rem;
+        color: #4a5568;
+        line-height: 1.5;
+        flex: 1;
+    }
+
+    .app-preview {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 0;
+        opacity: 0;
+        background: linear-gradient(to bottom, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+        transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 8px;
+    }
+
+    .preview-overlay {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        color: #fff;
+        font-weight: 500;
+        font-size: 0.75rem;
+        padding: 7px 14px;
+        background-color: rgba(34, 139, 230, 0.95);
+        border-radius: 20px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        z-index: 3;
+        transition: all 0.3s ease;
+        width: auto;
+        white-space: nowrap;
+    }
+
+    .app-preview img {
+        max-width: 95%;
+        max-height: calc(100% - 45px);
+        object-fit: contain;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(20px) scale(0.95);
+        opacity: 0;
+        transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .app-item:hover .app-preview {
+        height: 100%;
+        opacity: 1;
+        padding: 0.8rem;
+    }
+
+    .app-item:hover .app-preview img {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        transition-delay: 0.1s;
+    }
+
+    .app-item:hover .preview-overlay {
+        transform: translateX(-50%) translateY(-3px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Ensure no gaps between header and banner */
+    .main-header {
+        margin-bottom: 0 !important;
+        border-bottom: none !important;
+        background-color: #16262C !important;
+    }
+
+    /* Modal styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.8);
+        transition: all 0.3s ease;
+    }
+
+    .modal-content {
+        background-color: #fff;
+        margin: 5% auto;
+        padding: 30px;
+        width: 90%;
+        max-width: 1000px;
+        border-radius: 8px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        position: relative;
+        animation: modalFadeIn 0.3s;
+        overflow: hidden;
+    }
+
+    @keyframes modalFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .close-button {
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        color: #555;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: color 0.2s;
+        z-index: 10;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.8);
+    }
+
+    .close-button:hover {
+        color: #000;
+        background-color: rgba(255, 255, 255, 1);
+    }
+
+    /* Image container styles */
+    .image-container {
+        position: relative;
+        width: 100%;
+        height: 60vh;
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .image-loading {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba(255, 255, 255, 0.8);
+        z-index: 5;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top: 4px solid #228be6;
+        animation: spin 1s linear infinite;
+        margin-bottom: 10px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    #modalImage {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+
+    #modalImage.loading {
+        opacity: 0.5;
+    }
+
+    #modalTitle {
+        text-align: center;
+        margin-bottom: 15px;
+        color: #16262C;
+        border-bottom: 2px solid #228be6;
+        padding-bottom: 10px;
+        font-size: 1.5rem;
+    }
+
+    .modal-description {
+        text-align: center;
+        margin: 15px 0;
+        color: #444;
+        font-style: italic;
+        padding: 0 20px;
+    }
+
+    .nav-hint {
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 8px;
+        margin-top: 10px;
+        font-style: normal;
+        font-size: 0.85rem;
+        color: #666;
+        text-align: center;
+    }
+
+    /* Modal controls */
+    .modal-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid #eaeaea;
+    }
+
+    .nav-button {
+        background: #228be6;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .nav-button:hover {
+        background: #1c7ed6;
+    }
+
+    .zoom-controls {
+        display: flex;
+        gap: 5px;
+    }
+
+    .zoom-controls button {
+        background: #f1f3f5;
+        border: 1px solid #dee2e6;
+        padding: 5px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .zoom-controls button:hover {
+        background: #e9ecef;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .banner-container {
+            padding: 0;
+        }
+
+        .workflow-container {
+            padding: 15px;
+        }
+
+        section {
+            padding: 1.5rem;
+        }
+
+        p {
+            font-size: 1rem;
+        }
+
+        .workflow-description {
+            padding: 1.5rem;
+        }
+
+        .dashboard-apps {
+            grid-template-columns: 1fr;
+        }
+
+        .app-item {
+            padding: 1rem;
+        }
+
+        .modal-content {
+            width: 95%;
+            margin: 10% auto;
+            padding: 15px;
+        }
+    }
+
+    /* Remove the installation-container class since we're using content-container */
+    .installation-container {
+        display: none;
+    }
+
+    /* Installation section styling */
+    .installation-section {
+        text-align: center;
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border: 1px solid #eaeaea;
+    }
+
+    .content-wrapper {
+        width: 100%;
+        margin: 0 auto;
+    }
+</style>
+
+<script>
+    // Global variables for app items and current index
+    let appItems = [];
+    let currentAppIndex = 0;
+
+    // App descriptions
+    const appDescriptions = {
+        'QC': 'Quality Control dashboard provides comprehensive metrics about your sequencing runs, including read length distribution, quality scores, and GC content analysis.',
+        'Taxonomy': 'Taxonomy visualization allows you to explore the microbial composition of your samples, with interactive hierarchical views of all detected organisms.',
+        'Diversity': 'Diversity analysis tools help you understand the richness and evenness of your samples through alpha and beta diversity metrics, PCoA plots, and rarefaction curves.',
+        'Correlations': 'Correlation dashboard helps identify relationships between taxonomic abundance and environmental variables, highlighting the most significant factors affecting your microbiome.',
+        'MAGs': 'Metagenome-Assembled Genomes (MAGs) visualization lets you explore reconstructed genomes from your samples, with annotation and functional analysis.',
+        'Horizon': 'Horizon charts display temporal patterns in taxonomic abundance over time, allowing you to identify trends, shifts, and stability in microbial communities.'
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Store all app items for navigation
+        appItems = Array.from(document.querySelectorAll('.app-item'));
+
+        // Add click event listeners to all app items using event delegation
+        const dashboardApps = document.querySelector('.dashboard-apps');
+        if (dashboardApps) {
+            dashboardApps.addEventListener('click', function (event) {
+                // Find the closest .app-item parent
+                const appItem = event.target.closest('.app-item');
+                if (appItem) {
+                    const imageSrc = appItem.getAttribute('data-image');
+                    const title = appItem.getAttribute('data-title');
+                    if (imageSrc && title) {
+                        // Find index of current app for navigation
+                        currentAppIndex = appItems.indexOf(appItem);
+                        openModal(imageSrc, title);
+                    }
+                }
+            });
+        }
+    });
+
+    // Modal functions
+    function openModal(imageSrc, title) {
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDescription = document.getElementById('modalDescription');
+        const imageLoading = document.querySelector('.image-loading');
+
+        // Show loading state
+        imageLoading.style.opacity = '1';
+        modalImg.classList.add('loading');
+
+        // Set modal content
+        modalTitle.textContent = title + ' Dashboard';
+        modalDescription.textContent = appDescriptions[title] ||
+            title + ' dashboard provides interactive visualization of your metagenomic data.';
+
+        // Add keyboard navigation hint
+        const navHint = document.createElement('div');
+        navHint.className = 'nav-hint';
+        navHint.innerHTML = 'Keyboard shortcuts: Arrow keys to navigate, Escape to close';
+        modalDescription.appendChild(navHint);
+
+        // Load the image
+        modalImg.onload = function () {
+            // Hide loading when image is loaded
+            imageLoading.style.opacity = '0';
+            modalImg.classList.remove('loading');
+            // Reset zoom
+            modalImg.style.transform = 'scale(1)';
+        };
+
+        modalImg.src = imageSrc;
+        modal.style.display = 'block';
+
+        // Prevent scrolling when modal is open
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('imageModal');
+        modal.style.display = 'none';
+
+        // Re-enable scrolling
+        document.body.style.overflow = 'auto';
+    }
+
+    // Navigation between apps
+    function navigateImages(direction) {
+        if (appItems.length === 0) {
+            appItems = Array.from(document.querySelectorAll('.app-item'));
+        }
+
+        currentAppIndex = (currentAppIndex + direction + appItems.length) % appItems.length;
+
+        const nextApp = appItems[currentAppIndex];
+        const imageSrc = nextApp.getAttribute('data-image');
+        const title = nextApp.getAttribute('data-title');
+
+        if (imageSrc && title) {
+            openModal(imageSrc, title);
+        }
+    }
+
+    // Image scaling/zoom
+    function scaleImage(factor) {
+        const modalImg = document.getElementById('modalImage');
+        const currentScale = modalImg.style.transform ?
+            parseFloat(modalImg.style.transform.replace('scale(', '').replace(')', '')) : 1;
+
+        let newScale;
+        if (factor === 1) {
+            // Reset to original size
+            newScale = 1;
+        } else {
+            // Apply scaling factor
+            newScale = currentScale * factor;
+            // Limit min/max scale
+            newScale = Math.max(0.5, Math.min(newScale, 2));
+        }
+
+        modalImg.style.transform = `scale(${newScale})`;
+    }
+
+    // Close modal when clicking outside of the content
+    window.onclick = function (event) {
+        const modal = document.getElementById('imageModal');
+        if (event.target == modal) {
+            closeModal();
+        }
+    }
+
+    // Close modal with ESC key
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeModal();
+        } else if (event.key === 'ArrowLeft') {
+            navigateImages(-1);
+        } else if (event.key === 'ArrowRight') {
+            navigateImages(1);
+        }
+    });
+</script>
+{% endblock content %}

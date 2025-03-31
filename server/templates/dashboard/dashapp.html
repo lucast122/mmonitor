@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% load plotly_dash %}
+
+{% block extra_css %}
+{% endblock %}
+
+{% block extra_js %}
+{% endblock %}
+
+{% block content %}
+<div>
+    {%plotly_app name=name ratio=1 %}
+</div>
+
+{% endblock %}
