@@ -139,90 +139,120 @@ class StdoutRedirector(io.StringIO):
 
 class GUI(ctk.CTk):
     def __init__(self):
-        print("Initializing GUI...")
-        # Check if we're already running
-        if os.environ.get('MMONITOR_RUNNING') == '1' and len(sys.argv) > 1:
-            print("Application is already running, preventing restart...")
-            sys.exit(0)
+        try:
+            print("Initializing GUI...")
+            # Initialize tkinter first
+            super().__init__()
             
-        self.pipeline_config = {
-            'analysis_type': 'taxonomy-wgs',
-            'threads': '12',
-            'min_length': '1000',
-            'min_quality': '10',
-            'emu_db': '',
-            'centrifuger_db': 'ncbi_build_20241229_184111',
-            'min_abundance': '0.01',
-            'assembly_mode': 'nano-hq',
-            'medaka_model': 'r1041_e82_400bps_sup_v5.0.0',
-            'is_isolate': False,
-            'min_contig_length': '1000'
-        }
-        
-        # Load configuration
-        self.config = load_config()
-        print("Loaded config:", self.config)
-        
-        super().__init__()
-        self.title(f"MMonitor {VERSION}")
-        
-        # Center window on screen
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-        x = (screen_width - MAIN_WINDOW_X) // 2
-        y = (screen_height - MAIN_WINDOW_Y) // 2
-        
-        # Set window size and position
-        self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}+{x}+{y}")
-        self.minsize(MAIN_WINDOW_X, MAIN_WINDOW_Y)
-        
-        # Define padding and spacing
-        self.FRAME_PADDING = 15
-        self.WIDGET_SPACING = 8
-        
-        # Define font sizes
-        self.default_font_size = 14
-        self.title_font_size = 20
-        self.small_font_size = 12
-
-        # Load appearance mode from system and config
-        self.config_file = os.path.join(_RESOURCES, "pipeline_config.json")
-        self.load_appearance_mode()
-        
-        # Define theme colors based on mode
-        self.update_theme_colors()
-        
-        # Initialize variables
-        self.console_expanded = False
-        self.console_auto_opened = False  # Start with console closed
-
-        # Rest of initialization...
-        self.folder_monitor = None
-        self.folder_watcher_window = None
-        self.database_window = None
-        self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
-        self.logged_in = False
-        self.offline_mode = False
-        self.current_user = None
-        self.current_window = None
-        self.setup_variables()
-        self.setup_runners()
-        self.init_layout()
-
-        # Create console but don't show it
-        # self.create_console()
-
-        # Redirect stdout and stderr
-        sys.stdout = TeeOutput(sys.stdout, self)
-        sys.stderr = TeeOutput(sys.stderr, self)
-
-        print("GUI initialization complete.")
-        print("Starting MMonitor application...")
-
-        self.show_login()  # Show login screen by default
-
-        # Bind cleanup to window close
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+            # Setup basic logging
+            import logging
+            logger = logging.getLogger('MMonitor.GUI')
+            
+            logger.info("Starting GUI initialization")
+            
+            # Check if we're already running
+            if os.environ.get('MMONITOR_RUNNING') == '1' and len(sys.argv) > 1:
+                logger.info("Application is already running, preventing restart...")
+                sys.exit(0)
+            
+            # Load configuration first
+            logger.info("Loading configuration")
+            self.config = load_config()
+            logger.info(f"Loaded config: {self.config}")
+            
+            # Set default pipeline config
+            self.pipeline_config = {
+                'analysis_type': 'taxonomy-wgs',
+                'threads': '12',
+                'min_length': '1000',
+                'min_quality': '10',
+                'emu_db': '',
+                'centrifuger_db': 'ncbi_build_20241229_184111',
+                'min_abundance': '0.01',
+                'assembly_mode': 'nano-hq',
+                'medaka_model': 'r1041_e82_400bps_sup_v5.0.0',
+                'is_isolate': False,
+                'min_contig_length': '1000'
+            }
+            
+            logger.info("Setting up window properties")
+            self.title(f"MMonitor {VERSION}")
+            
+            # Center window on screen
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            x = (screen_width - MAIN_WINDOW_X) // 2
+            y = (screen_height - MAIN_WINDOW_Y) // 2
+            
+            # Set window size and position
+            self.geometry(f"{MAIN_WINDOW_X}x{MAIN_WINDOW_Y}+{x}+{y}")
+            self.minsize(MAIN_WINDOW_X, MAIN_WINDOW_Y)
+            
+            logger.info("Setting up UI constants")
+            # Define padding and spacing
+            self.FRAME_PADDING = 15
+            self.WIDGET_SPACING = 8
+            
+            # Define font sizes
+            self.default_font_size = 14
+            self.title_font_size = 20
+            self.small_font_size = 12
+            
+            logger.info("Loading appearance mode")
+            # Load appearance mode from system and config
+            self.config_file = os.path.join(_RESOURCES, "pipeline_config.json")
+            self.load_appearance_mode()
+            
+            # Define theme colors based on mode
+            self.update_theme_colors()
+            
+            logger.info("Initializing UI state")
+            # Initialize variables
+            self.console_expanded = False
+            self.console_auto_opened = False
+            self.folder_monitor = None
+            self.folder_watcher_window = None
+            self.database_window = None
+            self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+            self.logged_in = False
+            self.offline_mode = False
+            self.current_user = None
+            self.current_window = None
+            
+            logger.info("Setting up UI components")
+            self.setup_variables()
+            self.setup_runners()
+            self.init_layout()
+            
+            logger.info("Setting up output redirection")
+            # Redirect stdout and stderr
+            sys.stdout = TeeOutput(sys.stdout, self)
+            sys.stderr = TeeOutput(sys.stderr, self)
+            
+            logger.info("GUI initialization complete")
+            print("Starting MMonitor application...")
+            
+            logger.info("Showing login screen")
+            self.show_login()
+            
+            # Bind cleanup to window close
+            self.protocol("WM_DELETE_WINDOW", self.on_closing)
+            
+        except Exception as e:
+            import traceback
+            error_msg = f"Error during GUI initialization: {str(e)}\n{traceback.format_exc()}"
+            print(error_msg)
+            logger.error(error_msg)
+            
+            # Try to show error in GUI if possible
+            try:
+                import tkinter.messagebox as mb
+                mb.showerror("Initialization Error", 
+                           f"Failed to start MMonitor:\n{str(e)}\n\nCheck the log file for details.")
+            except:
+                pass
+            
+            raise  # Re-raise the exception for the main error handler
 
     def on_closing(self):
         """Clean up resources before closing"""

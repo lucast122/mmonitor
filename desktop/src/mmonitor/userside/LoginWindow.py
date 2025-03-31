@@ -14,7 +14,7 @@ import fcntl
 import os
 import tkinter.messagebox as messagebox
 
-from mmonitor.paths import ROOT
+from mmonitor.paths import ROOT,SERVER_DIR
 
 # Define colors here as well for consistency
 COLORS = {
@@ -31,6 +31,7 @@ class LoginWindow(ctk.CTkFrame):
         # Use db_config.json for login settings
         self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
         self.parent = parent
+        
         
         # Get the main window dimensions from parent
         main_window = self.winfo_toplevel()
@@ -155,7 +156,8 @@ class LoginWindow(ctk.CTkFrame):
                 server_path = os.path.join(sys._MEIPASS, "server")
             else:
                 # If we're in development
-                server_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))), "server")
+                server_path =  os.path.join(SERVER_DIR)
+            
         
             if not os.path.exists(server_path):
                 raise FileNotFoundError(f"Server directory not found at {server_path}")

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import time
+import gzip
 import shutil
 import logging
 import argparse
