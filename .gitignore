@@ -1,3 +1,10 @@
+htslib/
+local-build/centrifuger/
+local-build/desktop/
+local-build/emu/
+local-build/htslib/
+local-build/samtools/
+samtools/
 *.sqlite3
 desktop/src/mmonitor/userside/fastq_concat/target/
 desktop/src/mmonitor/userside/fastq_concat/Cargo.lock
