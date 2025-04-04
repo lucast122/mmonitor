@@ -44,7 +44,7 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'mmonitor.de', 'www.mmonitor.de', '134.2.78.150', 'mmonitor.org', 'www.mmonitor.org']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'mmonitor.org', 'www.mmonitor.org']
 CSRF_TRUSTED_ORIGINS = ['https://mmonitor.org', 'https://www.mmonitor.org']
 
 # Application definition
@@ -120,15 +120,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
-    },
-    'mmonitor': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'mydjangodb',
-        'USER': 'mmonitor_remote',
-        'PASSWORD': 'asdf!minion',
-        'HOST': '134.2.78.150',   # Or an IP Address that your DB is hosted on
-        'PORT': '3306',
     }
+    
 }
 
 # Configure the 'default' database dynamically from the DATABASE_URL environment variable
