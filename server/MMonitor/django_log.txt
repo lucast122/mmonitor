@@ -95232,3 +95232,3254 @@ Contig contig_107 length: 3110456
 Maximum feature position found: 3110223
 Created genome_data with 1 contigs
 Created circos plot HTML content successfully
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Not Found: /favicon.ico
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0004s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (36, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (36, 20)
+Initializing callbacks...
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 85, in save
+    with transaction.atomic(using=using):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/transaction.py", line 263, in __exit__
+    connection.commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 337, in commit
+    self._commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 312, in _commit
+    with debug_transaction(self, "COMMIT"), self.wrap_database_errors:
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 59, in process_response
+    request.session.save()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 95, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/deprecation.py", line 136, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 61, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 85, in save
+    with transaction.atomic(using=using):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/transaction.py", line 263, in __exit__
+    connection.commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 337, in commit
+    self._commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 312, in _commit
+    with debug_transaction(self, "COMMIT"), self.wrap_database_errors:
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 59, in process_response
+    request.session.save()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 95, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/deprecation.py", line 136, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 61, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 85, in save
+    with transaction.atomic(using=using):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/transaction.py", line 263, in __exit__
+    connection.commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 337, in commit
+    self._commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 312, in _commit
+    with debug_transaction(self, "COMMIT"), self.wrap_database_errors:
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 59, in process_response
+    request.session.save()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 95, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/deprecation.py", line 136, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 61, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+Internal Server Error: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/base.py", line 187, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 328, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/views.py", line 75, in update
+    return _update(request, ident, stateless, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/views.py", line 89, in _update
+    app_state = request.session.get("django_plotly_dash", dict())
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/base.py", line 68, in get
+    return self._session.get(key, default)
+           ^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/base.py", line 192, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 42, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 32, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 633, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 380, in __len__
+    self._fetch_all()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 1881, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1562, in execute_sql
+    cursor.execute(sql, params)
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 102, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 84, in _execute
+    with self.db.wrap_database_errors:
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 328, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0002s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (36, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (36, 20)
+Initializing callbacks...
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 85, in save
+    with transaction.atomic(using=using):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/transaction.py", line 263, in __exit__
+    connection.commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 337, in commit
+    self._commit()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 312, in _commit
+    with debug_transaction(self, "COMMIT"), self.wrap_database_errors:
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/base/base.py", line 313, in _commit
+    return self.connection.commit()
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 59, in process_response
+    request.session.save()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 95, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/deprecation.py", line 136, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 61, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 328, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 86, in save
+    obj.save(
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/base.py", line 814, in save
+    self.save_base(
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/base.py", line 877, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/base.py", line 990, in _save_table
+    updated = self._do_update(
+              ^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/base.py", line 1054, in _do_update
+    return filtered._update(values) > 0
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/query.py", line 1231, in _update
+    return query.get_compiler(self.db).execute_sql(CURSOR)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1984, in execute_sql
+    cursor = super().execute_sql(result_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1562, in execute_sql
+    cursor.execute(sql, params)
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 102, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 67, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 80, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 84, in _execute
+    with self.db.wrap_database_errors:
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 89, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 328, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 59, in process_response
+    request.session.save()
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/backends/db.py", line 95, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/utils/deprecation.py", line 136, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/contrib/sessions/middleware.py", line 61, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+Loading MAG data
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x1244ec3b0>
+Successfully loaded app: MAGs Viewer
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Filtering MAGs by quality: all
+No MAG data available for creating table data
+No MAG data available for filtering
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x124207770>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 6 samples selected
+Using filtered dataframe with shape: (36, 20)
+Sample IDs in filtered data: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (36, 20)
+Sample IDs in self.df_sorted: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Updating legend visibility for top 34 items
+Successfully created plot
+Loading app Horizon with instance <dashboard.dashapp.horizon.Horizon object at 0x1233bf110>
+Successfully loaded app: Horizon
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x124207770>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 6 samples selected
+Using filtered dataframe with shape: (36, 20)
+Sample IDs in filtered data: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (36, 20)
+Sample IDs in self.df_sorted: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Updating legend visibility for top 34 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Bad Request: /users/overwrite_nanopore_record/
+Not Found: /users/sequencing_statistics/
+Bad Request: /users/overwrite_nanopore_record/
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0003s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (36, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (36, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1241f37d0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 6 samples selected
+Using filtered dataframe with shape: (36, 20)
+Sample IDs in filtered data: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (36, 20)
+Sample IDs in self.df_sorted: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Updating legend visibility for top 34 items
+Successfully created plot
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x124a81e80>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+No MAG data available for creating table data
+No MAG data available for filtering
+Loading app QC with instance <dashboard.dashapp.qc.QC object at 0x1241f31d0>
+Successfully loaded app: QC
+Loading app Correlations with instance <dashboard.dashapp.correlations.Correlations object at 0x123c71e80>
+Successfully loaded app: Correlations
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x12417a930>
+Successfully loaded app: Diversity
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04']
+Selected metrics: ['shannon', 'simpson']
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 6 sample options
+Found 2 project options
+Found 2 subproject options
+Found 4 date options
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04']
+Selected metrics: ['shannon', 'simpson']
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1241f37d0>
+Successfully loaded app: Taxonomy
+update_diversity_dropdowns called with pathname: /dashapp/taxonomy
+Plot update triggered by: None with 6 samples selected
+Using filtered dataframe with shape: (36, 20)
+Sample IDs in filtered data: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (36, 20)
+Sample IDs in self.df_sorted: ['barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Updating legend visibility for top 34 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x125132810>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x12410ab70>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 65 samples selected
+Using filtered dataframe with shape: (1161, 20)
+Sample IDs in filtered data: ['R1_20230625', 'R1_20230626', 'R1_20230627', 'R1_20230628', 'R1_20230629', 'R1_20230630', 'R1_20230703', 'R1_20230704', 'R1_20230705', 'R1_20230706', 'R1_20230707', 'R1_20230710', 'R1_20230711', 'R1_20230713', 'R1_20230714', 'R1_20230717', 'R1_20230718', 'R1_20230719', 'R1_20230724', 'R1_20230725', 'R1_20230726', 'R2_20230625', 'R2_20230626', 'R2_20230627', 'R2_20230628', 'R2_20230629', 'R2_20230630', 'R2_20230704', 'R2_20230705', 'R2_20230706', 'R2_20230707', 'R2_20230710', 'R2_20230711', 'R2_20230713', 'R2_20230714', 'R2_20230717', 'R2_20230718', 'R2_20230719', 'R2_20230720', 'R2_20230724', 'R2_20230725', 'R2_20230727', 'R3_20230625', 'R3_20230626', 'R3_20230627', 'R3_20230628', 'R3_20230629', 'R3_20230630', 'R3_20230703', 'R3_20230704', 'R3_20230705', 'R3_20230706', 'R3_20230707', 'R3_20230710', 'R3_20230711', 'R3_20230713', 'R3_20230714', 'R3_20230717', 'R3_20230718', 'R3_20230719', 'R3_20230720', 'R3_20230724', 'R3_20230725', 'R3_20230726', 'R3_20230727']
+Stacked bar plot using self.df_sorted with shape: (1226, 20)
+Sample IDs in self.df_sorted: ['R1_20230625', 'R1_20230626', 'R1_20230627', 'R1_20230628', 'R1_20230629', 'R1_20230630', 'R1_20230703', 'R1_20230704', 'R1_20230705', 'R1_20230706', 'R1_20230707', 'R1_20230710', 'R1_20230711', 'R1_20230713', 'R1_20230714', 'R1_20230717', 'R1_20230718', 'R1_20230719', 'R1_20230724', 'R1_20230725', 'R1_20230726', 'R2_20230625', 'R2_20230626', 'R2_20230627', 'R2_20230628', 'R2_20230629', 'R2_20230630', 'R2_20230704', 'R2_20230705', 'R2_20230706', 'R2_20230707', 'R2_20230710', 'R2_20230711', 'R2_20230713', 'R2_20230714', 'R2_20230717', 'R2_20230718', 'R2_20230719', 'R2_20230720', 'R2_20230724', 'R2_20230725', 'R2_20230727', 'R3_20230625', 'R3_20230626', 'R3_20230627', 'R3_20230628', 'R3_20230629', 'R3_20230630', 'R3_20230703', 'R3_20230704', 'R3_20230705', 'R3_20230706', 'R3_20230707', 'R3_20230710', 'R3_20230711', 'R3_20230713', 'R3_20230714', 'R3_20230717', 'R3_20230718', 'R3_20230719', 'R3_20230720', 'R3_20230724', 'R3_20230725', 'R3_20230726', 'R3_20230727']
+Updating legend visibility for top 71 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Bad Request: /users/overwrite_nanopore_record/
+Not Found: /users/sequencing_statistics/
+Bad Request: /users/overwrite_nanopore_record/
+Internal Server Error: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/views.py", line 75, in update
+    return _update(request, ident, stateless, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/views.py", line 81, in _update
+    dash_app, app = DashApp.locate_item(ident, stateless)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/models.py", line 227, in locate_item
+    dash_app = find_stateless_by_name(ident)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/models.py", line 84, in find_stateless_by_name
+    dash_app = get_stateless_by_name(name)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/models.py", line 40, in get_stateless_by_name
+    return get_local_stateless_by_name(name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/dash_wrapper.py", line 131, in get_local_stateless_by_name
+    raise KeyError("Unable to find stateless DjangoApp called %s"%name)
+KeyError: 'Unable to find stateless DjangoApp called dashboard_index'
+Internal Server Error: /django_plotly_dash/app/dashboard_index/_dash-update-component
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/views.py", line 75, in update
+    return _update(request, ident, stateless, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/views.py", line 81, in _update
+    dash_app, app = DashApp.locate_item(ident, stateless)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/models.py", line 227, in locate_item
+    dash_app = find_stateless_by_name(ident)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/models.py", line 84, in find_stateless_by_name
+    dash_app = get_stateless_by_name(name)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/models.py", line 40, in get_stateless_by_name
+    return get_local_stateless_by_name(name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/django_plotly_dash/dash_wrapper.py", line 131, in get_local_stateless_by_name
+    raise KeyError("Unable to find stateless DjangoApp called %s"%name)
+KeyError: 'Unable to find stateless DjangoApp called dashboard_index'
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Bad Request: /users/overwrite_nanopore_record/
+Not Found: /users/sequencing_statistics/
+Bad Request: /users/overwrite_nanopore_record/
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Not Found: /users/sequencing_statistics/
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0003s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (76, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (76, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x127d1a4e0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 7 samples selected
+Using filtered dataframe with shape: (76, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (76, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Loading app QC with instance <dashboard.dashapp.qc.QC object at 0x1287d9610>
+Successfully loaded app: QC
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x128800dd0>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+No MAG data available for creating table data
+No MAG data available for filtering
+Loading app Correlations with instance <dashboard.dashapp.correlations.Correlations object at 0x12801c620>
+Successfully loaded app: Correlations
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x1281ea540>
+Successfully loaded app: Diversity
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas']
+Selected metrics: ['shannon', 'simpson']
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 7 sample options
+Found 2 project options
+Found 2 subproject options
+Found 5 date options
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas']
+Selected metrics: ['shannon', 'simpson']
+update_diversity_dropdowns called with pathname: /dashapp/horizon
+Loading app Horizon with instance <dashboard.dashapp.horizon.Horizon object at 0x12868a000>
+Successfully loaded app: Horizon
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas']
+Selected metrics: ['shannon', 'simpson']
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x1281ea540>
+Successfully loaded app: Diversity
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 7 sample options
+Found 2 project options
+Found 2 subproject options
+Found 5 date options
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas']
+Selected metrics: ['shannon', 'simpson']
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas']
+Selected metrics: ['shannon', 'simpson']
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Not Found: /users/sequencing_statistics/
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0003s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (76, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (76, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1283f2b40>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 7 samples selected
+Using filtered dataframe with shape: (76, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (76, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0007s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.02 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x128c2ec00>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0003s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1293407d0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0004s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1295961e0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0004s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x129726db0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0004s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x129a63ce0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0010s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.03 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x12974c7a0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0011s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.05 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x128af26f0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (78, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (78, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 65 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0007s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.03 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (78, 20)
+Initializing callbacks...
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0010s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x128ab7350>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (80, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (80, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0108s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.03 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x128f5e000>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (80, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (80, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0010s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1296a4320>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (80, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (80, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0009s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.05 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1298f9fd0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (80, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (80, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0012s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (80, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1287db080>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (80, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (80, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0004s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.02 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (81, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (81, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1284a5250>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (81, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (81, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Loading app Horizon with instance <dashboard.dashapp.horizon.Horizon object at 0x128397bc0>
+Successfully loaded app: Horizon
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x1284a5250>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (81, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (81, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0010s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (81, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (81, 20)
+Initializing callbacks...
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x129bfc1a0>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (81, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (81, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 51
+Loading MAG data
+No MAG data found, creating mock data
+Creating mock MAG data from table
+Creating minimal table data to avoid recursion
+Found 11 MAGs in table data
+Created mock data with 11 unique MAGs (22 total entries including duplicates)
+_create_mock_data_from_table completed in 0.0010s
+Loaded MAG data with 22 entries
+No MAG data available for creating table data
+No MAG data for quality scatter plot
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+No MAG data for quality scatter plot
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (81, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.01 MB
+Data initialization complete. DataFrame shape: (81, 20)
+Initializing callbacks...
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x1298ab3b0>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+No MAG data available for creating table data
+No MAG data available for filtering
+Loading app QC with instance <dashboard.dashapp.qc.QC object at 0x1298a8bf0>
+Successfully loaded app: QC
+Loading app Taxonomy with instance <dashboard.dashapp.taxonomy.Taxonomy object at 0x129975c40>
+Successfully loaded app: Taxonomy
+Plot update triggered by: None with 8 samples selected
+Using filtered dataframe with shape: (81, 20)
+Sample IDs in filtered data: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Stacked bar plot using self.df_sorted with shape: (81, 20)
+Sample IDs in self.df_sorted: ['asdas', 'barcode04', 'barcode19', 'barcode72', 'barcode75', 'barcode86', 'test_reads', 'barcode11']
+Updating legend visibility for top 68 items
+Successfully created plot
+Loading app Horizon with instance <dashboard.dashapp.horizon.Horizon object at 0x129cdb7d0>
+Successfully loaded app: Horizon
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x1299c1ca0>
+Successfully loaded app: Diversity
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas', 'test_reads']
+Selected metrics: ['shannon', 'simpson']
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 8 sample options
+Found 2 project options
+Found 2 subproject options
+Found 5 date options
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas', 'test_reads']
+Selected metrics: ['shannon', 'simpson']
+update_diversity_dropdowns called with pathname: /dashapp/correlations
+Loading app Correlations with instance <dashboard.dashapp.correlations.Correlations object at 0x1299c1850>
+Successfully loaded app: Correlations
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['barcode11', 'barcode72', 'barcode75', 'barcode19', 'barcode86', 'barcode04', 'asdas', 'test_reads']
+Selected metrics: ['shannon', 'simpson']
+Loading app QC with instance <dashboard.dashapp.qc.QC object at 0x1298a8bf0>
+Successfully loaded app: QC
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x1298ab3b0>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+No MAG data available for creating table data
+No MAG data available for filtering
+Filtering MAGs by quality: high
+No MAG data available for creating table data
+No MAG data available for filtering
+Loading app Horizon with instance <dashboard.dashapp.horizon.Horizon object at 0x129cdb7d0>
+Successfully loaded app: Horizon
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loading MAG data
+Loaded MAG data with 38 entries
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+Starting data initialization...
+DataFrame optimization took 0.12 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.02 seconds. Memory usage: 0.07 MB
+DataFrame optimization took 0.13 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x1282ac5f0>
+Successfully loaded app: Diversity
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 65 sample options
+Found 3 project options
+
+=== Starting Diversity Plot Updates ===
+Found 3 subproject options
+Selected samples: ['R1_20230625', 'R2_20230625', 'R3_20230625', 'R1_20230626', 'R2_20230626', 'R3_20230626', 'R1_20230627', 'R2_20230627', 'R3_20230627', 'R1_20230628', 'R2_20230628', 'R3_20230628', 'R1_20230629', 'R2_20230629', 'R3_20230629', 'R1_20230630', 'R2_20230630', 'R3_20230630', 'R1_20230703', 'R3_20230703', 'R1_20230704', 'R2_20230704', 'R3_20230704', 'R1_20230705', 'R2_20230705', 'R3_20230705', 'R1_20230706', 'R2_20230706', 'R3_20230706', 'R1_20230707', 'R2_20230707', 'R3_20230707', 'R1_20230710', 'R2_20230710', 'R3_20230710', 'R1_20230711', 'R2_20230711', 'R3_20230711', 'R1_20230713', 'R2_20230713', 'R3_20230713', 'R1_20230714', 'R2_20230714', 'R3_20230714', 'R1_20230717', 'R2_20230717', 'R3_20230717', 'R1_20230718', 'R2_20230718', 'R3_20230718', 'R1_20230719', 'R2_20230719', 'R3_20230719', 'R2_20230720', 'R3_20230720', 'R1_20230724', 'R2_20230724', 'R3_20230724', 'R1_20230725', 'R2_20230725', 'R3_20230725', 'R1_20230726', 'R3_20230726', 'R2_20230727', 'R3_20230727']
+Found 22 date options
+Selected metrics: ['shannon', 'simpson']
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['R1_20230625', 'R2_20230625', 'R3_20230625', 'R1_20230626', 'R2_20230626', 'R3_20230626', 'R1_20230627', 'R2_20230627', 'R3_20230627', 'R1_20230628', 'R2_20230628', 'R3_20230628', 'R1_20230629', 'R2_20230629', 'R3_20230629', 'R1_20230630', 'R2_20230630', 'R3_20230630', 'R1_20230703', 'R3_20230703', 'R1_20230704', 'R2_20230704', 'R3_20230704', 'R1_20230705', 'R2_20230705', 'R3_20230705', 'R1_20230706', 'R2_20230706', 'R3_20230706', 'R1_20230707', 'R2_20230707', 'R3_20230707', 'R1_20230710', 'R2_20230710', 'R3_20230710', 'R1_20230711', 'R2_20230711', 'R3_20230711', 'R1_20230713', 'R2_20230713', 'R3_20230713', 'R1_20230714', 'R2_20230714', 'R3_20230714', 'R1_20230717', 'R2_20230717', 'R3_20230717', 'R1_20230718', 'R2_20230718', 'R3_20230718', 'R1_20230719', 'R2_20230719', 'R3_20230719', 'R2_20230720', 'R3_20230720', 'R1_20230724', 'R2_20230724', 'R3_20230724', 'R1_20230725', 'R2_20230725', 'R3_20230725', 'R1_20230726', 'R3_20230726', 'R2_20230727', 'R3_20230727']
+Selected metrics: ['shannon', 'simpson']
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x129f90b60>
+update_diversity_dropdowns called with pathname: /dashapp/mags
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.13
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Found 1 sequences for MAG bin.13
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+No GFF file found for MAG bin.13, checking database...
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+Fetching sequence data for MAG: bin.10
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Circos plot callback triggered with selected_rows: [0]
+Creating circos plot for MAG: bin.10 (bin_id: bin.10)
+Creating circos plot for MAG ID: bin.10
+Found 33 sequences for MAG bin.10
+Retrieving MAG data for bin.10
+Found MAG info for bin.10
+Found 33 parsed sequences for MAG bin.10
+Retrieving GFF data for bin.10
+Using get_gff_data method for MAG bin.10
+Getting GFF data for MAG bin.10
+No GFF file found for MAG bin.10, checking database...
+GFF file found, length: 7253995 characters
+No sequence data found for MAG bin.10, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.10
+Trying to get GFF directly from database for MAG bin.10
+Found GFF in database for MAG bin.10, parsing...
+Parsed 5815 annotations directly from database GFF
+Annotation types: {'utr': 2, 'cds': 48}
+Sample annotations:
+  utr - trnE (tRNA-Glu(ctc) (trnE)...)
+  utr - rrf (5S ribosomal RNA (rrf)...)
+  cds - EHOJPH_00015 (Sugar fermentation stimulation -like protein...)
+Sorted and limited to 24 sequences
+Contig contig_260 length: 482427
+Contig contig_197 length: 394164
+Contig contig_150 length: 386143
+Contig contig_443 length: 375915
+Contig contig_266 length: 371907
+Maximum feature position found: 482267
+Created genome_data with 24 contigs
+Created circos plot HTML content successfully
+Loading app Horizon with instance <dashboard.dashapp.horizon.Horizon object at 0x129360650>
+Successfully loaded app: Horizon
+update_horizon_plot callback triggered
+update_horizon_plot callback triggered
+update_horizon_plot callback triggered
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x1282ac5f0>
+Successfully loaded app: Diversity
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['R1_20230625', 'R2_20230625', 'R3_20230625', 'R1_20230626', 'R2_20230626', 'R3_20230626', 'R1_20230627', 'R2_20230627', 'R3_20230627', 'R1_20230628', 'R2_20230628', 'R3_20230628', 'R1_20230629', 'R2_20230629', 'R3_20230629', 'R1_20230630', 'R2_20230630', 'R3_20230630', 'R1_20230703', 'R3_20230703', 'R1_20230704', 'R2_20230704', 'R3_20230704', 'R1_20230705', 'R2_20230705', 'R3_20230705', 'R1_20230706', 'R2_20230706', 'R3_20230706', 'R1_20230707', 'R2_20230707', 'R3_20230707', 'R1_20230710', 'R2_20230710', 'R3_20230710', 'R1_20230711', 'R2_20230711', 'R3_20230711', 'R1_20230713', 'R2_20230713', 'R3_20230713', 'R1_20230714', 'R2_20230714', 'R3_20230714', 'R1_20230717', 'R2_20230717', 'R3_20230717', 'R1_20230718', 'R2_20230718', 'R3_20230718', 'R1_20230719', 'R2_20230719', 'R3_20230719', 'R2_20230720', 'R3_20230720', 'R1_20230724', 'R2_20230724', 'R3_20230724', 'R1_20230725', 'R2_20230725', 'R3_20230725', 'R1_20230726', 'R3_20230726', 'R2_20230727', 'R3_20230727']
+Selected metrics: ['shannon', 'simpson']
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 65 sample options
+Found 3 project options
+Found 3 subproject options
+Found 22 date options
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['R1_20230625', 'R2_20230625', 'R3_20230625', 'R1_20230626', 'R2_20230626', 'R3_20230626', 'R1_20230627', 'R2_20230627', 'R3_20230627', 'R1_20230628', 'R2_20230628', 'R3_20230628', 'R1_20230629', 'R2_20230629', 'R3_20230629', 'R1_20230630', 'R2_20230630', 'R3_20230630', 'R1_20230703', 'R3_20230703', 'R1_20230704', 'R2_20230704', 'R3_20230704', 'R1_20230705', 'R2_20230705', 'R3_20230705', 'R1_20230706', 'R2_20230706', 'R3_20230706', 'R1_20230707', 'R2_20230707', 'R3_20230707', 'R1_20230710', 'R2_20230710', 'R3_20230710', 'R1_20230711', 'R2_20230711', 'R3_20230711', 'R1_20230713', 'R2_20230713', 'R3_20230713', 'R1_20230714', 'R2_20230714', 'R3_20230714', 'R1_20230717', 'R2_20230717', 'R3_20230717', 'R1_20230718', 'R2_20230718', 'R3_20230718', 'R1_20230719', 'R2_20230719', 'R3_20230719', 'R2_20230720', 'R3_20230720', 'R1_20230724', 'R2_20230724', 'R3_20230724', 'R1_20230725', 'R2_20230725', 'R3_20230725', 'R1_20230726', 'R3_20230726', 'R2_20230727', 'R3_20230727']
+Selected metrics: ['shannon', 'simpson']
+Loading app Correlations with instance <dashboard.dashapp.correlations.Correlations object at 0x129882e40>
+Successfully loaded app: Correlations
+update_diversity_dropdowns called with pathname: /dashapp/correlations
+Applying settings: method=pearson, p_value=0.05, filter=True
+Updating heatmap with method=pearson, p_value=0.05, filter=True
+Downloading correlations data
+Loading app Diversity with instance <dashboard.dashapp.diversity.Diversity object at 0x1282ac5f0>
+Successfully loaded app: Diversity
+update_diversity_dropdowns called with pathname: /dashapp/diversity
+Found 65 sample options
+Found 3 project options
+Found 3 subproject options
+Found 22 date options
+Successfully prepared all dropdown options
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['R1_20230625', 'R2_20230625', 'R3_20230625', 'R1_20230626', 'R2_20230626', 'R3_20230626', 'R1_20230627', 'R2_20230627', 'R3_20230627', 'R1_20230628', 'R2_20230628', 'R3_20230628', 'R1_20230629', 'R2_20230629', 'R3_20230629', 'R1_20230630', 'R2_20230630', 'R3_20230630', 'R1_20230703', 'R3_20230703', 'R1_20230704', 'R2_20230704', 'R3_20230704', 'R1_20230705', 'R2_20230705', 'R3_20230705', 'R1_20230706', 'R2_20230706', 'R3_20230706', 'R1_20230707', 'R2_20230707', 'R3_20230707', 'R1_20230710', 'R2_20230710', 'R3_20230710', 'R1_20230711', 'R2_20230711', 'R3_20230711', 'R1_20230713', 'R2_20230713', 'R3_20230713', 'R1_20230714', 'R2_20230714', 'R3_20230714', 'R1_20230717', 'R2_20230717', 'R3_20230717', 'R1_20230718', 'R2_20230718', 'R3_20230718', 'R1_20230719', 'R2_20230719', 'R3_20230719', 'R2_20230720', 'R3_20230720', 'R1_20230724', 'R2_20230724', 'R3_20230724', 'R1_20230725', 'R2_20230725', 'R3_20230725', 'R1_20230726', 'R3_20230726', 'R2_20230727', 'R3_20230727']
+Selected metrics: ['shannon', 'simpson']
+
+=== Starting Diversity Plot Updates ===
+Selected samples: ['R1_20230625', 'R2_20230625', 'R3_20230625', 'R1_20230626', 'R2_20230626', 'R3_20230626', 'R1_20230627', 'R2_20230627', 'R3_20230627', 'R1_20230628', 'R2_20230628', 'R3_20230628', 'R1_20230629', 'R2_20230629', 'R3_20230629', 'R1_20230630', 'R2_20230630', 'R3_20230630', 'R1_20230703', 'R3_20230703', 'R1_20230704', 'R2_20230704', 'R3_20230704', 'R1_20230705', 'R2_20230705', 'R3_20230705', 'R1_20230706', 'R2_20230706', 'R3_20230706', 'R1_20230707', 'R2_20230707', 'R3_20230707', 'R1_20230710', 'R2_20230710', 'R3_20230710', 'R1_20230711', 'R2_20230711', 'R3_20230711', 'R1_20230713', 'R2_20230713', 'R3_20230713', 'R1_20230714', 'R2_20230714', 'R3_20230714', 'R1_20230717', 'R2_20230717', 'R3_20230717', 'R1_20230718', 'R2_20230718', 'R3_20230718', 'R1_20230719', 'R2_20230719', 'R3_20230719', 'R2_20230720', 'R3_20230720', 'R1_20230724', 'R2_20230724', 'R3_20230724', 'R1_20230725', 'R2_20230725', 'R3_20230725', 'R1_20230726', 'R3_20230726', 'R2_20230727', 'R3_20230727']
+Selected metrics: ['shannon', 'simpson']
+Loading app QC with instance <dashboard.dashapp.qc.QC object at 0x129f90ec0>
+Successfully loaded app: QC
+update_diversity_dropdowns called with pathname: /dashapp/qc
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Not Found: /favicon.ico
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.01 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x12cea3380>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Fetching sequence data for MAG: bin.13
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Found 1 sequences for MAG bin.13
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+No GFF file found for MAG bin.13, checking database...
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+Circos plot callback triggered with selected_rows: [2]
+Creating circos plot for MAG: bin.11 (bin_id: bin.11)
+Creating circos plot for MAG ID: bin.11
+Fetching sequence data for MAG: bin.11
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Found 7 sequences for MAG bin.11
+Retrieving MAG data for bin.11
+Found MAG info for bin.11
+Found 7 parsed sequences for MAG bin.11
+Retrieving GFF data for bin.11
+Using get_gff_data method for MAG bin.11
+Getting GFF data for MAG bin.11
+No GFF file found for MAG bin.11, checking database...
+No GFF file found in database for MAG bin.11
+No GFF data found for MAG bin.11
+Trying to get GFF directly from database for MAG bin.11
+No GFF file found in database for MAG bin.11
+No annotations found for MAG bin.11, creating placeholder annotations
+Created 115 placeholder annotations
+Annotation types: {'utr': 9, 'cds': 41}
+Sample annotations:
+  utr - gene_1 (Ribosomal RNA 16S - structural RNA - placeholder 1...)
+  cds - gene_2 (Hypothetical protein - placeholder gene 2...)
+  cds - gene_3 (Hypothetical protein - placeholder gene 3...)
+Sorted and limited to 7 sequences
+Contig contig_591 length: 1148852
+Contig contig_589 length: 1038165
+Contig contig_583 length: 506593
+Contig contig_592 length: 77935
+Contig contig_582 length: 22191
+Maximum feature position found: 1092909
+Created genome_data with 7 contigs
+Created circos plot HTML content successfully
+Circos plot callback triggered with selected_rows: [0]
+Creating circos plot for MAG: bin.10 (bin_id: bin.10)
+Creating circos plot for MAG ID: bin.10
+Fetching sequence data for MAG: bin.10
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Found 33 sequences for MAG bin.10
+Retrieving MAG data for bin.10
+Found MAG info for bin.10
+Found 33 parsed sequences for MAG bin.10
+Retrieving GFF data for bin.10
+Using get_gff_data method for MAG bin.10
+Getting GFF data for MAG bin.10
+No GFF file found for MAG bin.10, checking database...
+GFF file found, length: 7253995 characters
+No sequence data found for MAG bin.10, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.10
+Trying to get GFF directly from database for MAG bin.10
+Found GFF in database for MAG bin.10, parsing...
+Parsed 5815 annotations directly from database GFF
+Annotation types: {'utr': 2, 'cds': 48}
+Sample annotations:
+  utr - trnE (tRNA-Glu(ctc) (trnE)...)
+  utr - rrf (5S ribosomal RNA (rrf)...)
+  cds - EHOJPH_00015 (Sugar fermentation stimulation -like protein...)
+Sorted and limited to 24 sequences
+Contig contig_260 length: 482427
+Contig contig_197 length: 394164
+Contig contig_150 length: 386143
+Contig contig_443 length: 375915
+Contig contig_266 length: 371907
+Maximum feature position found: 482267
+Created genome_data with 24 contigs
+Created circos plot HTML content successfully
+Circos plot callback triggered with selected_rows: [2]
+Creating circos plot for MAG: bin.11 (bin_id: bin.11)
+Creating circos plot for MAG ID: bin.11
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.11
+Found 7 sequences for MAG bin.11
+Retrieving MAG data for bin.11
+Found MAG info for bin.11
+Found 7 parsed sequences for MAG bin.11
+Retrieving GFF data for bin.11
+Using get_gff_data method for MAG bin.11
+Getting GFF data for MAG bin.11
+No GFF file found for MAG bin.11, checking database...
+No GFF file found in database for MAG bin.11
+No GFF data found for MAG bin.11
+Trying to get GFF directly from database for MAG bin.11
+No GFF file found in database for MAG bin.11
+No annotations found for MAG bin.11, creating placeholder annotations
+Created 115 placeholder annotations
+Annotation types: {'utr': 9, 'cds': 41}
+Sample annotations:
+  utr - gene_1 (Ribosomal RNA 16S - structural RNA - placeholder 1...)
+  cds - gene_2 (Hypothetical protein - placeholder gene 2...)
+  cds - gene_3 (Hypothetical protein - placeholder gene 3...)
+Sorted and limited to 7 sequences
+Contig contig_591 length: 1148852
+Contig contig_589 length: 1038165
+Contig contig_583 length: 506593
+Contig contig_592 length: 77935
+Contig contig_582 length: 22191
+Maximum feature position found: 1092909
+Created genome_data with 7 contigs
+Created circos plot HTML content successfully
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.13
+Found 1 sequences for MAG bin.13
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 833, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2678, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Registering MAGs callbacks
+MAGs callbacks registered
+Starting data initialization...
+DataFrame optimization took 0.05 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x12a4c9d90>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.13
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Found 1 sequences for MAG bin.13
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+No GFF file found for MAG bin.13, checking database...
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 832, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2677, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.04 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.01 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x129b58c20>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.13
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Found 1 sequences for MAG bin.13
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+No GFF file found for MAG bin.13, checking database...
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+Loading app QC with instance <dashboard.dashapp.qc.QC object at 0x129b04620>
+Successfully loaded app: QC
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x129b58c20>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.13
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Found 1 sequences for MAG bin.13
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Error initializing MAGs app: 'Diversity' object has no attribute 'create_layout'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/diversity.py", line 97, in __init__
+    self.app.layout = self.create_layout()
+                      ^^^^^^^^^^^^^^^^^^
+AttributeError: 'Diversity' object has no attribute 'create_layout'
+Fetching QC data for user_id: 28
+Loading MAG data
+Loaded MAG data with 38 entries
+Error creating RNA counts plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 830, in _create_rna_counts_plot
+    self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Error creating KEGG overview plot: 'annotations_dict'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/mags.py", line 2632, in _create_kegg_overview
+    self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                                     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'annotations_dict'
+Starting data initialization...
+DataFrame optimization took 0.03 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+DataFrame optimization took 0.00 seconds. Memory usage: 0.07 MB
+Data initialization complete. DataFrame shape: (1226, 20)
+Initializing callbacks...
+Loading app MAGs Viewer with instance <dashboard.dashapp.mags.MAGs object at 0x12ddd7cb0>
+Successfully loaded app: MAGs Viewer
+Filtering MAGs by quality: all
+Showing all 19 MAGs
+Successfully parsed table data with 19 rows
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Fetching sequence data for MAG: bin.13
+Circos plot callback triggered with selected_rows: [1]
+Creating circos plot for MAG: bin.13 (bin_id: bin.13)
+Creating circos plot for MAG ID: bin.13
+Error updating gene content plot: 'dict' object has no attribute 'empty'
+Traceback (most recent call last):
+  File "/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py", line 934, in update_gene_content_plot
+    if mag_data is None or mag_data.empty:
+                           ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'empty'
+Found 1 sequences for MAG bin.13
+Retrieving MAG data for bin.13
+Found MAG info for bin.13
+Found 1 parsed sequences for MAG bin.13
+Retrieving GFF data for bin.13
+Using get_gff_data method for MAG bin.13
+Getting GFF data for MAG bin.13
+No GFF file found for MAG bin.13, checking database...
+GFF file found, length: 3930016 characters
+No sequence data found for MAG bin.13, GFF parsing may not work properly
+Successfully parsed 0 annotations from GFF file
+No GFF data found for MAG bin.13
+Trying to get GFF directly from database for MAG bin.13
+Found GFF in database for MAG bin.13, parsing...
+Parsed 2923 annotations directly from database GFF
+Annotation types: {'cds': 50}
+Sample annotations:
+  cds - OGCEHJ_00005 (NAD-dependent epimerase/dehydratase family protein...)
+  cds - OGCEHJ_00010 (DUF192 domain-containing protein...)
+  cds - OGCEHJ_00015 (MBL fold metallo-hydrolase...)
+Sorted and limited to 1 sequences
+Contig contig_107 length: 3110456
+Maximum feature position found: 3110223
+Created genome_data with 1 contigs
+Created circos plot HTML content successfully
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+/Users/timo/PycharmProjects/MMonitor/server/dashboard/dashapp/index.py changed, reloading.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.
+Watching for file changes with StatReloader
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+Creating converter from 7 to 5
+Creating converter from 5 to 7
+matplotlib data path: /Users/timo/PycharmProjects/MMonitor/desktop/.venv/lib/python3.12/site-packages/matplotlib/mpl-data
+CONFIGDIR=/Users/timo/.matplotlib
+interactive is False
+platform is darwin
+CACHEDIR=/Users/timo/.matplotlib
+Using fontManager instance from /Users/timo/.matplotlib/fontlist-v330.json
+Loaded backend agg version v2.2.

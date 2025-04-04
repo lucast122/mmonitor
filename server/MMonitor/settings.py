@@ -6,7 +6,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Ensure DEBUG is set to False in production
-DEBUG = True
+DEBUG = False
 
 # Static files
 STATIC_URL = '/static/'

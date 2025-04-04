@@ -17,6 +17,7 @@ import requests
 import numpy as np
 from .FileUtils import concatenate_fastq_files
 from .AssemblyPipeline import AssemblyPipeline
+from .FiltlongRunner import FiltlongRunner
 import keyring
 # Add src directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +39,7 @@ except ImportError:
     from .CentrifugerRunner import CentrifugerRunner
     from .EmuRunner import EmuRunner
     from .AssemblyPipeline import AssemblyPipeline
-    from ..paths import src_dir
+    from ..paths import SRC_DIR
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class MMonitorCMD:
         self.emu_runner = None
         self.centrifuger_runner = CentrifugerRunner()  
         self.functional_runner = FunctionalRunner()
+        self.filtlong_runner = FiltlongRunner()
         self.db_config = {}
         self.pipeline_out = os.path.join(src_dir, "resources", "pipeline_out")
         self.args = None
@@ -163,6 +165,10 @@ class MMonitorCMD:
             self.centrifuger_db = os.path.abspath(self.args.centrifuger_db)
         elif 'centrifuger_db' in self.config:
             self.centrifuger_db = os.path.abspath(self.config['centrifuger_db'])
+        elif 'centrifuge_db' in self.config:
+            # Fallback for backward compatibility
+            self.centrifuger_db = os.path.abspath(self.config['centrifuge_db'])
+            print("WARNING: Using legacy 'centrifuge_db' config key. Please update to 'centrifuger_db'")
         else:
             # Use default path from config or fallback
             default_db = os.path.join(src_dir, "resources", "custom_centrifuger_db", 
@@ -224,38 +230,45 @@ class MMonitorCMD:
         parser.add_argument('--min-abundance', type=float, default=0.01,
                            help='Minimum abundance threshold for taxonomic classification.')
         
-        # Processing options
-        parser.add_argument('-b', '--barcodes', action="store_true",
-                            help='Use barcode column from CSV for multiplexing.')
-        parser.add_argument("--overwrite", action="store_true", 
-                            help="Overwrite existing records.")
-        parser.add_argument('-q', '--qc', action="store_true", 
-                            help='Calculate QC statistics for input samples.')
-        parser.add_argument('-x', '--update', action="store_true",
-                            help='Update counts and abundances to the MMonitor DB.')
+        # Filtlong parameters
+        parser.add_argument('--use-filtlong', action='store_true',
+                           help='Enable filtlong pre-filtering of reads.')
+        parser.add_argument('--filtlong-min-length', type=int, default=1000,
+                           help='Minimum read length for filtlong filtering.')
+        parser.add_argument('--filtlong-min-mean-q', type=float, default=7.0,
+                           help='Minimum mean quality for filtlong filtering.')
+        parser.add_argument('--filtlong-keep-percent', type=float, default=90.0,
+                           help='Keep only this percentage of best reads for filtlong filtering.')
+        parser.add_argument('--filtlong-target-bases', type=int, default=None,
+                           help='Target number of bases to retain after filtlong filtering.')
+        parser.add_argument('--filtlong-trim', action='store_true',
+                           help='Trim adapters from reads during filtlong filtering.')
+        parser.add_argument('--filtlong-split', action='store_true',
+                           help='Split reads at adapters during filtlong filtering.')
+        parser.add_argument('--filtlong-max-length', type=int, default=None,
+                           help='Maximum read length for filtlong filtering.')
         
-        # Database paths
-        parser.add_argument('--emu-db', type=str, help='Path to custom Emu database')
-        parser.add_argument('--centrifuger-db', type=str, help='Path to the Centrifuger database')  # Updated name
+        # Realtime mode options
+        parser.add_argument('--realtime', action='store_true',
+                           help='Enable realtime mode for continuous analysis.')
+        parser.add_argument('--watch-dir', type=str,
+                           help='Directory to watch for new files in realtime mode.')
+        parser.add_argument('--min-files', type=int, default=5,
+                           help='Minimum number of files to process in realtime mode.')
         
-        # Performance options
-        parser.add_argument('-t', '--threads', type=int, default=1, 
-                            help='Number of threads to use for processing.')
+        # Other options
+        parser.add_argument('--overwrite', action='store_true',
+                           help='Overwrite existing results.')
+        parser.add_argument('--qc', action='store_true',
+                           help='Run quality control checks.')
+        parser.add_argument('--update', action='store_true',
+                           help='Update existing results.')
+        parser.add_argument('--verbose', action='store_true',
+                           help='Enable verbose output.')
+        parser.add_argument('--loglevel', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                           default='INFO', help='Set the logging level.')
         
-        # Logging options
-        parser.add_argument('-v', '--verbose', action="store_true", 
-                            help='Enable verbose output.')
-        parser.add_argument('--loglevel', type=str, default='INFO', 
-                            choices=['ERROR', 'WARNING', 'INFO', 'DEBUG'],
-                            help='Set the logging level.')
-
-        parsed_args = parser.parse_args(args)
-
-        # Check for required arguments
-        if parsed_args.analysis in ['functional', 'assembly'] and not parsed_args.input:
-            parser.error("the following arguments are required: -i/--input")
-
-        return parsed_args
+        return parser.parse_args(args)
 
     def concatenate_fastq_files(self, file_paths, output_file):
         """
@@ -423,38 +436,53 @@ class MMonitorCMD:
         else:
             date_str = str(sample_date)
 
-        fastq_stats = FastqStatistics(fastq_file)
+        try:
+            fastq_stats = FastqStatistics(fastq_file)
 
-        # Calculate statistics
-        fastq_stats.quality_statistics()
-        fastq_stats.read_lengths_statistics()
-        quality_vs_lengths_data = fastq_stats.qualities_vs_lengths()
-        gc_contents = fastq_stats.gc_content_per_sequence()
+            # Calculate statistics
+            fastq_stats.quality_statistics()
+            fastq_stats.read_lengths_statistics()
+            quality_vs_lengths_data = fastq_stats.qualities_vs_lengths()
+            gc_contents = fastq_stats.gc_content_per_sequence()
 
-        # Pre-calculate plot data
-        plot_data = fastq_stats.calculate_plot_data()
+            # Pre-calculate plot data
+            plot_data = fastq_stats.calculate_plot_data()
 
-        data = {
-            'sample_name': sample_name,
-            'project_id': project_name,
-            'subproject_id': subproject_name,
-            'date': date_str,  # Use string date
-            'mean_gc_content': float(fastq_stats.gc_content()),
-            'mean_read_length': float(np.mean(fastq_stats.lengths)),
-            'median_read_length': float(np.median(fastq_stats.lengths)),
-            'mean_quality_score': float(np.mean([np.mean(q) for q in fastq_stats.qualities])),
-            'read_lengths': json.dumps(fastq_stats.lengths.tolist()),
-            'avg_qualities': json.dumps([np.mean(q) for q in fastq_stats.qualities]),
-            'number_of_reads': fastq_stats.number_of_reads(),
-            'total_bases_sequenced': fastq_stats.total_bases_sequenced(),
-            'q20_score': float((fastq_stats.q20_counts.sum() / fastq_stats.total_bases) * 100),
-            'q30_score': float((fastq_stats.q30_counts.sum() / fastq_stats.total_bases) * 100),
-            'gc_contents_per_sequence': json.dumps(gc_contents),
-            'plot_data': json.dumps(plot_data)  # Store pre-calculated plot data
-        }
+            # Check if we have any valid reads
+            if fastq_stats.number_of_reads() == 0:
+                print("Warning: No valid reads found in file. Skipping statistics.")
+                return
 
-        # Send to database
-        self.django_db.send_sequencing_statistics(data)
+            data = {
+                'sample_name': sample_name,
+                'project_id': project_name,
+                'subproject_id': subproject_name,
+                'date': date_str,  # Use string date
+                'mean_gc_content': float(fastq_stats.gc_content()),
+                'mean_read_length': float(np.mean(fastq_stats.lengths)),
+                'median_read_length': float(np.median(fastq_stats.lengths)),
+                'mean_quality_score': float(np.mean([np.mean(q) for q in fastq_stats.qualities])),
+                'read_lengths': json.dumps(fastq_stats.lengths.tolist()),
+                'avg_qualities': json.dumps([np.mean(q) for q in fastq_stats.qualities]),
+                'number_of_reads': fastq_stats.number_of_reads(),
+                'total_bases_sequenced': fastq_stats.total_bases_sequenced(),
+                'q20_score': float((fastq_stats.q20_counts.sum() / fastq_stats.total_bases) * 100),
+                'q30_score': float((fastq_stats.q30_counts.sum() / fastq_stats.total_bases) * 100),
+                'gc_contents_per_sequence': json.dumps(gc_contents),
+                'plot_data': json.dumps(plot_data)  # Store pre-calculated plot data
+            }
+
+            # Send to database using the correct method name
+            self.django_db.upload_sequencing_statistics(data)
+            print(f"Statistics uploaded successfully for {sample_name}")
+
+        except Exception as e:
+            print(f"Error calculating statistics: {e}")
+            if "No valid sequences found" in str(e):
+                print("Warning: No valid sequences found in file. Skipping statistics.")
+            else:
+                print(f"Warning: Could not calculate statistics for {sample_name}")
+                traceback.print_exc()
 
     def _convert_numpy(self, obj):
         """Convert numpy types to native Python types for JSON serialization."""
@@ -497,12 +525,68 @@ class MMonitorCMD:
                 self.add_statistics(files, sample_name, project_name, subproject_name,
                                     sample_date, multi=True)
 
+    def run_filtlong(self, input_files, output_dir, sample_name=None):
+        """
+        Run Filtlong on input files
+        
+        Args:
+            input_files: List of input FASTQ files
+            output_dir: Directory to store filtered FASTQ files
+            sample_name: Sample name for output files (default: None)
+            
+        Returns:
+            List of filtered file paths or None if filtering failed
+        """
+        if not self.args.use_filtlong:
+            return input_files
+            
+        if not sample_name:
+            sample_name = self.args.sample
+            
+        # Create output directory if it doesn't exist
+        filtered_dir = os.path.join(output_dir, "filtered")
+        os.makedirs(filtered_dir, exist_ok=True)
+        
+        # Get Filtlong parameters from args
+        filtlong_params = {
+            'min_length': self.args.filtlong_min_length,
+            'min_mean_q': self.args.filtlong_min_mean_q,
+            'keep_percent': self.args.filtlong_keep_percent,
+            'target_bases': self.args.filtlong_target_bases,
+            'trim': self.args.filtlong_trim,
+            'split': self.args.filtlong_split,
+            'max_length': self.args.filtlong_max_length,
+            'threads': getattr(self.args, 'threads', multiprocessing.cpu_count())
+        }
+        
+        print(f"\nRunning Filtlong pre-filtering on {len(input_files)} files...")
+        print(f"Parameters: ")
+        for param, value in filtlong_params.items():
+            print(f"  {param}: {value}")
+        
+        # Run Filtlong
+        filtered_files = self.filtlong_runner.filter_fastq_files(
+            input_files, 
+            filtered_dir, 
+            sample_name, 
+            **filtlong_params
+        )
+        
+        if filtered_files:
+            print(f"Filtlong pre-filtering completed successfully.")
+            print(f"Filtered files saved to: {filtered_dir}")
+            return filtered_files
+        else:
+            print(f"Filtlong pre-filtering failed. Using original input files.")
+            return input_files
+
     def taxonomy_nanopore_16s(self):
         """Run EMU analysis on 16S data"""
         print(f"Analyzing 16S data for sample {self.args.sample}")
         print(f"Min abundance threshold: {self.args.min_abundance}")
 
         concat_file = None
+        filtered_files = None
         try:
             # Get input files and sample info
             input_files = self.args.input
@@ -514,6 +598,11 @@ class MMonitorCMD:
             # Setup output directory
             output_dir = os.path.join(self.pipeline_out, sample_name)
             os.makedirs(output_dir, exist_ok=True)
+            
+            # Run Filtlong pre-filtering if enabled
+            if self.args.use_filtlong:
+                filtered_files = self.run_filtlong(input_files, output_dir, sample_name)
+                input_files = filtered_files
             
             # Handle file concatenation if needed
             input_file = input_files[0] if len(input_files) == 1 else self.concatenate_files(input_files, sample_name)
@@ -579,6 +668,7 @@ class MMonitorCMD:
     def taxonomy_nanopore_wgs(self):
         """Run WGS taxonomy analysis using Centrifuger"""
         concat_file = None
+        filtered_files = None
         try:
             # Get input files and sample info
             input_files = self.args.input
@@ -587,8 +677,24 @@ class MMonitorCMD:
             subproject_name = str(self.args.subproject)
             sample_date = self.args.date
             
+            # Get database path and ensure it's the correct prefix
+            db_path = self.config.get('centrifuger_db', '')
+            if not db_path and 'centrifuge_db' in self.config:
+                # Fallback for backward compatibility
+                db_path = self.config.get('centrifuge_db', '')
+                print("WARNING: Using legacy 'centrifuge_db' config key. Please update to 'centrifuger_db'")
+            
             print(f"\nAnalyzing WGS data for sample {sample_name}")
-            print(f"Using Centrifuger database at: {self.config.get('centrifuge_db', '')}")
+            print(f"Using Centrifuger database at: {db_path}")
+            
+            # Setup output directory
+            output_dir = os.path.join(self.pipeline_out, sample_name)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Run Filtlong pre-filtering if enabled
+            if self.args.use_filtlong:
+                filtered_files = self.run_filtlong(input_files, output_dir, sample_name)
+                input_files = filtered_files
             
             # Handle file concatenation if needed
             input_file = input_files[0] if len(input_files) == 1 else self.concatenate_files(input_files, sample_name)
@@ -599,7 +705,10 @@ class MMonitorCMD:
             success = self.centrifuger_runner.run_centrifuger(
                 input_file=input_file,
                 sample_name=sample_name,
-                db_path=self.config.get('centrifuge_db', '')
+                db_path=db_path,
+                realtime_mode=getattr(self.args, 'realtime', False),
+                watch_dir=getattr(self.args, 'watch_dir', None),
+                min_files=getattr(self.args, 'min_files', 5)
             )
             
             if not success:
@@ -631,6 +740,7 @@ class MMonitorCMD:
     def assembly_pipeline(self):
         """Run the assembly pipeline with checkpointing"""
         concat_file = None
+        filtered_files = None
         try:
             # Get input files and sample info
             input_files = self.args.input
@@ -639,6 +749,11 @@ class MMonitorCMD:
             # Setup output directory
             output_dir = os.path.join(self.pipeline_out, sample_name)
             os.makedirs(output_dir, exist_ok=True)
+            
+            # Run Filtlong pre-filtering if enabled
+            if self.args.use_filtlong:
+                filtered_files = self.run_filtlong(input_files, output_dir, sample_name)
+                input_files = filtered_files
             
             # Handle file concatenation if needed
             input_file = input_files[0] if len(input_files) == 1 else self.concatenate_files(input_files, sample_name)
@@ -649,7 +764,7 @@ class MMonitorCMD:
             pipeline = AssemblyPipeline(output_dir, sample_name, self.django_db)
             
             # Run assembly pipeline with proper checkpointing
-            success = pipeline.run_assembly([input_file], self.args.threads)
+            success = pipeline.run_assembly([input_file], getattr(self.args, 'threads', multiprocessing.cpu_count()))
             
             if success:
                 print("Assembly pipeline completed successfully.")
@@ -667,8 +782,11 @@ class MMonitorCMD:
                     print(f"Assembly pipeline failed at step {failed_step}: {error_msg}")
                 else:
                     print("Assembly pipeline failed. Check logs for details.")
+                    
+            return success
         except Exception as e:
             print(f"Assembly pipeline failed: {str(e)}")
+            return False
         finally:
             # Clean up temporary concatenated file if it exists
             if concat_file and os.path.exists(concat_file):

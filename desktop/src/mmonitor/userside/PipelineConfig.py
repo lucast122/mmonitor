@@ -33,6 +33,16 @@ class PipelineConfig(ctk.CTkFrame):
         self.is_isolate = ctk.BooleanVar(value=False)
         self.min_contig_length = tk.StringVar(value='1000')
         
+        # Initialize realtime variables
+        self.min_files_for_auto_analysis = tk.StringVar(value='5')
+        
+        # Initialize Filtlong variables
+        self.filtlong_min_length = tk.StringVar(value='1000')
+        self.filtlong_min_mean_q = tk.StringVar(value='7')
+        self.filtlong_keep_percent = tk.StringVar(value='90')
+        self.filtlong_target_bases = tk.StringVar(value='')
+        self.filtlong_max_length = tk.StringVar(value='')
+        
         # Load existing configuration
         self.load_config()
         
@@ -76,6 +86,14 @@ class PipelineConfig(ctk.CTkFrame):
             ("Isolate Mode:", self.is_isolate, None, "checkbox"),
             ("Min contig length:", self.min_contig_length)
         ])
+        
+        # Filtlong parameters section
+        self.create_filtlong_section(content_frame)
+        
+        # Realtime parameters
+        self.create_section(content_frame, "Realtime Parameters", [
+            ("Min files for auto-analysis:", self.min_files_for_auto_analysis)
+        ])
 
         # Save Parameters button
         save_button = ctk.CTkButton(
@@ -86,6 +104,66 @@ class PipelineConfig(ctk.CTkFrame):
         )
         save_button.pack(pady=10)
         create_tooltip(save_button, "Save the current parameters to a configuration file")
+
+    def create_filtlong_section(self, parent):
+        """Create the Filtlong parameters section"""
+        section_frame = ctk.CTkFrame(parent)
+        section_frame.pack(pady=5, fill="x")
+        
+        # Section header
+        title_label = ctk.CTkLabel(section_frame, text="Filtlong Pre-filtering Parameters", font=("Helvetica", 14, "bold"))
+        title_label.pack(side="left", pady=2)
+        
+        # Create a frame for Filtlong options
+        options_frame = ctk.CTkFrame(section_frame)
+        options_frame.pack(fill="x", padx=5, pady=5)
+        
+        # First row: min length, min quality
+        row1 = ctk.CTkFrame(options_frame, fg_color="transparent")
+        row1.pack(fill="x", pady=1)
+        
+        # Min length
+        min_length_label = ctk.CTkLabel(row1, text="Min Length:", width=100, anchor="w")
+        min_length_label.pack(side="left", padx=2)
+        min_length_entry = ctk.CTkEntry(row1, textvariable=self.filtlong_min_length, width=80)
+        min_length_entry.pack(side="left", padx=(2, 15))
+        create_tooltip(min_length_entry, "Minimum read length to keep")
+        
+        # Min quality
+        min_q_label = ctk.CTkLabel(row1, text="Min Quality:", width=100, anchor="w")
+        min_q_label.pack(side="left", padx=2)
+        min_q_entry = ctk.CTkEntry(row1, textvariable=self.filtlong_min_mean_q, width=80)
+        min_q_entry.pack(side="left", padx=2)
+        create_tooltip(min_q_entry, "Minimum mean read quality to keep")
+        
+        # Second row: keep percent, target bases
+        row2 = ctk.CTkFrame(options_frame, fg_color="transparent")
+        row2.pack(fill="x", pady=1)
+        
+        # Keep percent
+        keep_percent_label = ctk.CTkLabel(row2, text="Keep Percent:", width=100, anchor="w")
+        keep_percent_label.pack(side="left", padx=2)
+        keep_percent_entry = ctk.CTkEntry(row2, textvariable=self.filtlong_keep_percent, width=80)
+        keep_percent_entry.pack(side="left", padx=(2, 15))
+        create_tooltip(keep_percent_entry, "Keep only this percentage of best reads")
+        
+        # Target bases
+        target_bases_label = ctk.CTkLabel(row2, text="Target Bases:", width=100, anchor="w")
+        target_bases_label.pack(side="left", padx=2)
+        target_bases_entry = ctk.CTkEntry(row2, textvariable=self.filtlong_target_bases, width=80)
+        target_bases_entry.pack(side="left", padx=2)
+        create_tooltip(target_bases_entry, "Target number of bases to retain (leave empty for no limit)")
+        
+        # Third row: max length
+        row3 = ctk.CTkFrame(options_frame, fg_color="transparent")
+        row3.pack(fill="x", pady=1)
+        
+        # Max length
+        max_length_label = ctk.CTkLabel(row3, text="Max Length:", width=100, anchor="w")
+        max_length_label.pack(side="left", padx=2)
+        max_length_entry = ctk.CTkEntry(row3, textvariable=self.filtlong_max_length, width=80)
+        max_length_entry.pack(side="left", padx=(2, 15))
+        create_tooltip(max_length_entry, "Maximum read length to keep (leave empty for no limit)")
 
     def create_section(self, parent, title, fields):
         section_frame = ctk.CTkFrame(parent)
@@ -336,6 +414,20 @@ class PipelineConfig(ctk.CTkFrame):
                         self.is_isolate.set(config['is_isolate'])
                     if 'min_contig_length' in config:
                         self.min_contig_length.set(config['min_contig_length'])
+                    if 'min_files_for_auto_analysis' in config:
+                        self.min_files_for_auto_analysis.set(config['min_files_for_auto_analysis'])
+                    
+                    # Load Filtlong parameters
+                    if 'filtlong_min_length' in config:
+                        self.filtlong_min_length.set(config['filtlong_min_length'])
+                    if 'filtlong_min_mean_q' in config:
+                        self.filtlong_min_mean_q.set(config['filtlong_min_mean_q'])
+                    if 'filtlong_keep_percent' in config:
+                        self.filtlong_keep_percent.set(config['filtlong_keep_percent'])
+                    if 'filtlong_target_bases' in config and config['filtlong_target_bases']:
+                        self.filtlong_target_bases.set(config['filtlong_target_bases'])
+                    if 'filtlong_max_length' in config and config['filtlong_max_length']:
+                        self.filtlong_max_length.set(config['filtlong_max_length'])
                     
             except Exception as e:
                 print(f"Error loading pipeline config: {e}")
@@ -355,6 +447,19 @@ class PipelineConfig(ctk.CTkFrame):
         # Create resources directory if it doesn't exist
         os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
         
+        # Process filtlong target_bases and max_length
+        filtlong_target_bases = self.filtlong_target_bases.get()
+        if filtlong_target_bases and filtlong_target_bases.strip():
+            filtlong_target_bases = int(filtlong_target_bases)
+        else:
+            filtlong_target_bases = None
+            
+        filtlong_max_length = self.filtlong_max_length.get()
+        if filtlong_max_length and filtlong_max_length.strip():
+            filtlong_max_length = int(filtlong_max_length)
+        else:
+            filtlong_max_length = None
+        
         # Update pipeline_config with current values, ensuring absolute paths for databases
         self.pipeline_config = {  
             'threads': self.threads.get(),
@@ -366,7 +471,15 @@ class PipelineConfig(ctk.CTkFrame):
             'assembly_mode': self.assembly_mode.get(),
             'medaka_model': self.medaka_model.get(),
             'is_isolate': self.is_isolate.get(),
-            'min_contig_length': self.min_contig_length.get()
+            'min_contig_length': self.min_contig_length.get(),
+            'min_files_for_auto_analysis': self.min_files_for_auto_analysis.get(),
+            
+            # Filtlong parameters
+            'filtlong_min_length': self.filtlong_min_length.get(),
+            'filtlong_min_mean_q': self.filtlong_min_mean_q.get(),
+            'filtlong_keep_percent': self.filtlong_keep_percent.get(),
+            'filtlong_target_bases': filtlong_target_bases,
+            'filtlong_max_length': filtlong_max_length
         }
         
         try:
@@ -446,8 +559,26 @@ class PipelineConfig(ctk.CTkFrame):
             "is_isolate": self.is_isolate.get(),
             "min_contig_length": int(self.min_contig_length.get()),
             "medaka_model": self.medaka_model.get(),
+            "min_files_for_auto_analysis": int(self.min_files_for_auto_analysis.get()),
+            "use_centrifuger_wrapper": True,  # Use the wrapper script by default
+            
+            # Filtlong parameters
+            "filtlong_min_length": int(self.filtlong_min_length.get()),
+            "filtlong_min_mean_q": float(self.filtlong_min_mean_q.get()),
+            "filtlong_keep_percent": float(self.filtlong_keep_percent.get()),
+            "filtlong_target_bases": self._get_optional_int(self.filtlong_target_bases.get()),
+            "filtlong_max_length": self._get_optional_int(self.filtlong_max_length.get())
         }
         self.gui.run_pipeline(params)
+
+    def _get_optional_int(self, value):
+        """Convert string to int or None if empty"""
+        if value and value.strip():
+            try:
+                return int(value.strip())
+            except ValueError:
+                return None
+        return None
 
     def update_appearance(self):
         """Update appearance based on current theme"""

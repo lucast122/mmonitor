@@ -316,12 +316,6 @@ class DatabaseWindow(ctk.CTkFrame):
             self.centrifuger_path_entry.insert(0, db_path)
             self.save_config()
 
-    def select_index(self):
-        index_path = filedialog.askopenfilename(title="Select Index File")
-        if index_path:
-            self.index_entry.delete(0, ctk.END)
-            self.index_entry.insert(0, index_path)
-
     def confirm_build_emu_db(self):
         selected_domains = [domain for domain, var in self.emu_domains.items() if var.get()]
         if selected_domains:
@@ -333,107 +327,23 @@ class DatabaseWindow(ctk.CTkFrame):
         selected_domains = [domain for domain, var in self.centrifuger_domains.items() if var.get()]  # Changed
         if selected_domains:
             db_type = self.centrifuger_db_type.get()  # Changed
-            index_path = self.index_entry.get()
             response = messagebox.askyesno("Confirm Build", 
                 f"Building the Centrifuger database ({db_type}) for {', '.join(selected_domains)} requires an internet connection and may take a while. Do you want to proceed?")  # Changed
             if response:
-                self.build_centrifuger_db(selected_domains, db_type, index_path)  # Changed
+                self.build_centrifuger_db(selected_domains, db_type, "")  # Pass empty string instead of self.index_entry.get()
 
     def build_emu_db(self, selected_domains):
         self.show_progress_window("Building Emu Database")
         threading.Thread(target=self._build_emu_db, args=(selected_domains,)).start()
 
     def build_centrifuger_db(self, selected_domains, db_type, index_path):  # Changed
-        try:
-            self.log_progress(f"Creating Centrifuger database directory...")  # Changed
-            os.makedirs(self.centrifuger_db_path, exist_ok=True)  # Changed
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-                if db_type == "NCBI":
-                    # Build Centrifuger database using NCBI data  # Changed
-                    index_name = "centrifuger_custom_index"  # Changed
-                    taxonomy_dir = os.path.join(self.centrifuger_db_path, "taxonomy")  # Changed
-                    library_dir = os.path.join(self.centrifuger_db_path, "library")  # Changed
-
-                    # Set paths for centrifuger executables  # Changed
-                    centrifuger_download = os.path.join("centrifuger-download")  # Changed
-                    centrifuger_build = os.path.join("centrifuger-build")  # Changed
-
-                    # Download NCBI taxonomy
-                    self.update_progress("Downloading NCBI taxonomy...")
-                    subprocess.run([centrifuger_download, "-o", taxonomy_dir, "taxonomy"], check=True)  # Changed
-
-                    # Download genomes for selected domains
-                    domains = ",".join(selected_domains)
-                    self.update_progress(f"Downloading {domains} genomes... This may take a while.")
-                    subprocess.run([centrifuger_download, "-o", library_dir, "-m", "-d", domains, "refseq"],  # Changed
-                                check=True, stdout=subprocess.PIPE)
-
-                    # Build database
-                    num_threads = multiprocessing.cpu_count()
-                    self.update_progress("Building Centrifuger database...")  # Changed
-                    build_cmd = [
-                        centrifuger_build,  # Changed
-                        "-t", str(num_threads),
-                        "--conversion-table", "seqid2taxid.map",
-                        "--taxonomy-tree", "taxonomy/nodes.dmp",
-                        "--name-table", "taxonomy/names.dmp",
-                        "-f", "file.list",
-                        "-o", "refseq_abv",
-                        "--build-mem", str(build_mem)
-                    ]
-                    subprocess.run(build_cmd, check=True, capture_output=True, text=True)
-
-                elif db_type == "GTDB":
-                    # Build Centrifuger database using GTDB data
-                    self.log_progress("Creating GTDB database directory...")
-                    os.makedirs(self.gtdb_db_path, exist_ok=True)
-
-                    # Step 1: Download the latest GTDB release
-                    self.log_progress("Downloading GTDB metadata...")
-                    gtdb_metadata_url = "https://data.gtdb.ecogenomic.org/releases/latest/genomic_files_representative/"
-                    gtdb_metadata_file = os.path.join(temp_dir, "gtdb_metadata.tar.gz")
-                    wget.download(gtdb_metadata_url, gtdb_metadata_file)
-
-                    # Step 2: Extract GTDB metadata
-                    self.log_progress("Extracting GTDB metadata...")
-                    with tarfile.open(gtdb_metadata_file, "r:gz") as tar:
-                        tar.extractall(path=self.gtdb_db_path)
-
-                    # Step 3: Prepare GTDB sequences for Centrifuger
-                    self.log_progress("Preparing GTDB sequences for Centrifuger...")
-                    gtdb_sequences_file = os.path.join(self.gtdb_db_path, "gtdb_sequences.fna")
-                    self._prepare_gtdb_sequences(gtdb_sequences_file)
-
-                    # Step 4: Build GTDB index using Centrifuger
-                    self.log_progress("Building GTDB index using Centrifuger...")
-                    centrifuger_build_command = [
-                        "centrifuger-build",
-                        "-p", str(multiprocessing.cpu_count()),
-                        "--conversion-table", os.path.join(self.gtdb_db_path, "seqid2taxid.map"),
-                        gtdb_sequences_file,
-                        os.path.join(self.gtdb_db_path, "gtdb_index")
-                    ]
-                    subprocess.run(centrifuger_build_command, check=True)
-
-                    self.log_progress("GTDB database build completed successfully.")
-
-            self.close_progress_window()
-            messagebox.showinfo("Success", f"Centrifuger database built successfully at {self.centrifuger_db_path}")
-
-            # Ask user if they want to open the folder
-            self.ask_to_open_folder(self.centrifuger_db_path)
-
-        except subprocess.CalledProcessError as e:
-            self.close_progress_window()
-            error_message = f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.\nStderr: {e.stderr}"
-            self.log_progress(f"Error: {error_message}")
-            self.show_error_message(error_message)
-        except Exception as e:
-            self.close_progress_window()
-            error_message = f"An unexpected error occurred: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
-            self.log_progress(f"Error: {error_message}")
-            self.show_error_message(error_message)
+        """Dispatch to the appropriate database building method based on db_type"""
+        self.show_progress_window("Building Centrifuger Database")
+        
+        if db_type == "NCBI":
+            threading.Thread(target=self._build_ncbi_db, args=(selected_domains,)).start()
+        else:  # GTDB
+            threading.Thread(target=self._build_gtdb_db).start()
 
     def show_progress_window(self, title):
         """Create and show progress window safely"""
@@ -721,29 +631,6 @@ class DatabaseWindow(ctk.CTkFrame):
             pass
         finally:
             self.after(100, self.process_message_queue)
-
-    def build_centrifuger_db(self):
-        """Build Centrifuger database using selected domains"""
-        try:
-            selected_domains = [domain for domain, var in self.centrifuger_domains.items() 
-                              if var.get()]
-            
-            if not selected_domains:
-                messagebox.showerror("Error", "Please select at least one domain.")
-                return
-
-            # Create progress window
-            self.show_progress_window("Building Centrifuger Database")
-            
-            if self.centrifuger_db_type.get() == "NCBI":
-                threading.Thread(target=self._build_ncbi_db, args=(selected_domains,)).start()
-            else:  # GTDB
-                threading.Thread(target=self._build_gtdb_db).start()
-                
-        except Exception as e:
-            self.close_progress_window()
-            error_msg = f"An error occurred:\n{str(e)}"
-            messagebox.showerror("Error", error_msg)
 
     def _build_ncbi_db(self, selected_domains):
         """Build Centrifuger database using NCBI data"""

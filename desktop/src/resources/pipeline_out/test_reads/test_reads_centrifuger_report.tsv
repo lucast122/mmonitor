@@ -1,0 +1,44 @@
+  0.00	0	0	U	0	unclassified
+100.00	31539	0	-	1	root
+100.00	31539	0	-	131567	  cellular_organisms
+100.00	31539	0	-	2759	    Eukaryota
+100.00	31539	0	-	33154	      Opisthokonta
+100.00	31539	0	K	4751	        Fungi
+100.00	31539	0	-	451864	          Dikarya
+ 99.98	31534	0	P	4890	            Ascomycota
+ 99.98	31534	0	-	716545	              saccharomyceta
+ 99.28	31313	0	-	147538	                Pezizomycotina
+ 99.28	31313	0	-	716546	                  leotiomyceta
+ 99.28	31313	0	C	147545	                    Eurotiomycetes
+ 99.28	31313	0	-	451871	                      Eurotiomycetidae
+ 99.27	31310	1	O	5042	                        Eurotiales
+ 99.27	31309	0	F	1131492	                          Aspergillaceae
+ 99.27	31309	0	G	5052	                            Aspergillus
+ 99.22	31293	0	-	2720871	                              Aspergillus_subgen._Circumdati
+ 99.22	31293	31293	S	1069201	                                Aspergillus_luchuensis
+  0.05	16	0	-	2720874	                              Aspergillus_subgen._Aspergillus
+  0.05	16	16	S	182096	                                Aspergillus_chevalieri
+  0.01	3	0	O	33183	                        Onygenales
+  0.01	3	0	F	33184	                          Onygenaceae
+  0.01	3	0	G	5500	                            Coccidioides
+  0.01	3	0	S	199306	                              Coccidioides_posadasii
+  0.01	3	3	-	443226	                                Coccidioides_posadasii_str._Silveira
+  0.70	221	13	-	147537	                Saccharomycotina
+  0.66	208	0	C	3239874	                  Pichiomycetes
+  0.36	114	0	O	3243775	                    Pichiales
+  0.36	114	0	F	1156497	                      Pichiaceae
+  0.36	114	0	G	13366	                        Brettanomyces
+  0.36	114	114	S	5007	                          Brettanomyces_bruxellensis
+  0.30	94	0	O	2916678	                    Serinales
+  0.30	94	0	F	766764	                      Debaryomycetaceae
+  0.30	94	0	-	1535325	                        Candida/Lodderomyces_clade
+  0.30	94	0	G	5475	                          Candida
+  0.30	94	0	S	42374	                            Candida_dubliniensis
+  0.30	94	94	-	573826	                              Candida_dubliniensis_CD36
+  0.02	5	0	P	5204	            Basidiomycota
+  0.02	5	0	-	29000	              Pucciniomycotina
+  0.02	5	0	C	162484	                Pucciniomycetes
+  0.02	5	0	O	5258	                  Pucciniales
+  0.02	5	0	F	5262	                    Pucciniaceae
+  0.02	5	0	G	5296	                      Puccinia
+  0.02	5	5	S	208348	                        Puccinia_triticina

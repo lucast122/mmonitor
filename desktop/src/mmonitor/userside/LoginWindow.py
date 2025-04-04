@@ -156,66 +156,146 @@ class LoginWindow(ctk.CTkFrame):
                 server_path = os.path.join(sys._MEIPASS, "server")
             else:
                 # If we're in development
-                server_path =  os.path.join(SERVER_DIR)
+                server_path = os.path.join(SERVER_DIR)
             
-        
+            # Verify server directory exists
             if not os.path.exists(server_path):
-                raise FileNotFoundError(f"Server directory not found at {server_path}")
+                error_msg = f"Server directory not found at {server_path}"
+                print(error_msg)
+                raise FileNotFoundError(error_msg)
+            
+            # Verify manage.py exists
+            manage_py_path = os.path.join(server_path, "manage.py")
+            if not os.path.exists(manage_py_path):
+                error_msg = f"Django manage.py not found at {manage_py_path}"
+                print(error_msg)
+                raise FileNotFoundError(error_msg)
             
             print(f"Starting Django server at {server_path}")
+            print(f"Using Python: {sys.executable}")
+            
+            # Prepare environment variables
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"  # Ensure Python output is unbuffered
+            env["DJANGO_SETTINGS_MODULE"] = "MMonitor.settings"  # Ensure settings module is set
+            
+            # Kill any existing processes on port 8000
+            self._kill_processes_on_port(8000)
             
             # Change to server directory
+            original_dir = os.getcwd()
             os.chdir(server_path)
             
-            # Start server process
+            # Start server process with the enhanced environment
             cmd = [sys.executable, "manage.py", "runserver", "127.0.0.1:8000"]
+            print(f"Executing command: {' '.join(cmd)}")
+            
             self.server_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1
+                bufsize=1,
+                env=env
             )
             
             # Start thread to monitor server output
-            threading.Thread(target=self._monitor_server_output, daemon=True).start()
+            self.monitor_thread = threading.Thread(target=self._monitor_server_output, daemon=True)
+            self.monitor_thread.start()
             
             # Wait for server to start
             self._wait_for_server()
             
+            # Return to original directory
+            os.chdir(original_dir)
+            
         except Exception as e:
             print(f"Error starting server: {e}")
+            import traceback
+            traceback.print_exc()
             raise
+    
+    def _kill_processes_on_port(self, port):
+        """Attempt to kill any existing processes on the specified port"""
+        try:
+            if sys.platform == 'win32':
+                # Windows
+                cmd = f"FOR /F \"tokens=5\" %P IN ('netstat -ano ^| findstr :{port}') DO TaskKill /PID %P /F"
+                subprocess.run(cmd, shell=True, capture_output=True)
+            else:
+                # Unix-like (macOS/Linux)
+                cmd = f"lsof -i:{port} | grep LISTEN | awk '{{print $2}}' | xargs -r kill -9"
+                subprocess.run(cmd, shell=True, capture_output=True)
+            print(f"Attempted to kill processes on port {port}")
+        except Exception as e:
+            print(f"Warning: Failed to kill processes on port {port}: {e}")
 
     def _monitor_server_output(self):
         """Monitor server output in a separate thread"""
-        while True:
-            output = self.server_process.stdout.readline()
-            if output:
-                print("Server output:", output.strip())
-            
-            error = self.server_process.stderr.readline()
-            if error:
-                print("Server error:", error.strip())
-            
-            if self.server_process.poll() is not None:
-                break
+        print("Starting server output monitoring...")
+        
+        # Buffer for collecting stderr output
+        error_buffer = []
+        
+        try:
+            while True:
+                # Check if process has terminated
+                if self.server_process.poll() is not None:
+                    exit_code = self.server_process.poll()
+                    print(f"Django server process terminated with exit code: {exit_code}")
+                    if error_buffer:
+                        print("Server errors encountered during startup:")
+                        for err in error_buffer:
+                            print(f"  - {err}")
+                    break
+                
+                # Read stdout
+                output = self.server_process.stdout.readline()
+                if output:
+                    print(f"Django server: {output.strip()}")
+                
+                # Read stderr
+                error = self.server_process.stderr.readline()
+                if error:
+                    error_str = error.strip()
+                    print(f"Django server ERROR: {error_str}")
+                    error_buffer.append(error_str)
+                
+                # Small delay to prevent CPU spinning
+                time.sleep(0.1)
+        
+        except Exception as e:
+            print(f"Error monitoring server output: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _wait_for_server(self):
         """Wait for server to start"""
-        max_attempts = 30
+        max_attempts = 60  # Increased from 30 to 60 attempts
         attempt = 0
+        last_error = None
+        
+        print(f"Waiting for Django server to start at http://127.0.0.1:8000 (max {max_attempts} attempts)")
+        
         while attempt < max_attempts:
             try:
-                response = requests.get("http://127.0.0.1:8000", timeout=1)
+                print(f"Attempt {attempt+1}/{max_attempts} to connect to Django server...")
+                response = requests.get("http://127.0.0.1:8000", timeout=2)  # Increased timeout to 2 seconds
                 if response.status_code == 200:
                     print("Server detected as running!")
                     return
-            except requests.exceptions.RequestException:
-                attempt += 1
-                time.sleep(1)
+                else:
+                    print(f"Server responded with status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                last_error = str(e)
+                print(f"Connection attempt {attempt+1} failed: {last_error}")
+            
+            attempt += 1
+            time.sleep(1)
         
-        raise TimeoutError("Server failed to start within timeout period")
+        error_msg = f"Server failed to start within timeout period. Last error: {last_error}"
+        print(error_msg)
+        raise TimeoutError(error_msg)
 
     def enter_offline_mode(self):
         """Enter offline mode with proper server setup"""
@@ -294,7 +374,12 @@ class LoginWindow(ctk.CTkFrame):
     def _login_thread(self):
         try:
             start_time = time.time()
-            self.db_interface = DjangoDBInterface(self.db_path)
+            
+            # Instead of creating a new instance, update the existing one
+            # with the current server and port values
+            self.db_interface.host = self.server_var.get()
+            self.db_interface.port = self.port_var.get()
+            self.db_interface.update_base_url()
             
             # Set credentials before login attempt
             self.db_interface.username = self.username_var.get()

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CGView JSON Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
+        .btn { padding: 8px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        .result { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>CGView JSON Structure Analyzer</h1>
+    
+    <div>
+        <label for="json-file">Select JSON file:</label>
+        <select id="json-file">
+            <option value="server/static/json/bin10.json">bin10.json</option>
+            <option value="server/static/json/bin13.json">bin13.json</option>
+            <option value="server/static/json/cgview_test.json">cgview_test.json</option>
+        </select>
+        <button class="btn" id="load-json">Load</button>
+    </div>
+    
+    <div class="result">
+        <h2>JSON Structure</h2>
+        <div id="structure"></div>
+    </div>
+    
+    <div class="result">
+        <h2>Sample Data</h2>
+        <pre id="sample"></pre>
+    </div>
+    
+    <script>
+        document.getElementById('load-json').addEventListener('click', () => {
+            const url = document.getElementById('json-file').value;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    analyzeStructure(data);
+                })
+                .catch(error => {
+                    document.getElementById('structure').innerHTML = `<p style="color:red">Error: ${error.message}</p>`;
+                });
+        });
+        
+        function analyzeStructure(data) {
+            const structureDiv = document.getElementById('structure');
+            const sampleDiv = document.getElementById('sample');
+            
+            let structure = '<ul>';
+            
+            // Analyze top-level properties
+            for (const key in data) {
+                const value = data[key];
+                const type = Array.isArray(value) ? `Array[${value.length}]` : typeof value;
+                
+                structure += `<li><strong>${key}</strong>: ${type}</li>`;
+                
+                // If this is an array and might contain features
+                if (Array.isArray(value) && value.length > 0) {
+                    const firstItem = value[0];
+                    if (typeof firstItem === 'object') {
+                        structure += '<ul>';
+                        structure += `<li>First item properties: ${Object.keys(firstItem).join(', ')}</li>`;
+                        structure += '</ul>';
+                    }
+                }
+            }
+            
+            structure += '</ul>';
+            
+            // Tips for fixing
+            if (!data.features || data.features.length === 0) {
+                structure += '<h3>No features found in expected location</h3>';
+                structure += '<p>The CGView.js library expects a top-level "features" array. Possible fixes:</p>';
+                structure += '<ol>';
+                structure += '<li>Check if features are in a different property</li>';
+                structure += '<li>Check your GenBank to JSON conversion process</li>';
+                structure += '<li>Make sure the JSON structure matches what CGView.js expects</li>';
+                structure += '</ol>';
+            }
+            
+            structureDiv.innerHTML = structure;
+            
+            // Show a sample of the data
+            sampleDiv.textContent = JSON.stringify(data, null, 2).slice(0, 2000) + '...';
+        }
+    </script>
+</body>
+</html>

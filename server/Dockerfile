@@ -14,11 +14,9 @@ COPY . /app/
 # Install dependencies
 COPY requirements.txt /app/
 RUN apt-get update && apt-get install -y \
-    default-libmysqlclient-dev \
     pkg-config \
     gcc \
     python3-dev \
-    libmysqlclient-dev \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt

@@ -2852,4 +2852,722 @@ class MAGs:
         text = ''.join(c if ord(c) < 128 else '_' for c in text)
         return text
 
+    def _create_cgview_plot(self, mag_id=None):
+        """Create a CGView.js circular genome visualization.
+        
+        Args:
+            mag_id (str): ID of the MAG to visualize
+            
+        Returns:
+            str: HTML content with CGView.js visualization
+        """
+        try:
+            # Clear logging to help debug
+            logger.info(f"Creating CGView plot for MAG ID: {mag_id if mag_id else 'None'}")
+            
+            # If no MAG ID is provided, don't try to create a plot with data
+            if not mag_id:
+                logger.info("No MAG ID provided, returning placeholder message")
+                return """
+                <html>
+                <body style="text-align: center; font-family: Arial, sans-serif; background-color: #f9f9f9;">
+                    <div style="padding: 40px 20px;">
+                        <div style="font-size: 18px; margin-bottom: 15px;">Select a MAG from the table to view genome visualization</div>
+                        <div style="color: #666; font-size: 14px;">The circular plot will show contigs and gene annotations when a MAG is selected</div>
+                    </div>
+                </body>
+                </html>
+                """
+            
+            # Get MAG data including sequence information
+            mag_info = None
+            sequences = []
+            
+            # Force refresh the mag_data to avoid using cached data
+            mag_data = self.get_mag_data(include_fasta=True, force_refresh=True)
+            
+            try:
+                # Get the MAG data for the specific MAG ID
+                logger.info(f"Retrieving MAG data for {mag_id}")
+                
+                if not mag_data:
+                    logger.warning("No MAG data returned from get_mag_data")
+                    return """
+                    <html>
+                    <body style="text-align: center; font-family: Arial, sans-serif; background-color: #f9f9f9;">
+                        <div style="padding: 40px 20px;">
+                            <div style="font-size: 18px; color: #e74c3c; margin-bottom: 15px;">No MAG data available</div>
+                            <div style="color: #666; font-size: 14px;">Please check database connection or data availability</div>
+                        </div>
+                    </body>
+                    </html>
+                    """
+                    
+                if mag_id in mag_data:
+                    mag_info = mag_data[mag_id]
+                    logger.info(f"Found MAG info for {mag_id}")
+                else:
+                    # Try case-insensitive match if not found
+                    mag_id_lower = str(mag_id).lower()
+                    for key, info in mag_data.items():
+                        if isinstance(info, dict) and str(info.get('bin_id', '')).lower() == mag_id_lower:
+                            mag_info = info
+                            logger.info(f"Found MAG info for {mag_id} via case-insensitive match")
+                            break
+                    
+                    if not mag_info:
+                        logger.warning(f"MAG ID {mag_id} not found in MAG data dictionary")
+                        return f"""
+                        <html>
+                        <body style="text-align: center; font-family: Arial, sans-serif; background-color: #f9f9f9;">
+                            <div style="padding: 40px 20px;">
+                                <div style="font-size: 18px; color: #e74c3c; margin-bottom: 15px;">MAG ID {mag_id} not found</div>
+                                <div style="color: #666; font-size: 14px;">Please select a different MAG</div>
+                            </div>
+                        </body>
+                        </html>
+                        """
+                    
+                # Get sequences if we found the MAG
+                if mag_info:
+                    # Get sequences
+                    if 'fasta' in mag_info and isinstance(mag_info['fasta'], list):
+                        sequences = mag_info['fasta']
+                        logger.info(f"Found {len(sequences)} parsed sequences for MAG {mag_id}")
+                    elif 'fasta_file' in mag_info and mag_info['fasta_file']:
+                        sequences = self.parse_fasta_for_viewer(mag_info['fasta_file'])
+                        logger.info(f"Parsed {len(sequences)} sequences from FASTA file for MAG {mag_id}")
+                    else:
+                        logger.warning(f"No FASTA data found for MAG {mag_id}")
+                        return f"""
+                        <html>
+                        <body style="text-align: center; font-family: Arial, sans-serif; background-color: #f9f9f9;">
+                            <div style="padding: 40px 20px;">
+                                <div style="font-size: 18px; color: #e74c3c; margin-bottom: 15px;">No sequence data found for MAG {mag_id}</div>
+                                <div style="color: #666; font-size: 14px;">This MAG doesn't have any FASTA sequence data</div>
+                            </div>
+                        </body>
+                        </html>
+                        """
+            except Exception as e:
+                logger.error(f"Error retrieving MAG data: {str(e)}", exc_info=True)
+                return f"""
+                <html>
+                <body style="text-align: center; font-family: Arial, sans-serif; background-color: #f9f9f9;">
+                    <div style="padding: 40px 20px;">
+                        <div style="font-size: 18px; color: #e74c3c; margin-bottom: 15px;">Error retrieving MAG data</div>
+                        <div style="color: #666; font-size: 14px;">Error details: {str(e)}</div>
+                    </div>
+                </body>
+                </html>
+                """
+        
+            # Try to get GFF data for annotations
+            gene_annotations = []
+            try:
+                logger.info(f"Retrieving GFF data for {mag_id}")
+                
+                # First check if GFF data is directly available in the mag_info
+                if mag_info and 'gff_file' in mag_info and mag_info['gff_file']:
+                    logger.info(f"Found GFF data in mag_info for {mag_id}, parsing...")
+                    gff_content = mag_info['gff_file']
+                    gene_annotations = self._parse_gff_for_annotations(gff_content, sequences)
+                    logger.info(f"Parsed {len(gene_annotations)} annotations from GFF data")
+                else:
+                    # Try the database method
+                    logger.info(f"Using get_gff_data method for MAG {mag_id}")
+                    gff_data = self.get_gff_data(mag_id)
+                    if gff_data:
+                        logger.info(f"Found GFF data for MAG {mag_id}")
+                        if isinstance(gff_data, str):
+                            # Parse the GFF content if it's a string
+                            gene_annotations = self._parse_gff_for_annotations(gff_data, sequences)
+                            logger.info(f"Parsed {len(gene_annotations)} annotations from GFF string")
+                        elif isinstance(gff_data, list):
+                            # GFF data is already a list of feature dictionaries
+                            gene_annotations = gff_data
+                            logger.info(f"Using {len(gene_annotations)} annotations from GFF list data")
+                        else:
+                            logger.warning(f"Unexpected GFF format for MAG {mag_id}: {type(gff_data)}")
+                    else:
+                        logger.warning(f"No GFF data found for MAG {mag_id}")
+                
+                # If no annotations were found, try direct GFF parsing from database
+                if not gene_annotations:
+                    try:
+                        from users.models import MAG
+                        logger.info(f"Trying to get GFF directly from database for MAG {mag_id}")
+                        mag_obj = MAG.objects.get(name=mag_id, user_id=self.user_id)
+                        
+                        if mag_obj.gff_file:
+                            logger.info(f"Found GFF in database for MAG {mag_id}, parsing...")
+                            gene_annotations = self._parse_gff_for_annotations(mag_obj.gff_file, sequences)
+                            logger.info(f"Parsed {len(gene_annotations)} annotations directly from database GFF")
+                        else:
+                            logger.warning(f"No GFF file found in database for MAG {mag_id}")
+                    except Exception as db_error:
+                        logger.error(f"Error retrieving GFF from database: {str(db_error)}")
+                
+                # As a last resort, create placeholder annotations
+                if not gene_annotations and sequences:
+                    logger.info(f"No annotations found for MAG {mag_id}, creating placeholder annotations")
+                    gene_annotations = self._create_placeholder_annotations(sequences)
+                    logger.info(f"Created {len(gene_annotations)} placeholder annotations")
+                    
+            except Exception as e:
+                logger.error(f"Error processing GFF data: {str(e)}", exc_info=True)
+                # Continue with empty annotations - we'll show the contigs at least
+                gene_annotations = []
+            
+            # Sort sequences by length and get top N contigs
+            if sequences:
+                try:
+                    # Sort by sequence length
+                    sequences.sort(key=lambda x: x.get('length', 0), reverse=True)
+                    # Limit to top 24 sequences for better visualization
+                    sequences = sequences[:24]
+                    logger.info(f"Sorted and limited to {len(sequences)} sequences")
+                except Exception as e:
+                    logger.error(f"Error processing sequences: {str(e)}", exc_info=True)
+            
+            # If no valid sequences, use sample data
+            if not sequences:
+                logger.info("Using sample sequences as fallback")
+                # Create some fake sequence data
+                sequences = [
+                    {
+                        'id': 'contig_1',
+                        'header': '>contig_1',
+                        'length': 5000000,
+                        'sequence': 'A' * 100  # Just the first 100 bases for demo
+                    },
+                    {
+                        'id': 'contig_2',
+                        'header': '>contig_2',
+                        'length': 4000000,
+                        'sequence': 'G' * 100
+                    }
+                ]
+            
+            # Generate a unique ID for this visualization
+            safe_mag_id = str(mag_id).replace('.', '_').replace(':', '_').replace(' ', '_') if mag_id else 'sample'
+            unique_id = f"cgview-{safe_mag_id}-{int(time.time())}"
+            
+            # Create a CGView.js compatible data structure
+            cgview_data = self._prepare_cgview_data(sequences, gene_annotations, safe_mag_id, mag_info)
+            
+            # Generate HTML with embedded CGView.js
+            html_content = self._generate_cgview_html(unique_id, cgview_data, safe_mag_id)
+            
+            return html_content
+            
+        except Exception as e:
+            logger.error(f"Error creating CGView plot: {str(e)}", exc_info=True)
+            return f"""
+                <html>
+                <body>
+                    <div style="color: red; padding: 20px; border: 1px solid #ccc;">
+                        <h3>Error creating plot</h3>
+                        <p>{str(e)}</p>
+                        <pre>{traceback.format_exc()}</pre>
+                    </div>
+                </body>
+                </html>
+            """
+
+    def _prepare_cgview_data(self, sequences, gene_annotations, mag_id, mag_info=None):
+        """Prepare data for CGView.js format.
+        
+        Args:
+            sequences: List of sequence dictionaries
+            gene_annotations: List of annotation dictionaries
+            mag_id: MAG identifier
+            mag_info: Additional MAG metadata
+            
+        Returns:
+            dict: Data structure for CGView.js
+        """
+        logger.info(f"Preparing CGView data for {mag_id} with {len(sequences)} sequences and {len(gene_annotations)} annotations")
+        
+        # Initialize a CGView data structure
+        cgview_data = {
+            "name": f"MAG {mag_id}",
+            "id": mag_id,
+            "width": 800,
+            "height": 800,
+            "settings": {
+                "format": "circular",
+                "backgroundColor": "white",
+                "showShading": True,
+                "arrowHeadLength": 0.3,
+                "initialMapThicknessProportion": 0.1,
+                "maxMapThicknessProportion": 0.5
+            },
+            "sequence": {
+                "name": mag_id,
+                "font": "SansSerif, plain, 14",
+                "color": "black",
+                "visible": True,
+                "contigs": []
+            },
+            "legend": {
+                "position": "top-right",
+                "anchor": "auto",
+                "defaultFont": "SansSerif, plain, 12",
+                "defaultFontColor": "black",
+                "textAlignment": "left",
+                "backgroundColor": "white",
+                "on": "canvas",
+                "visible": True,
+                "items": []
+            },
+            "backbone": {
+                "thickness": 5,
+                "color": "grey",
+                "colorAlternate": "rgb(200,200,200)",
+                "decoration": "arrow" if len(sequences) > 1 else "arc",
+                "visible": True
+            },
+            "ruler": {
+                "font": "sans-serif, plain, 10",
+                "color": "black",
+                "visible": True
+            },
+            "dividers": {
+                "color": "grey",
+                "thickness": 1,
+                "spacing": 1,
+                "visible": True
+            },
+            "annotation": {
+                "font": "monospace, plain, 12",
+                "color": "black",
+                "onlyDrawFavorites": False,
+                "labelPlacement": "default", 
+                "visible": True
+            },
+            "tracks": [],
+            "features": [],
+            "captions": [
+                {
+                    "name": f"MAG: {mag_id}",
+                    "position": "top-center",
+                    "anchor": "middle-center",
+                    "font": "SansSerif, plain, 16",
+                    "fontColor": "#2c3e50",
+                    "textAlignment": "center",
+                    "backgroundColor": "white",
+                    "on": "canvas",
+                    "visible": True
+                }
+            ]
+        }
+        
+        # Add metadata caption if available
+        if mag_info:
+            metadata_caption = {
+                "name": f"Completeness: {float(mag_info.get('completeness', 0)) * 100:.1f}%, "
+                       f"Contamination: {float(mag_info.get('contamination', 0)) * 100:.1f}%, "
+                       f"Contigs: {len(sequences)}",
+                "position": "bottom-center",
+                "anchor": "middle-center",
+                "font": "SansSerif, plain, 12",
+                "fontColor": "#7f8c8d",
+                "textAlignment": "center",
+                "backgroundColor": "white",
+                "on": "canvas",
+                "visible": True
+            }
+            cgview_data["captions"].append(metadata_caption)
+            
+            # Add taxonomy caption if available
+            if mag_info.get('taxonomy'):
+                taxonomy = mag_info.get('taxonomy', 'Unknown')
+                if isinstance(taxonomy, dict):
+                    tax_parts = []
+                    for level, name in taxonomy.items():
+                        if name and name.lower() not in ['unknown', 'unclassified', 'none']:
+                            tax_parts.append(f"{name}")
+                    taxonomy = "; ".join(tax_parts) if tax_parts else "Unknown"
+                
+                cgview_data["captions"].append({
+                    "name": f"Taxonomy: {taxonomy}",
+                    "position": "top-center",
+                    "anchor": "middle-center",
+                    "font": "SansSerif, plain, 12",
+                    "fontColor": "#7f8c8d",
+                    "textAlignment": "center",
+                    "backgroundColor": "white",
+                    "on": "canvas",
+                    "visible": True
+                })
+        
+        # Add contigs
+        total_length = 0
+        for i, seq in enumerate(sequences):
+            seq_id = seq.get('id', '').split()[0]
+            length = seq.get('length', 0)
+            total_length += length
+            
+            # Calculate GC content if not already present
+            if 'gc_content' not in seq and 'sequence' in seq:
+                sequence = seq.get('sequence', '')
+                if sequence:
+                    gc_count = sequence.upper().count('G') + sequence.upper().count('C')
+                    total = len(sequence)
+                    seq['gc_content'] = (gc_count / total) * 100 if total > 0 else 0
+            
+            # Add contig to sequence
+            contig = {
+                "name": seq_id,
+                "length": length,
+                "orientation": "+",
+                "color": self._get_contig_color(i),
+                "visible": True
+            }
+            cgview_data["sequence"]["contigs"].append(contig)
+        
+        # Update sequence length
+        cgview_data["sequence"]["length"] = total_length
+        
+        # Create legend items for different feature types
+        legend_items = {
+            "CDS": {
+                "name": "CDS",
+                "fontColor": "black",
+                "swatchColor": "#1f77b4",
+                "decoration": "arrow"
+            },
+            "rRNA": {
+                "name": "rRNA",
+                "fontColor": "black",
+                "swatchColor": "#2ca02c",
+                "decoration": "arrow"
+            },
+            "tRNA": {
+                "name": "tRNA",
+                "fontColor": "black",
+                "swatchColor": "#d62728",
+                "decoration": "arrow"
+            },
+            "ncRNA": {
+                "name": "ncRNA",
+                "fontColor": "black",
+                "swatchColor": "#9467bd",
+                "decoration": "arrow"
+            },
+            "repeat": {
+                "name": "Repeat",
+                "fontColor": "black",
+                "swatchColor": "#8c564b",
+                "decoration": "arrow"
+            },
+            "other": {
+                "name": "Other",
+                "fontColor": "black",
+                "swatchColor": "#7f7f7f",
+                "decoration": "arrow"
+            }
+        }
+        
+        # Add legend items
+        for key, item in legend_items.items():
+            cgview_data["legend"]["items"].append(item)
+        
+        # Create a "forward strand" track
+        forward_track = {
+            "name": "Forward Strand",
+            "dataType": "feature",
+            "dataMethod": "source",
+            "dataKeys": "forward",
+            "position": "outside",
+            "separateFeaturesBy": "none",
+            "thicknessRatio": 1,
+            "visible": True
+        }
+        
+        # Create a "reverse strand" track
+        reverse_track = {
+            "name": "Reverse Strand",
+            "dataType": "feature",
+            "dataMethod": "source",
+            "dataKeys": "reverse",
+            "position": "inside",
+            "separateFeaturesBy": "none",
+            "thicknessRatio": 1,
+            "visible": True
+        }
+        
+        # Add tracks
+        cgview_data["tracks"].append(forward_track)
+        cgview_data["tracks"].append(reverse_track)
+        
+        # Create a GC content track if we have sequence data
+        if any('sequence' in seq for seq in sequences):
+            # Create a GC content plot
+            gc_plot = {
+                "name": "GC Content",
+                "legend": "GC Content",
+                "baseline": 50,
+                "axisMax": 70,
+                "axisMin": 30,
+                "positions": [],
+                "scores": []
+            }
+            
+            # Add plot to a new track
+            gc_track = {
+                "name": "GC Content",
+                "dataType": "plot",
+                "dataMethod": "source",
+                "dataKeys": "gc_content",
+                "position": "outside",
+                "thicknessRatio": 0.5,
+                "visible": True
+            }
+            
+            cgview_data["tracks"].append(gc_track)
+        
+        # Process gene annotations and add features
+        if gene_annotations:
+            feature_count = 0
+            for annotation in gene_annotations:
+                try:
+                    # Some basic validation
+                    if not isinstance(annotation, dict):
+                        continue
+                    
+                    contig = annotation.get('contig')
+                    if not contig:
+                        continue
+                    
+                    start = annotation.get('start')
+                    end = annotation.get('end')
+                    if not start or not end:
+                        continue
+                    
+                    # Determine strand
+                    strand = annotation.get('strand')
+                    strand_string = '+' if strand in ['+', 1, '1'] else '-'
+                    source = "forward" if strand_string == '+' else "reverse"
+                    
+                    # Determine feature type and legend
+                    feature_type = annotation.get('type', 'unknown').lower()
+                    feature_type_orig = annotation.get('original_type', feature_type).lower()
+                    
+                    # Map feature type to legend
+                    legend = "CDS"
+                    if 'rrna' in feature_type_orig:
+                        legend = "rRNA"
+                    elif 'trna' in feature_type_orig:
+                        legend = "tRNA"
+                    elif 'ncrna' in feature_type_orig or 'nc_rna' in feature_type_orig:
+                        legend = "ncRNA"
+                    elif 'repeat' in feature_type_orig:
+                        legend = "repeat"
+                    elif feature_type_orig not in ['cds', 'gene']:
+                        legend = "other"
+                    
+                    # Get feature name
+                    feature_name = annotation.get('name', '') or annotation.get('gene', '') or annotation.get('locus_tag', '')
+                    if not feature_name:
+                        feature_name = f"{feature_type}_{start}"
+                    
+                    # Create feature object
+                    feature = {
+                        "name": feature_name,
+                        "type": feature_type,
+                        "legend": legend,
+                        "source": source,
+                        "contig": contig,
+                        "start": start,
+                        "stop": end,
+                        "strand": strand_string,
+                        "visible": True
+                    }
+                    
+                    # Add function/product if available
+                    product = annotation.get('product', '') or annotation.get('function', '')
+                    if product:
+                        feature["meta"] = {
+                            "product": product
+                        }
+                    
+                    # Add feature
+                    cgview_data["features"].append(feature)
+                    feature_count += 1
+                    
+                    # Log progress occasionally
+                    if feature_count % 500 == 0:
+                        logger.info(f"Processed {feature_count} features")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing annotation: {str(e)}")
+                    continue
+        
+        logger.info(f"Prepared CGView data with {len(cgview_data['features'])} features and {len(cgview_data['tracks'])} tracks")
+        return cgview_data
+
+    def _generate_cgview_html(self, unique_id, cgview_data, mag_id):
+        """Generate HTML content with embedded CGView.js.
+        
+        Args:
+            unique_id: Unique identifier for the plot
+            cgview_data: CGView.js compatible data structure
+            mag_id: MAG identifier
+            
+        Returns:
+            str: HTML content
+        """
+        # Escape the data for embedding in JavaScript
+        import json
+        cgview_data_json = json.dumps(cgview_data)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>MAG {mag_id} Visualization</title>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 0;
+                    font-family: Arial, sans-serif;
+                }}
+                .container {{
+                    width: 100%;
+                    height: 100vh;
+                    display: flex;
+                    flex-direction: column;
+                }}
+                .header {{
+                    padding: 10px;
+                    text-align: center;
+                    background-color: #f8f9fa;
+                    border-bottom: 1px solid #ddd;
+                }}
+                .plot-container {{
+                    flex: 1;
+                    position: relative;
+                    overflow: hidden;
+                }}
+                #cgview-container {{
+                    width: 100%;
+                    height: 100%;
+                }}
+                .loading {{
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    text-align: center;
+                    color: #666;
+                }}
+                .debug-info {{
+                    padding: 10px;
+                    font-size: 12px;
+                    color: #666;
+                    background-color: #f8f9fa;
+                    border-top: 1px solid #ddd;
+                    max-height: 150px;
+                    overflow: auto;
+                }}
+            </style>
+            <!-- Load D3.js and CGView.js -->
+            <script src="https://d3js.org/d3.v7.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/cgview/dist/cgview.min.js"></script>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cgview/dist/cgview.css">
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>MAG: {mag_id}</h2>
+                </div>
+                <div class="plot-container">
+                    <div id="loading-{unique_id}" class="loading">
+                        <p>Loading genome visualization...</p>
+                    </div>
+                    <div id="{unique_id}" class="cgview-container"></div>
+                </div>
+                <div id="debug-{unique_id}" class="debug-info">
+                    <p>Initializing CGView.js...</p>
+                </div>
+            </div>
+            <script>
+                // Initialize CGView when the page is loaded
+                document.addEventListener('DOMContentLoaded', function() {{
+                    const debugEl = document.getElementById('debug-{unique_id}');
+                    const loadingEl = document.getElementById('loading-{unique_id}');
+                    
+                    function logDebug(message) {{
+                        console.log(message);
+                        debugEl.innerHTML += '<p>' + message + '</p>';
+                    }}
+                    
+                    try {{
+                        logDebug('Loading CGView.js for MAG {mag_id}...');
+                        
+                        // Set up the viewer
+                        const cgvContainer = document.getElementById('{unique_id}');
+                        const cgvData = {cgview_data_json};
+                        
+                        logDebug('CGView container: ' + cgvContainer);
+                        logDebug('Creating CGView instance...');
+                        
+                        // Create the CGView instance
+                        const cgv = new CGV.Viewer(cgvContainer, cgvData);
+                        
+                        // Listen for loading errors
+                        cgv.on('error', function(error) {{
+                            logDebug('Error loading CGView: ' + error.message);
+                            loadingEl.innerHTML = '<p style="color: red;">Error loading visualization: ' + error.message + '</p>';
+                        }});
+                        
+                        // When fully loaded, hide the loading indicator
+                        cgv.on('ready', function() {{
+                            logDebug('CGView loaded successfully!');
+                            loadingEl.style.display = 'none';
+                        }});
+                        
+                        // Additional event listeners for debugging
+                        cgv.on('features-add', function(features) {{
+                            logDebug('Features added: ' + features.length);
+                        }});
+                        
+                        cgv.on('tracks-add', function(tracks) {{
+                            logDebug('Tracks added: ' + tracks.length);
+                        }});
+                        
+                        // If loading takes too long, provide additional information
+                        setTimeout(function() {{
+                            if (loadingEl.style.display !== 'none') {{
+                                logDebug('Still loading after 5 seconds. You may need to check browser console for errors.');
+                            }}
+                        }}, 5000);
+                        
+                    }} catch (error) {{
+                        logDebug('Error initializing CGView: ' + error.message);
+                        loadingEl.innerHTML = '<p style="color: red;">Error initializing visualization: ' + error.message + '</p>';
+                        console.error(error);
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+        """
+        
+        return html
+
+    def _get_contig_color(self, index):
+        """Get a color for a contig based on its index."""
+        colors = [
+            "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", 
+            "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+            "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5",
+            "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5"
+        ]
+        return colors[index % len(colors)]
+
   

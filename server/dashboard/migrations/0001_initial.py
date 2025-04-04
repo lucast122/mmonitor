@@ -59,4 +59,20 @@ class Migration(migrations.Migration):
                 'db_table': 'dashboard_annotation',
             },
         ),
+        # Add SQL operation for SQLite-specific table creation
+        migrations.RunSQL(
+            """
+            CREATE TABLE IF NOT EXISTS dashboard_annotation (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gene_count INTEGER NOT NULL DEFAULT 0,
+                trna_count INTEGER NOT NULL DEFAULT 0,
+                rrna_count INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                mag_id INTEGER NOT NULL,
+                FOREIGN KEY (mag_id) REFERENCES users_mag (id) ON DELETE CASCADE
+            );
+            """,
+            "DROP TABLE IF EXISTS dashboard_annotation;"
+        ),
     ]

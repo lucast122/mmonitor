@@ -35,11 +35,11 @@ from mmonitor.database.mmonitor_db import MMonitorDBInterface
 
 from mmonitor.dashapp.index import Index
 from mmonitor.config import _MMONITOR_ROOT as ROOT, _RESOURCES
-from ..paths import IMAGES_PATH, RESOURCES_DIR
+from ..paths import IMAGES_DIR, RESOURCES_DIR
 
 
 import sys
-VERSION = "v0.2.0"
+VERSION = "v0.2.1"
 MAIN_WINDOW_X, MAIN_WINDOW_Y = 1500, 1000  # Standard window size
 CONSOLE_WIDTH = 300  # Fixed console width
 SIDEBAR_WIDTH = 220  # Fixed sidebar width
@@ -140,6 +140,9 @@ class StdoutRedirector(io.StringIO):
 class GUI(ctk.CTk):
     def __init__(self):
         try:
+            # Create a lock file to prevent multiple instances
+            self._create_lock_file()
+            
             print("Initializing GUI...")
             # Initialize tkinter first
             super().__init__()
@@ -150,10 +153,13 @@ class GUI(ctk.CTk):
             
             logger.info("Starting GUI initialization")
             
-            # Check if we're already running
-            if os.environ.get('MMONITOR_RUNNING') == '1' and len(sys.argv) > 1:
-                logger.info("Application is already running, preventing restart...")
-                sys.exit(0)
+            # Check if we're already running - more aggressive check
+            # if self._is_already_running():
+            #     logger.info("Application is already running, preventing restart...")
+            #     sys.exit(0)
+                
+            # Set environment variable to indicate we're running
+            os.environ['MMONITOR_RUNNING'] = '1'
             
             # Load configuration first
             logger.info("Loading configuration")
@@ -242,7 +248,10 @@ class GUI(ctk.CTk):
             import traceback
             error_msg = f"Error during GUI initialization: {str(e)}\n{traceback.format_exc()}"
             print(error_msg)
-            logger.error(error_msg)
+            try:
+                logger.error(error_msg)
+            except:
+                pass
             
             # Try to show error in GUI if possible
             try:
@@ -253,6 +262,169 @@ class GUI(ctk.CTk):
                 pass
             
             raise  # Re-raise the exception for the main error handler
+
+    def _create_lock_file(self):
+        """Create a lock file to prevent multiple instances from running"""
+        import os
+        import atexit
+        import time
+        import random
+        
+        # Define lock file location in user's home directory
+        lock_dir = os.path.expanduser("~/.mmonitor")
+        os.makedirs(lock_dir, exist_ok=True)
+        self.lock_file = os.path.join(lock_dir, "mmonitor.lock")
+        
+        # Check if the lock file already exists
+        if os.path.exists(self.lock_file):
+            # Read the PID from the lock file
+            try:
+                with open(self.lock_file, 'r') as f:
+                    content = f.read().strip()
+                    parts = content.split(':')
+                    pid = int(parts[0]) if parts else None
+                    timestamp = float(parts[1]) if len(parts) > 1 else 0
+                    
+                    # If lock is older than 60 seconds, assume it's stale
+                    if time.time() - timestamp > 60:
+                        print(f"Removing stale lock file (age: {time.time() - timestamp:.1f}s)")
+                        os.remove(self.lock_file)
+                    elif self._is_process_running(pid):
+                        print(f"Another instance is already running with PID {pid}")
+                        # Small delay to prevent race conditions
+                        time.sleep(random.uniform(0.1, 0.5))
+                        # Double-check the lock file still exists (maybe it was just removed)
+                        if os.path.exists(self.lock_file):
+                            print("Exiting due to another running instance")
+                            sys.exit(0)
+                    else:
+                        print(f"Found lock file but process {pid} is not running, removing stale lock")
+                        os.remove(self.lock_file)
+            except Exception as e:
+                print(f"Error checking lock file: {e}")
+                # If there's an error reading the lock file, assume it's invalid and remove it
+                try:
+                    os.remove(self.lock_file)
+                except:
+                    pass
+        
+        # Create our lock file with PID and timestamp
+        try:
+            with open(self.lock_file, 'w') as f:
+                f.write(f"{os.getpid()}:{time.time()}")
+                
+            # Make sure the lock file is removed when the program exits
+            atexit.register(self._remove_lock_file)
+        except Exception as e:
+            print(f"Error creating lock file: {e}")
+    
+    def _remove_lock_file(self):
+        """Remove the lock file when the application exits"""
+        try:
+            if hasattr(self, 'lock_file') and os.path.exists(self.lock_file):
+                os.remove(self.lock_file)
+                print("Removed lock file")
+        except Exception as e:
+            print(f"Error removing lock file: {e}")
+    
+    def _is_process_running(self, pid):
+        """Check if a process with the given PID is running"""
+        if pid is None:
+            return False
+            
+        if sys.platform == 'darwin' or sys.platform.startswith('linux'):
+            try:
+                # Unix-like systems: send signal 0 to check if process exists
+                import signal
+                os.kill(pid, 0)
+                return True
+            except OSError:
+                return False
+        elif sys.platform == 'win32':
+            try:
+                # Windows
+                import ctypes
+                kernel32 = ctypes.windll.kernel32
+                handle = kernel32.OpenProcess(1, 0, pid)
+                if handle == 0:
+                    return False
+                kernel32.CloseHandle(handle)
+                return True
+            except:
+                return False
+        else:
+            # Unknown platform
+            return False
+    
+    def _is_already_running(self):
+        """Check if the application is already running using multiple methods"""
+        # Check if the environment variable is set
+        if os.environ.get('MMONITOR_RUNNING') == '1':
+            print("MMONITOR_RUNNING environment variable is set")
+            return True
+        
+        # Check the process name for duplicate Python processes with 'MMonitor' in the command line
+        import psutil
+        current_pid = os.getpid()
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    # Skip if it's the current process
+                    if proc.info['pid'] == current_pid:
+                        continue
+                        
+                    # Check the command line for 'MMonitor'
+                    cmdline = proc.info.get('cmdline')
+                    if cmdline:  # Only check if cmdline is not None
+                        if any('MMonitor' in str(cmd) for cmd in cmdline):
+                            # Additional check to ensure it's not just a temporary process
+                            try:
+                                # Try to get process creation time
+                                create_time = proc.create_time()
+                                # If process is less than 2 seconds old, ignore it
+                                if time.time() - create_time < 2:
+                                    continue
+                                print(f"Found existing MMonitor process: {proc.info['pid']}")
+                                return True
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                continue
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, KeyError, AttributeError):
+                    continue
+        except Exception as e:
+            print(f"Error checking processes: {e}")
+        
+        # Check for GUI processes (macOS specific)
+        if sys.platform == 'darwin':
+            try:
+                # Get our own process info
+                own_process = psutil.Process(current_pid)
+                own_create_time = own_process.create_time()
+                
+                # Try to use AppleScript to check for running GUI applications
+                import subprocess
+                proc = subprocess.run([
+                    'osascript', 
+                    '-e', 
+                    'tell application "System Events" to get every process whose name contains "MMonitor"'
+                ], capture_output=True, text=True)
+                
+                if proc.returncode == 0 and proc.stdout.strip():
+                    # Parse the output to get PIDs
+                    for line in proc.stdout.strip().split('\n'):
+                        try:
+                            # Try to get the process
+                            other_proc = psutil.Process(int(line))
+                            # Skip if it's our own process or if it's too new
+                            if other_proc.pid == current_pid or time.time() - other_proc.create_time() < 2:
+                                continue
+                            print(f"Found existing MMonitor GUI process: {other_proc.pid}")
+                            return True
+                        except (psutil.NoSuchProcess, psutil.AccessDenied, ValueError):
+                            continue
+            except Exception as e:
+                print(f"Error checking GUI processes: {e}")
+            
+        return False
 
     def on_closing(self):
         """Clean up resources before closing"""
@@ -298,10 +470,21 @@ class GUI(ctk.CTk):
         else:
             # If we're in development
             theme_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 
-                                    "src", "mmonitor", "resources", "grey_theme.json")
+                                    "src", "resources", "themes", "grey_theme.json")
             
         print(f"Loading theme from: {theme_path}")
-        ctk.set_default_color_theme(theme_path)
+        
+        try:
+            # Load and parse the theme file
+            with open(theme_path, 'r') as f:
+                theme_data = json.load(f)
+            
+            # Set the theme using the parsed data
+            ctk.set_default_color_theme(theme_data)
+        except Exception as e:
+            print(f"Error loading theme: {e}")
+            # Fallback to default theme if loading fails
+            ctk.set_default_color_theme("blue")
         
         # Create main frame with fixed minimum size
         self.main_frame = ctk.CTkFrame(self)
