@@ -1343,7 +1343,14 @@ class Diversity:
                 return go.Figure()
 
             df_clean = distance_matrix_to_dataframe(self.beta_diversity_matrix)
-            df_clean = df_clean.loc[selected_samples, selected_samples]
+            
+            # Check if selected samples exist in the matrix
+            valid_samples = [s for s in selected_samples if s in df_clean.index and s in df_clean.columns]
+            if not valid_samples:
+                print("No valid samples found in beta diversity matrix")
+                return go.Figure()
+                
+            df_clean = df_clean.loc[valid_samples, valid_samples]
             
             # Validate data before plotting
             if df_clean.empty or df_clean.isnull().values.all():
@@ -1352,6 +1359,11 @@ class Diversity:
 
             # Ensure numeric type and handle potential bool values
             df_clean = df_clean.astype(float)
+            
+            # Check for any remaining NaN values
+            if df_clean.isnull().any().any():
+                print("Beta diversity matrix contains NaN values")
+                return go.Figure()
             
             # Create annotated heatmap
             beta_fig = go.Figure(data=go.Heatmap(
@@ -1995,52 +2007,56 @@ class Diversity:
                         # Add arrows for top features
                         for idx in top_features_idx:
                             feature_name = features[idx]
-                            # Use correlation as direction
-                            corr_x = np.corrcoef(abundance_data[:, idx], pcoa_results.samples[:, 0])[0, 1]
-                            corr_y = np.corrcoef(abundance_data[:, idx], pcoa_results.samples[:, 1])[0, 1]
-                            
-                            # Skip if correlation is too low
-                            if abs(corr_x) < 0.3 and abs(corr_y) < 0.3:
-                                continue
+                            # Use correlation as direction with error handling
+                            try:
+                                # Check if we have enough data points for correlation
+                                if len(abundance_data[:, idx]) < 2 or len(pcoa_results.samples[:, 0]) < 2:
+                                    continue
+                                    
+                                # Check for NaN values in the data
+                                if np.isnan(abundance_data[:, idx]).any() or np.isnan(pcoa_results.samples).any():
+                                    continue
+                                    
+                                # Calculate correlations with error handling
+                                try:
+                                    corr_x = np.corrcoef(abundance_data[:, idx], pcoa_results.samples[:, 0])[0, 1]
+                                    corr_y = np.corrcoef(abundance_data[:, idx], pcoa_results.samples[:, 1])[0, 1]
+                                except Exception as e:
+                                    print(f"Error calculating correlation for feature {feature_name}: {str(e)}")
+                                    continue
                                 
-                            # Scale arrow length
-                            arrow_length = np.sqrt(corr_x**2 + corr_y**2)
-                            if arrow_length == 0:
-                                continue
+                                # Skip if correlation is too low or NaN
+                                if np.isnan(corr_x) or np.isnan(corr_y) or (abs(corr_x) < 0.3 and abs(corr_y) < 0.3):
+                                    continue
+                                    
+                                # Scale arrow length
+                                arrow_length = np.sqrt(corr_x**2 + corr_y**2)
+                                if arrow_length == 0:
+                                    continue
+                                    
+                                # Normalize and scale
+                                scale_factor = 0.2
+                                dx = corr_x * scale_factor
+                                dy = corr_y * scale_factor
                                 
-                            # Normalize and scale
-                            scale_factor = 0.2
-                            dx = corr_x * scale_factor
-                            dy = corr_y * scale_factor
-                            
-                            # Add the arrow
-                            fig.add_annotation(
-                                x=x_arrows,
-                                y=y_arrows,
-                                ax=x_arrows + dx,
-                                ay=y_arrows + dy,
-                                xref="x",
-                                yref="y",
-                                axref="x",
-                                ayref="y",
-                                showarrow=True,
-                                arrowhead=2,
-                                arrowsize=1,
-                                arrowwidth=1,
-                                arrowcolor='rgba(0, 0, 0, 0.5)'
-                            )
-                            
-                            # Add text label at arrow end
-                            shortened_name = str(feature_name)[:15] + '...' if len(str(feature_name)) > 15 else str(feature_name)
-                            fig.add_annotation(
-                                x=x_arrows + dx * 1.1,
-                                y=y_arrows + dy * 1.1,
-                                text=shortened_name,
-                                showarrow=False,
-                                font=dict(size=8),
-                                xanchor='left' if dx > 0 else 'right',
-                                yanchor='bottom' if dy > 0 else 'top'
-                            )
+                                # Add the arrow
+                                fig.add_annotation(
+                                    x=x_arrows,
+                                    y=y_arrows,
+                                    ax=x_arrows + dx,
+                                    ay=y_arrows + dy,
+                                    arrowhead=2,
+                                    arrowsize=1,
+                                    arrowwidth=1,
+                                    arrowcolor="rgba(0,0,0,0.5)",
+                                    showarrow=True,
+                                    text=feature_name,
+                                    font=dict(size=10),
+                                    hoverinfo="name",
+                                )
+                            except Exception as e:
+                                # Silently skip features that cause errors
+                                continue
                     except Exception as e:
                         print(f"Error adding arrows to PCoA plot: {str(e)}")
                 

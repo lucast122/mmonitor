@@ -295,7 +295,19 @@ class Correlations:
 
         # Calculate correlation for each taxonomy
         unique_taxonomies = merged_df[taxonomic_level].unique()
+        
+        # Filter out taxonomies with insufficient data points
+        valid_taxonomies = []
         for taxonomy in unique_taxonomies:
+            taxonomy_data = merged_df[merged_df[taxonomic_level] == taxonomy]
+            if len(taxonomy_data) >= 2:  # Only include taxonomies with at least 2 data points
+                valid_taxonomies.append(taxonomy)
+            else:
+                print(f"Skipping {taxonomy} due to insufficient data points (only {len(taxonomy_data)} available)")
+
+        print(f"Found {len(valid_taxonomies)} valid taxonomies out of {len(unique_taxonomies)} total")
+
+        for taxonomy in valid_taxonomies:
             # Select abundance for the current taxonomy, fill NaN with 0
             taxonomy_abundance = merged_df[merged_df[taxonomic_level] == taxonomy]['abundance'].fillna(0)
             corr_row = {'taxonomy': taxonomy}
@@ -312,20 +324,25 @@ class Correlations:
                                 'metadata': merged_df[meta_key]
                             }).dropna()
                             
-                            # Calculate correlation coefficient
-                            if method == 'pearson':
-                                corr, p_value = stats.pearsonr(valid_data['abundance'], valid_data['metadata'])
-                            elif method == 'spearman':
-                                corr, p_value = stats.spearmanr(valid_data['abundance'], valid_data['metadata'])
-                            elif method == 'kendall':
-                                corr, p_value = stats.kendalltau(valid_data['abundance'], valid_data['metadata'])
+                            # Only calculate correlation if we have enough valid data points
+                            if len(valid_data) >= 2:
+                                # Calculate correlation coefficient
+                                if method == 'pearson':
+                                    corr, p_value = stats.pearsonr(valid_data['abundance'], valid_data['metadata'])
+                                elif method == 'spearman':
+                                    corr, p_value = stats.spearmanr(valid_data['abundance'], valid_data['metadata'])
+                                elif method == 'kendall':
+                                    corr, p_value = stats.kendalltau(valid_data['abundance'], valid_data['metadata'])
+                                else:
+                                    # Default to pandas corr method as fallback
+                                    corr = taxonomy_abundance.corr(merged_df[meta_key], method=method)
+                                    p_value = np.nan
+                                    
+                                corr_row[meta_key] = corr
+                                pval_row[meta_key] = p_value
                             else:
-                                # Default to pandas corr method as fallback
-                                corr = taxonomy_abundance.corr(merged_df[meta_key], method=method)
-                                p_value = np.nan
-                                
-                            corr_row[meta_key] = corr
-                            pval_row[meta_key] = p_value
+                                corr_row[meta_key] = np.nan
+                                pval_row[meta_key] = np.nan
                             
                         except Exception as e:
                             print(f"Error calculating correlation for {taxonomy} and {meta_key}: {str(e)}")
@@ -404,8 +421,12 @@ class Correlations:
             if n_taxa > 0:
                 top_indices = abs_corr.nlargest(n_taxa).index
                 filtered_matrix = filtered_corr_matrix.iloc[top_indices]
+                # Also filter p-value matrix to match
+                if hasattr(self, 'pvalue_matrix'):
+                    pvalue_matrix = self.pvalue_matrix.iloc[top_indices]
             else:
                 filtered_matrix = filtered_corr_matrix  # Use all if filtering resulted in empty data
+                pvalue_matrix = self.pvalue_matrix if hasattr(self, 'pvalue_matrix') else None
         else:
             print("No data after filtering or empty correlation matrix")
             # Return an empty figure with a message
@@ -419,6 +440,8 @@ class Correlations:
             return empty_fig
         
         matrix_for_heatmap = filtered_matrix.set_index('taxonomy')
+        if pvalue_matrix is not None:
+            pvalue_matrix = pvalue_matrix.set_index('taxonomy')
         
         print(f"Final heatmap shape: {matrix_for_heatmap.shape}")
         
@@ -427,7 +450,24 @@ class Correlations:
         # Reverse the z data matrix vertically
         z_data = matrix_for_heatmap.values[::-1]
         
-        # Add a trace with custom colorbar title
+        # Create significance indicators for p-values
+        if pvalue_matrix is not None:
+            pvalue_data = pvalue_matrix.values[::-1]  # Reverse to match z_data
+            significance_data = np.empty_like(pvalue_data, dtype=object)
+            for i in range(pvalue_data.shape[0]):
+                for j in range(pvalue_data.shape[1]):
+                    pval = pvalue_data[i, j]
+                    if np.isnan(pval):
+                        significance_data[i, j] = "ns"
+                    else:
+                        significance_data[i, j] = "***" if pval < 0.001 else "**" if pval < 0.01 else "*" if pval < 0.05 else "ns"
+            
+            # Stack p-values and significance indicators for customdata
+            customdata = np.dstack((pvalue_data, significance_data))
+        else:
+            customdata = None
+
+        # Add a trace with custom colorbar title and hover text
         heatmap_trace = go.Heatmap(
             z=z_data, 
             x=matrix_for_heatmap.columns, 
@@ -439,7 +479,18 @@ class Correlations:
                     side='right'
                 )
             ),
-            hovertemplate='<b>%{y}</b> vs <b>%{x}</b><br>Correlation: %{z:.3f}<extra></extra>'
+            customdata=customdata,
+            hovertemplate=(
+                "<b>%{y}</b> vs <b>%{x}</b><br>" +
+                "Correlation: %{z:.3f}<br>" +
+                "P-value: %{customdata[0]:.3e} %{customdata[1]}" +
+                "<extra></extra>"
+            ),
+            hoverlabel=dict(
+                bgcolor="white",
+                font_size=14,
+                font_family="Arial"
+            )
         )
 
         fig = go.Figure(data=heatmap_trace)
