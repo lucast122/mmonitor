@@ -1,7 +1,3 @@
-Certainly! I've added relevant icons to enhance the visual appeal of the documentation. Here's the updated Markdown with icons:
-
----
-
 # 📊 MMonitor Documentation
 
 ## Table of Contents
