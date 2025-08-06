@@ -420,22 +420,8 @@ MMonitor is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
   - **Tobias Laas**: Development contributions.
   - **Simon Konzalla**: Development contributions.
 
-- **💡 Funding**:
-  - *[Please insert funding information here, including funder names, grant numbers, and recipient authors.]*
-
 - **🤝 Collaborations**:
   - MMonitor was developed at the University of Tübingen in collaboration with environmental biotechnologists and microbiome researchers from the Angenent Lab and Ley Lab. Special thanks to:
   - Ulrike Biehain for helping in p[lanning and testing the software, suggesting new features
-  - 
-
-### Ethics Approval
-
-- *[If applicable, provide an ethics approval statement for your study here.]*
-
-### Conflicts of Interest
-
-- The authors declare no conflicts of interest.
-
----
 
 **Note**: For detailed methods, benchmarks, and validations, refer to the publication associated with MMonitor (in preparation)
