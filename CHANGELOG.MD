@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 - Here you can add any planned changes or upcoming features.
 
-## [1.0.0] - 2024-09-30
+## [0.2.0] - 2024-09-30
 ### Added
 - Initial stable release of the tool.
 - Implementation of core functionalities for data analysis and visualization.
