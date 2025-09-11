@@ -30,9 +30,9 @@ It combines a desktop app for running pipelines with a web dashboard for interac
 - External tools (e.g. Minimap2, MetaFlye, Medaka, Centrifuger, Emu, Bakta, CheckM2)  
 
 ### macOS
-1. Download the latest release from [mmonitor.org](https://mmonitor.org/).  
+1. Download the latest release from this repository.  
 2. Unzip and launch `mmonitor`.  
-3. Adjust security settings if prompted.  
+3. First startup can take a while, as the tool runs setup in the background once.  
 
 ### Linux
 ```bash
