@@ -7,9 +7,9 @@
 **MMonitor** is an open-source platform for **real-time metagenome monitoring** from Oxford Nanopore data.  
 It pairs a **desktop app/CLI** for running pipelines with a **web dashboard** for interactive exploration.
 
-> 📄 **Manuscript:** _MMonitor: Real-time metagenome monitoring with Oxford Nanopore_ — Cell Reports Methods (in press).  
+> 📄 **Manuscript:** _MMonitor: Real-time metagenome monitoring with Oxford Nanopore_ — Accepted by Cell Reports Methods — final publication soon
 > Preprint: **https://www.biorxiv.org/content/10.1101/2025.09.08.674848v1**  
-> Please cite if you use MMonitor in your research (see **[📚 Citation](#citation)**).
+> Please cite if you use MMonitor in your research.
 
 ---
 
