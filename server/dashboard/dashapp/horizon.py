@@ -29,11 +29,14 @@ class Horizon:
         records = NanoporeRecord.objects.filter(user_id=self.user_id).select_related()
         df = pd.DataFrame.from_records(records.values())
         
-        # Convert date to datetime if it's not already
-        df['date'] = pd.to_datetime(df['date'])
+        # Add date column since it doesn't exist in database
+        # Use today's date as default since date is a model property
+        from datetime import date
+        df['date'] = pd.to_datetime(date.today())
         
         # Pre-compute common aggregations
-        df['taxa_stats'] = df.groupby(['date', 'taxonomy'])['count'].transform(lambda x: {
+        # Use 'abundance' instead of 'count' since that's what exists in our database
+        df['taxa_stats'] = df.groupby(['date', 'taxonomy'])['abundance'].transform(lambda x: {
             'sum': x.sum(),
             'mean': x.mean(),
             'std': x.std()
@@ -78,11 +81,11 @@ class Horizon:
                 return None
 
             # First calculate total counts per date to use for normalization
-            total_counts = df.groupby('date')['count'].sum()
+            total_counts = df.groupby('date')['abundance'].sum()
             print(f"Total counts shape: {total_counts.shape}")
-            
-            # Group by date and taxonomy, using count
-            taxa_counts = df.groupby(['date', 'taxonomy'])['count'].sum().unstack(fill_value=0)
+
+            # Group by date and taxonomy, using abundance
+            taxa_counts = df.groupby(['date', 'taxonomy'])['abundance'].sum().unstack(fill_value=0)
             print(f"Taxa counts shape: {taxa_counts.shape}")
             
             # Normalize counts by total sample size for each date
@@ -124,11 +127,11 @@ class Horizon:
         print(f"Sample taxa: {df['taxonomy'].head().tolist()}")
         
         # Calculate total counts per date for normalization
-        total_counts = df.groupby('date')['count'].sum()
+        total_counts = df.groupby('date')['abundance'].sum()
         print(f"Total counts shape: {total_counts.shape}")
-        
-        # Group by date and taxonomy, using count
-        taxa_counts = df.groupby(['date', 'taxonomy'])['count'].sum().unstack(fill_value=0)
+
+        # Group by date and taxonomy, using abundance
+        taxa_counts = df.groupby(['date', 'taxonomy'])['abundance'].sum().unstack(fill_value=0)
         print(f"Taxa counts shape: {taxa_counts.shape}")
         
         # Normalize counts by total sample size for each date
@@ -572,9 +575,8 @@ class Horizon:
                         id='subproject-select-horizon',
                         label="Select Subproject",
                         data=[{'value': 'ALL', 'label': 'All Subprojects'}] + (
-                            [{'value': str(subproject), 'label': f'Subproject {subproject}'} 
-                             for subproject in self.df['subproject'].unique() if pd.notna(subproject)]
-                            if 'subproject' in self.df.columns else []
+                            [{'value': 'default', 'label': 'Default Subproject'}]
+                            # subproject is a model property, not a database column
                         ),
                         value='ALL',
                         style={"width": "200px"}
@@ -622,7 +624,7 @@ class Horizon:
                         "overflow": "hidden"
                     }
                 ),
-            ], spacing="xs"),
+            ], gap="xs"),
             fluid=True,
             p=0,
             style={'width': '100%', 'margin': '0', 'padding': '0', 'maxWidth': '100%', 'overflow': 'hidden'}
@@ -672,8 +674,11 @@ class Horizon:
                     df = df[df['project_id'].astype(str) == str(project)]
                 
                 # Filter by subproject if needed
-                if subproject and subproject != 'ALL' and 'subproject' in df.columns:
-                    df = df[df['subproject'].astype(str) == str(subproject)]
+                # Since subproject is a model property that returns 'default', 
+                # we don't need to filter by it
+                if subproject and subproject != 'ALL':
+                    # All records have the same subproject value ('default'), so no filtering needed
+                    pass
                 
                 # Generate the plot HTML
                 return self._get_horizon_plot_html(df=df, taxa_count=int(taxa_count) if taxa_count else 20)

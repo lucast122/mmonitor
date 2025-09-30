@@ -9,69 +9,171 @@
 
 <div class="page-wrapper">
     <div class="content-container">
-        <div class="download-section">
-            <h2>Download <span class="version">v0.2.0</span></h2>
-            <p>Mac and Linux builds are available on <a href="https://www.github.com/lucast122/MMonitor"
-                    target="_blank">GitHub</a></p>
+        <!-- Quick Start Workflow Section -->
+        <div class="workflow-quick-start">
+            <h2> Quick Start </h2>
+            <div class="workflow-steps">
+                <div class="workflow-step-card">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3><i class="fas fa-user-plus"></i> Create Account</h3>
+                        <p>Register for a free account or login to access your dashboard</p>
+                        {% if not user.is_authenticated %}
+                        <a href="{% url 'users:register' %}" class="step-button register-btn">
+                            <i class="fas fa-user-plus"></i> Register Now
+                        </a>
+                        <a href="{% url 'users:login' %}" class="step-button login-btn">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                        {% else %}
+                        <div class="user-status">
+                            <i class="fas fa-check-circle"></i> Logged in as {{ user.username }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="workflow-step-card">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3><i class="fas fa-cogs"></i> Choose Your Method</h3>
+                        <div class="method-options">
+                            <div class="method-option">
+                                <h4><i class="fas fa-download"></i> Download Desktop App</h4>
+                                <p>Full control over the software and real-time analysis</p>
+                                <a href="https://www.github.com/lucast122/MMonitor" target="_blank" class="step-button download-btn">
+                                    <i class="fas fa-download"></i> Download v0.2.0
+                                </a>
+                            </div>
+                            <div class="method-divider">OR</div>
+                            <div class="method-option">
+                                <h4><i class="fas fa-cloud-upload-alt"></i> Upload to Our Server</h4>
+                                <p>Automated processing - just upload and wait for results</p>
+                                {% if user.is_authenticated %}
+                                <a href="{% url 'users:upload_dashboard' %}" class="step-button upload-btn">
+                                    <i class="fas fa-upload"></i> Start Upload
+                                </a>
+                                {% else %}
+                                <div class="login-required">
+                                    <i class="fas fa-lock"></i> Login required
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow-step-card">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3><i class="fas fa-chart-line"></i> View Results</h3>
+                        <p>After analysis completes, explore your results in the interactive dashboard</p>
+                        {% if user.is_authenticated %}
+                        <a href="{% url 'dashboard:index' %}" class="step-button dashboard-btn">
+                            <i class="fas fa-tachometer-alt"></i> Open Dashboard
+                        </a>
+                        {% else %}
+                        <div class="login-required">
+                            <i class="fas fa-lock"></i> Login required
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
         </div>
 
+        <!-- Data Statistics Section (only for authenticated users) -->
+        {% if user.is_authenticated and data_stats %}
+        <div class="data-statistics">
+            <h2><i class="fas fa-chart-bar"></i> Your Data Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-vials"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-number">{{ data_stats.samples|floatformat:0 }}</div>
+                        <div class="stat-label">Samples</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-number">{{ data_stats.taxa|floatformat:0 }}</div>
+                        <div class="stat-label">Taxa</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-dna"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-number">{{ data_stats.reads|floatformat:0 }}</div>
+                        <div class="stat-label">Reads</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-microscope"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-number">{{ data_stats.mags|floatformat:0 }}</div>
+                        <div class="stat-label">MAGs</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-number">{{ data_stats.sequencing_runs|floatformat:0 }}</div>
+                        <div class="stat-label">Sequencing Runs</div>
+                    </div>
+                </div>
+            </div>
+            <div class="stats-note">
+                <i class="fas fa-info-circle"></i>
+                These statistics are based on your uploaded data. Click "Open Dashboard" to explore your data in detail.
+            </div>
+        </div>
+        {% endif %}
+
         <section>
-            <h2>Introduction</h2>
-            <p>MMonitor is software designed for monitoring metagenomes over time, using data from nanopore sequencing.
-                It includes a Python application for desktop use, which manages the analysis of sequence data and
-                metadata for taxonomic and functional insight, as well as quality control. The accompanying webserver
-                Dashboard provides a platform for users to view their analysis results after logging in. Developed with
-                input from laboratory researchers, MMonitor supports real-time data analysis to offer immediate sample
-                overviews, and is flexible for use on personal computers or via external servers for enhanced processing
-                capabilities.</p>
+            <h2><i class="fas fa-info-circle"></i> About MMonitor</h2>
+            <div class="brief-explanation">
+                <p>MMonitor is an open-source software platform for the real-time analysis and visualization of metagenomic Oxford Nanopore Technologies (ONT) sequencing data. It provides a desktop application for running bioinformatics pipelines and a web-based dashboard for interactive result inspection, including taxonomic composition over time, quality scores, diversity indices, and taxonomy-metadata correlations.</p>
+                
+                <p>For comprehensive documentation, detailed methodology, and validation results, please refer to our official publication and GitHub repository.</p>
+            </div>
+            
+            <div class="references-section">
+                <div class="reference-card">
+                    <h3><i class="fas fa-file-alt"></i> Preprint (manuscript in review)</h3>
+                    <div class="citation-content">
+                        <p class="citation-text">
+                            <strong>Lucas, T. N., Biehain, U., Gautam, A., Gemeinhardt, K., Lass, T., Konzalla, S., Ley, R. E., Angenent, L. T., & Huson, D. H.</strong> (2025). 
+                            "MMonitor: Software for Real-Time Monitoring of Microbial Communities Using Long Reads" 
+                            <em>bioRxiv preprint</em>. doi: <a href="https://doi.org/10.1101/2025.09.08.674848" target="_blank">10.1101/2025.09.08.674848</a>
+                            <h3> Please cite if you use MMonitor in your research</h3>
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="reference-card">
+                    <h3><i class="fab fa-github"></i> GitHub Repository</h3>
+                    <p>Access the source code, contribute, and find detailed documentation on our GitHub repository.</p>
+                    <a href="https://github.com/lucast122/MMonitor" target="_blank" class="github-link">
+                        <i class="fab fa-github"></i> Visit GitHub Repository
+                    </a>
+                </div>
+            </div>
+        </section>
 
-            <section class="workflow-section">
-                <div class="workflow-container">
-                    <img src="{% static 'images/mmonitor-overview.png' %}" alt="MMonitor Workflow Overview"
-                        class="workflow-image">
-                    <div class="workflow-description">
-                        <div class="workflow-step">
-                            <div class="step-header">
-                                <span class="step-letter">A</span>
-                                <h3>Workflow</h3>
-                            </div>
-                            <p>Get started by preparing your samples and running them through nanopore
-                                sequencing. MMonitor consists of two parts: the Desktop application that you'll need to
-                                download
-                                to run the analysis pipelines, and this web Dashboard where you can view and explore
-                                your
-                                results.</p>
-                            <p>Once your sequencing is complete, MMonitor Desktop will automatically process your raw
-                                data
-                                and make the results available in your personal dashboard. You can monitor the analysis
-                                progress
-                                in real-time as your data comes in.</p>
-                        </div>
-
-                        <div class="workflow-step">
-                            <div class="step-header">
-                                <span class="step-letter">B</span>
-                                <h3>Analysis Pipeline</h3>
-                            </div>
-                            <p>MMonitor Desktop runs your sequencing data through our optimized pipeline. Your reads are
-                                first quality controlled to ensure the best results. Then, it performs two
-                                types of analysis depending on input data:</p>
-                            <ul class="analysis-types">
-                                <li>Identify what organisms are in your sample using taxonomic profiling</li>
-                                <li>Assemble and annotate complete genomes from your data using metagenome assembly and
-                                    binning</li>
-                            </ul>
-                            <p>Each genome is automatically checked for quality and annotated with functional
-                                information.
-                            </p>
-                        </div>
-
-
-                        <div class="workflow-step">
-                            <div class="step-header">
-                                <span class="step-letter">C</span>
-                                <h3>Dashboard Apps</h3>
-                            </div>
+        <section>
+            <h2>Dashboard Applications</h2>
+            <p>Explore your metagenomic data through our interactive dashboard applications, each designed for specific analysis tasks:</p>
                             <div class="dashboard-apps">
                                 <div class="app-item" data-image="{% static 'images/qc.png' %}" data-title="QC">
                                     <div class="app-content">
@@ -180,6 +282,7 @@
                 </div>
             </section>
 
+
             <section class="installation-section">
                 <div class="content-wrapper">
                     <h2>Installation and Documentation</h2>
@@ -261,6 +364,343 @@
     .version {
         color: #228be6;
         font-weight: 600;
+    }
+
+    .download-description {
+        color: #6c757d;
+        font-style: italic;
+        font-size: 0.95rem;
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .upload-option {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 2px solid #e9ecef;
+    }
+
+    .upload-option p {
+        color: #228be6;
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+        letter-spacing: 0.5px;
+    }
+
+    .upload-button {
+        display: inline-block;
+        background: linear-gradient(135deg, #228be6 0%, #1c7ed6 100%);
+        color: white;
+        padding: 15px 30px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(34, 139, 230, 0.3);
+        border: none;
+        cursor: pointer;
+    }
+
+    .upload-button:hover {
+        background: linear-gradient(135deg, #1c7ed6 0%, #1864ab 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(34, 139, 230, 0.4);
+        color: white;
+        text-decoration: none;
+    }
+
+    .upload-button i {
+        margin-right: 8px;
+    }
+
+    /* Quick Start Workflow Styles */
+    .workflow-quick-start {
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+        border-radius: 12px;
+        padding: 3rem 2rem;
+        margin: 2rem 0 3rem 0;
+        box-shadow: 0 8px 25px rgba(34, 139, 230, 0.1);
+        border: 1px solid rgba(34, 139, 230, 0.1);
+    }
+
+    .workflow-quick-start h2 {
+        text-align: center;
+        color: #16262C;
+        font-size: 2rem;
+        margin-bottom: 3rem;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .workflow-quick-start h2 i {
+        color: #228be6;
+        margin-right: 10px;
+    }
+
+    .workflow-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .workflow-step-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: flex-start;
+        gap: 2rem;
+    }
+
+    .workflow-step-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        border-color: rgba(34, 139, 230, 0.3);
+    }
+
+    .step-number {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+        box-shadow: 0 4px 10px rgba(34, 139, 230, 0.3);
+        flex-shrink: 0;
+        margin-top: 0.5rem;
+    }
+
+    .step-content {
+        flex: 1;
+    }
+
+    .step-content h3 {
+        color: #16262C;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-top: 0;
+    }
+
+    .step-content h3 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .step-content p {
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .step-button {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .register-btn {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+    }
+
+    .register-btn:hover {
+        background: linear-gradient(135deg, #218838, #1ba085);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .login-btn {
+        background: linear-gradient(135deg, #6c757d, #5a6268);
+        color: white;
+    }
+
+    .login-btn:hover {
+        background: linear-gradient(135deg, #5a6268, #495057);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .download-btn {
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+    }
+
+    .download-btn:hover {
+        background: linear-gradient(135deg, #1c7ed6, #1864ab);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .upload-btn {
+        background: linear-gradient(135deg, #fd7e14, #e8590c);
+        color: white;
+    }
+
+    .upload-btn:hover {
+        background: linear-gradient(135deg, #e8590c, #dc5200);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .dashboard-btn {
+        background: linear-gradient(135deg, #6f42c1, #5a32a3);
+        color: white;
+    }
+
+    .dashboard-btn:hover {
+        background: linear-gradient(135deg, #5a32a3, #4c2a85);
+        transform: translateY(-2px);
+        color: white;
+        text-decoration: none;
+    }
+
+    .user-status {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 6px;
+        font-weight: 500;
+        display: inline-block;
+    }
+
+    .user-status i {
+        margin-right: 8px;
+    }
+
+    .login-required {
+        background: #f8f9fa;
+        color: #6c757d;
+        padding: 10px 15px;
+        border-radius: 6px;
+        font-style: italic;
+        display: inline-block;
+        border: 1px dashed #dee2e6;
+    }
+
+    .login-required i {
+        margin-right: 8px;
+    }
+
+    /* Method Options Styling */
+    .method-options {
+        display: flex;
+        align-items: stretch;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .method-option {
+        flex: 1;
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+        text-align: center;
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .method-option:hover {
+        border-color: #228be6;
+        background: #f0f7ff;
+    }
+
+    .method-option h4 {
+        color: #16262C;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .method-option h4 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .method-option p {
+        color: #6c757d;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .method-divider {
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        min-width: 40px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(34, 139, 230, 0.3);
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .workflow-quick-start {
+            padding: 2rem 1rem;
+        }
+
+        .workflow-step-card {
+            padding: 1.5rem;
+            flex-direction: column;
+            gap: 1rem;
+            text-align: center;
+        }
+
+        .step-number {
+            align-self: center;
+            margin-top: 0;
+        }
+
+        .method-options {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .method-divider {
+            transform: rotate(90deg);
+            margin: 0.5rem 0;
+        }
+
+        .workflow-quick-start h2 {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .method-option {
+            min-height: auto;
+        }
     }
 
     h2 {
@@ -747,6 +1187,75 @@
         display: none;
     }
 
+    /* Workflow Summary Styling */
+    .workflow-summary {
+        text-align: left;
+    }
+
+    .intro-text {
+        font-size: 1.1rem;
+        color: #495057;
+        margin-bottom: 2rem;
+        line-height: 1.7;
+        text-align: center;
+        font-style: italic;
+    }
+
+    .feature-sections {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .feature-section {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        border-left: 4px solid #228be6;
+    }
+
+    .feature-section h3 {
+        color: #16262C;
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .feature-section h3 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .feature-section ul {
+        list-style: none;
+        padding-left: 0;
+        margin: 0;
+    }
+
+    .feature-section li {
+        padding: 0.5rem 0;
+        padding-left: 1.5rem;
+        position: relative;
+        line-height: 1.6;
+    }
+
+    .feature-section li:before {
+        content: "▶";
+        color: #228be6;
+        font-weight: bold;
+        position: absolute;
+        left: 0;
+        top: 0.5rem;
+    }
+
+    .feature-section strong {
+        color: #16262C;
+    }
+
+
     /* Installation section styling */
     .installation-section {
         text-align: center;
@@ -762,6 +1271,260 @@
     .content-wrapper {
         width: 100%;
         margin: 0 auto;
+    }
+
+    /* Data Statistics Section Styles */
+    .data-statistics {
+        background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+        border-radius: 12px;
+        padding: 3rem 2rem;
+        margin: 2rem 0 3rem 0;
+        box-shadow: 0 8px 25px rgba(34, 139, 230, 0.1);
+        border: 1px solid rgba(34, 139, 230, 0.1);
+    }
+
+    .data-statistics h2 {
+        text-align: center;
+        color: #16262C;
+        font-size: 2rem;
+        margin-bottom: 2rem;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .data-statistics h2 i {
+        color: #228be6;
+        margin-right: 10px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        border-color: rgba(34, 139, 230, 0.3);
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        border-radius: 12px 12px 0 0;
+    }
+
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin: 0 auto 1rem auto;
+        box-shadow: 0 4px 10px rgba(34, 139, 230, 0.3);
+    }
+
+    .stat-content {
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #16262C;
+        margin-bottom: 0.5rem;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 1rem;
+        color: #6c757d;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stats-note {
+        background: rgba(34, 139, 230, 0.1);
+        border: 1px solid rgba(34, 139, 230, 0.2);
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        text-align: center;
+        color: #495057;
+        font-size: 0.95rem;
+        margin-top: 1rem;
+    }
+
+    .stats-note i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    /* Responsive design for statistics */
+    @media (max-width: 768px) {
+        .data-statistics {
+            padding: 2rem 1rem;
+        }
+
+        .data-statistics h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            padding: 1.5rem 1rem;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+        }
+
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 1.2rem;
+        }
+    }
+
+    /* Brief explanation and references styling */
+    .brief-explanation {
+        text-align: left;
+        margin: 2rem 0;
+        line-height: 1.7;
+        color: #495057;
+        font-size: 1.05rem;
+    }
+
+    .brief-explanation p {
+        margin-bottom: 1.5rem;
+    }
+
+    .references-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+
+    .reference-card {
+        background: #f8f9fa;
+        padding: 2rem;
+        border-radius: 12px;
+        border-left: 4px solid #228be6;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+    }
+
+    .reference-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    }
+
+    .reference-card h3 {
+        color: #16262C;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+        font-weight: 600;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .reference-card h3 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .reference-card p {
+        color: #6c757d;
+        margin-bottom: 1rem;
+        line-height: 1.6;
+    }
+
+    .citation-content {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .citation-text {
+        font-family: 'Georgia', serif;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin: 0;
+        color: #333;
+        text-align: left;
+    }
+
+    .github-link {
+        display: inline-flex;
+        align-items: center;
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(34, 139, 230, 0.3);
+        margin-top: 1rem;
+    }
+
+    .github-link:hover {
+        background: linear-gradient(135deg, #1c7ed6, #1864ab);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(34, 139, 230, 0.4);
+        color: white;
+        text-decoration: none;
+    }
+
+    .github-link i {
+        margin-right: 8px;
+    }
+
+    /* Responsive design for references */
+    @media (max-width: 768px) {
+        .references-section {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .reference-card {
+            padding: 1.5rem;
+        }
+
+        .brief-explanation {
+            font-size: 1rem;
+        }
     }
 </style>
 

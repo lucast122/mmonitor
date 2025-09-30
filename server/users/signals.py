@@ -3,6 +3,13 @@ from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.conf import settings
 from django.dispatch import receiver
+from .models import UserQuota
+
+@receiver(post_save, sender=User)
+def create_user_quota(sender, instance, created, **kwargs):
+    """Create UserQuota when a new user is created"""
+    if created:
+        UserQuota.objects.create(user=instance)
 
 # Email sending temporarily disabled
 # @receiver(post_save, sender=User)

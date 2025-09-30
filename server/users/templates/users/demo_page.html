@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Hero Section -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="jumbotron bg-primary text-white rounded p-5">
+                <div class="row align-items-center">
+                    <div class="col-lg-8">
+                        <h1 class="display-4 fw-bold mb-3">
+                            <i class="fas fa-microscope me-3"></i>MMonitor Demo
+                        </h1>
+                        <p class="lead mb-4">
+                            Experience the power of cloud-based metagenomics analysis. 
+                            Upload your FASTQ files and get comprehensive taxonomic classification 
+                            and functional annotation in minutes.
+                        </p>
+                        <div class="d-flex gap-3">
+                            {% if user.is_authenticated %}
+                            <a href="{% url 'users:upload_files' %}" class="btn btn-success btn-lg">
+                                <i class="fas fa-rocket me-2"></i>Start Analysis
+                            </a>
+                            <a href="{% url 'users:upload_dashboard' %}" class="btn btn-outline-light btn-lg">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                            {% else %}
+                            <a href="{% url 'users:register' %}" class="btn btn-success btn-lg">
+                                <i class="fas fa-user-plus me-2"></i>Sign Up Free
+                            </a>
+                            <a href="{% url 'users:login' %}" class="btn btn-outline-light btn-lg">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-lg-4 text-center">
+                        <i class="fas fa-dna fa-8x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Statistics -->
+    <div class="row mb-5">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                    <h3 class="text-primary">{{ total_users }}</h3>
+                    <p class="text-muted mb-0">Active Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-tasks fa-3x text-success mb-3"></i>
+                    <h3 class="text-success">{{ total_jobs }}</h3>
+                    <p class="text-muted mb-0">Jobs Processed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-check-circle fa-3x text-info mb-3"></i>
+                    <h3 class="text-info">{{ completed_jobs }}</h3>
+                    <p class="text-muted mb-0">Completed</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-percentage fa-3x text-warning mb-3"></i>
+                    <h3 class="text-warning">{{ success_rate|floatformat:1 }}%</h3>
+                    <p class="text-muted mb-0">Success Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2 class="text-center mb-4">
+                <i class="fas fa-star me-2"></i>Key Features
+            </h2>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                    <h5>Easy Upload</h5>
+                    <p class="text-muted">
+                        Drag and drop your FASTQ files. Supports both raw and gzipped formats 
+                        with automatic validation.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-tachometer-alt fa-3x text-success mb-3"></i>
+                    <h5>Fast Analysis</h5>
+                    <p class="text-muted">
+                        Get taxonomic classification in 5-10 minutes, or full pipeline 
+                        analysis in 30-60 minutes.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-bar fa-3x text-info mb-3"></i>
+                    <h5>Rich Visualizations</h5>
+                    <p class="text-muted">
+                        Interactive dashboards with taxonomic trees, diversity metrics, 
+                        and quality control plots.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Types -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2 class="text-center mb-4">
+                <i class="fas fa-cogs me-2"></i>Analysis Options
+            </h2>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card border-primary h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-search me-2"></i>Taxonomic Classification
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Duration:</strong> 5-10 minutes</p>
+                    <p><strong>Output:</strong></p>
+                    <ul>
+                        <li>Species identification</li>
+                        <li>Abundance estimates</li>
+                        <li>Taxonomic breakdown</li>
+                        <li>Quality metrics</li>
+                    </ul>
+                    <p class="text-muted">
+                        Perfect for quick microbiome profiling and community analysis.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card border-success h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-project-diagram me-2"></i>Full MMonitor Pipeline
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Duration:</strong> 30-60 minutes</p>
+                    <p><strong>Output:</strong></p>
+                    <ul>
+                        <li>Genome assembly</li>
+                        <li>Gene annotation</li>
+                        <li>Functional analysis</li>
+                        <li>MAG (Metagenome-Assembled Genomes)</li>
+                    </ul>
+                    <p class="text-muted">
+                        Comprehensive analysis for in-depth genomic insights.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current System Status -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server me-2"></i>Current System Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Processing Capacity</h6>
+                            <div class="progress mb-3">
+                                <div class="progress-bar bg-info" 
+                                     style="width: {% widthratio system_status.active_jobs system_status.max_concurrent_jobs 100 %}%">
+                                </div>
+                            </div>
+                            <p class="small text-muted">
+                                {{ system_status.active_jobs }} of {{ system_status.max_concurrent_jobs }} slots in use
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Queue Status</h6>
+                            <div class="progress mb-3">
+                                <div class="progress-bar bg-warning" 
+                                     style="width: {% widthratio system_status.queued_jobs system_status.max_queue_size 100 %}%">
+                                </div>
+                            </div>
+                            <p class="small text-muted">
+                                {{ system_status.queued_jobs }} of {{ system_status.max_queue_size }} queue slots used
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {% if system_status.maintenance_mode %}
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-tools me-2"></i>
+                        <strong>Maintenance Mode:</strong> {{ system_status.maintenance_message }}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>System Online:</strong> Ready to process new jobs
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Getting Started -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h3 class="mb-4">
+                        <i class="fas fa-play-circle me-2"></i>Ready to Get Started?
+                    </h3>
+                    <p class="lead mb-4">
+                        Join researchers worldwide who are using MMonitor for their metagenomics analysis.
+                    </p>
+                    {% if user.is_authenticated %}
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{% url 'users:upload_files' %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-upload me-2"></i>Upload Your Data
+                        </a>
+                        <a href="{% url 'dashboard:index' %}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-chart-line me-2"></i>View Dashboard
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{% url 'users:register' %}" class="btn btn-success btn-lg">
+                            <i class="fas fa-user-plus me-2"></i>Create Free Account
+                        </a>
+                        <a href="{% url 'users:login' %}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-sign-in-alt me-2"></i>Login
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Limits Info -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Daily Usage Limits
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="mb-1">
+                                <i class="fas fa-tasks me-2 text-primary"></i>
+                                <strong>3 analysis jobs</strong> per day
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1">
+                                <i class="fas fa-hdd me-2 text-info"></i>
+                                <strong>2GB storage</strong> per day
+                            </p>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        Limits reset daily at midnight UTC. Contact us for higher limits or commercial use.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.jumbotron {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.15s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.display-4 {
+    font-size: 2.5rem;
+}
+
+.lead {
+    font-size: 1.125rem;
+    font-weight: 300;
+}
+
+.progress {
+    height: 10px;
+    background-color: #e9ecef;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.125rem;
+}
+
+.opacity-50 {
+    opacity: 0.5;
+}
+
+.fa-8x {
+    font-size: 8em;
+}
+
+@media (max-width: 768px) {
+    .display-4 {
+        font-size: 2rem;
+    }
+    
+    .d-flex.gap-3 {
+        flex-direction: column;
+        gap: 1rem !important;
+    }
+    
+    .fa-8x {
+        font-size: 4em;
+    }
+}
+</style>
+{% endblock content %}

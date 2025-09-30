@@ -1,10 +1,336 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Submit Feedback - MMonitor{% endblock %}
 
 {% block content %}
-  <h2>Submit Feedback</h2>
-  <form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Submit</button>
-  </form>
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-6">
+            <!-- Page Header -->
+            <div class="page-header text-center">
+                <h1><i class="fas fa-comment-dots"></i> Submit Feedback</h1>
+                <p class="text-muted">Help us improve MMonitor by sharing your thoughts and suggestions.</p>
+            </div>
+
+            <!-- Messages -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Feedback Form Card -->
+            <div class="feedback-card">
+                <div class="card-header">
+                    <h5><i class="fas fa-paper-plane"></i> Share Your Feedback</h5>
+                    <p class="mb-0">Your input helps us make MMonitor better for everyone.</p>
+                </div>
+                <div class="card-body">
+                    <form method="post" class="feedback-form">
+                        {% csrf_token %}
+                        
+                        <!-- Subject Field -->
+                        <div class="form-group mb-4">
+                            <label for="{{ form.subject.id_for_label }}" class="form-label">
+                                <i class="fas fa-tag"></i> Subject
+                                <span class="required">*</span>
+                            </label>
+                            {{ form.subject }}
+                            {% if form.subject.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.subject.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Message Field -->
+                        <div class="form-group mb-4">
+                            <label for="{{ form.message.id_for_label }}" class="form-label">
+                                <i class="fas fa-comment"></i> Message
+                                <span class="required">*</span>
+                            </label>
+                            {{ form.message }}
+                            {% if form.message.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.message.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="form-text">
+                                <i class="fas fa-info-circle"></i>
+                                Please provide as much detail as possible to help us understand your feedback.
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-paper-plane"></i> Submit Feedback
+                            </button>
+                            <a href="{% url 'main:index' %}" class="btn btn-outline-secondary btn-lg">
+                                <i class="fas fa-arrow-left"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Feedback Guidelines -->
+            <div class="feedback-guidelines">
+                <h6><i class="fas fa-lightbulb"></i> Feedback Guidelines</h6>
+                <ul>
+                    <li><strong>Bug Reports:</strong> Describe the issue, steps to reproduce, and expected behavior</li>
+                    <li><strong>Feature Requests:</strong> Explain the functionality you'd like to see and how it would help</li>
+                    <li><strong>General Feedback:</strong> Share your experience, suggestions, or concerns</li>
+                    <li><strong>Be Specific:</strong> The more detail you provide, the better we can help</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .page-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .page-header h1 {
+        color: #16262C;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+    }
+
+    .page-header h1 i {
+        color: #228be6;
+        margin-right: 10px;
+    }
+
+    .page-header p {
+        font-size: 1.1rem;
+        color: #6c757d;
+    }
+
+    .feedback-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        border: none;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .feedback-card .card-header {
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+        border-bottom: 2px solid #e9ecef;
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .feedback-card .card-header h5 {
+        color: #16262C;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    .feedback-card .card-header h5 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .feedback-card .card-header p {
+        color: #6c757d;
+        margin: 0;
+    }
+
+    .feedback-card .card-body {
+        padding: 2rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #16262C;
+        margin-bottom: 0.75rem;
+        display: block;
+    }
+
+    .form-label i {
+        color: #228be6;
+        margin-right: 8px;
+        width: 16px;
+    }
+
+    .required {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .form-control {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background-color: #fafbfc;
+    }
+
+    .form-control:focus {
+        border-color: #228be6;
+        box-shadow: 0 0 0 0.2rem rgba(34, 139, 230, 0.25);
+        background-color: white;
+    }
+
+    .form-control.is-invalid {
+        border-color: #dc3545;
+    }
+
+    .form-control.is-invalid:focus {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+
+    textarea.form-control {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    .form-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+    }
+
+    .form-text i {
+        color: #228be6;
+        margin-right: 4px;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .btn {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.75rem 2rem;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        box-shadow: 0 4px 15px rgba(34, 139, 230, 0.3);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(34, 139, 230, 0.4);
+    }
+
+    .btn-outline-secondary {
+        border: 2px solid #6c757d;
+        color: #6c757d;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        transform: translateY(-2px);
+    }
+
+    .btn i {
+        margin-right: 8px;
+    }
+
+    .feedback-guidelines {
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+        border: 2px solid rgba(34, 139, 230, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .feedback-guidelines h6 {
+        color: #16262C;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .feedback-guidelines h6 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .feedback-guidelines ul {
+        margin: 0;
+        padding-left: 1.5rem;
+    }
+
+    .feedback-guidelines li {
+        margin-bottom: 0.5rem;
+        color: #495057;
+        line-height: 1.5;
+    }
+
+    .feedback-guidelines strong {
+        color: #16262C;
+    }
+
+    .invalid-feedback {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    @media (max-width: 768px) {
+        .form-actions {
+            flex-direction: column;
+        }
+        
+        .btn {
+            width: 100%;
+        }
+        
+        .feedback-card .card-header,
+        .feedback-card .card-body {
+            padding: 1.5rem;
+        }
+    }
+</style>
+
+<script>
+    // Add custom styling to form fields
+    document.addEventListener('DOMContentLoaded', function() {
+        // Style the subject field
+        const subjectField = document.getElementById('{{ form.subject.id_for_label }}');
+        if (subjectField) {
+            subjectField.classList.add('form-control');
+            subjectField.placeholder = 'Brief description of your feedback...';
+        }
+
+        // Style the message field
+        const messageField = document.getElementById('{{ form.message.id_for_label }}');
+        if (messageField) {
+            messageField.classList.add('form-control');
+            messageField.placeholder = 'Please provide detailed feedback about your experience with MMonitor...';
+        }
+    });
+</script>
 {% endblock %}

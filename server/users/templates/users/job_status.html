@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>
+                    <i class="fas fa-chart-line me-2"></i>Job Status: {{ job.sample_name }}
+                </h1>
+                <div>
+                    {% if job.results_available %}
+                    <a href="{% url 'users:download_results' job_id=job.job_id %}" class="btn btn-success me-2">
+                        <i class="fas fa-download me-2"></i>Download Results
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'users:job_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list me-2"></i>All Jobs
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Overview Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Job Overview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Job ID:</dt>
+                                <dd class="col-sm-8"><code>{{ job.job_id }}</code></dd>
+                                
+                                <dt class="col-sm-4">Sample Name:</dt>
+                                <dd class="col-sm-8">{{ job.sample_name }}</dd>
+                                
+                                <dt class="col-sm-4">Analysis Type:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-info">{{ job.get_analysis_type_display }}</span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Status:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}primary{% elif job.status == 'queued' %}warning{% elif job.status == 'cancelled' %}secondary{% else %}light text-dark{% endif %} fs-6">
+                                        {{ job.get_status_display }}
+                                    </span>
+                                </dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-6">
+                            <dl class="row">
+                                <dt class="col-sm-4">Created:</dt>
+                                <dd class="col-sm-8">{{ job.created_at|date:"M d, Y H:i" }}</dd>
+                                
+                                {% if job.started_at %}
+                                <dt class="col-sm-4">Started:</dt>
+                                <dd class="col-sm-8">{{ job.started_at|date:"M d, Y H:i" }}</dd>
+                                {% endif %}
+                                
+                                {% if job.completed_at %}
+                                <dt class="col-sm-4">Completed:</dt>
+                                <dd class="col-sm-8">{{ job.completed_at|date:"M d, Y H:i" }}</dd>
+                                {% endif %}
+                                
+                                <dt class="col-sm-4">Runtime:</dt>
+                                <dd class="col-sm-8">
+                                    {% if job.runtime_formatted %}
+                                    {{ job.runtime_formatted }}
+                                    {% else %}
+                                    <span class="text-muted">Not started</span>
+                                    {% endif %}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tasks me-2"></i>Progress
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold">{{ job.progress }}% Complete</span>
+                        {% if job.status == 'running' %}
+                        <span class="badge bg-primary">In Progress</span>
+                        {% endif %}
+                    </div>
+                    <div class="progress mb-3" style="height: 20px;">
+                        <div class="progress-bar 
+                            {% if job.status == 'completed' %}bg-success
+                            {% elif job.status == 'failed' %}bg-danger
+                            {% elif job.status == 'running' %}bg-primary progress-bar-striped progress-bar-animated
+                            {% else %}bg-secondary{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ job.progress }}%">
+                        </div>
+                    </div>
+                    {% if job.progress_message %}
+                    <p class="mb-0">
+                        <i class="fas fa-info-circle text-info me-2"></i>
+                        {{ job.progress_message }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    {% if job.error_message %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Error Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <pre class="mb-0">{{ job.error_message }}</pre>
+                    {% if job.can_retry %}
+                    <div class="mt-3">
+                        <form method="post" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" name="retry_job" class="btn btn-warning">
+                                <i class="fas fa-redo me-2"></i>Retry Job ({{ job.retry_count }}/{{ job.max_retries }})
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Job Actions -->
+    {% if job.status in 'pending,queued' %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tools me-2"></i>Job Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p>This job is waiting to be processed. You can cancel it if needed.</p>
+                    <form method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" name="cancel_job" class="btn btn-danger"
+                                onclick="return confirm('Are you sure you want to cancel this job?')">
+                            <i class="fas fa-times me-2"></i>Cancel Job
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Uploaded Files -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-file-alt me-2"></i>Uploaded Files
+                        <span class="badge bg-secondary ms-2">{{ uploaded_files.count }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if uploaded_files %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Size</th>
+                                    <th>Status</th>
+                                    <th>Uploaded</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in uploaded_files %}
+                                <tr>
+                                    <td>
+                                        <i class="fas fa-file-code me-2 text-primary"></i>
+                                        {{ file.original_filename }}
+                                    </td>
+                                    <td>{{ file.file_size|filesizeformat }}</td>
+                                    <td>
+                                        {% if file.is_valid %}
+                                        <span class="badge bg-success">Valid</span>
+                                        {% else %}
+                                        <span class="badge bg-danger" title="{{ file.validation_errors }}">Invalid</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ file.uploaded_at|date:"M d, H:i" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No files associated with this job.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Card -->
+    {% if job.status == 'completed' %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>Analysis Results
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <p class="mb-3">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                Analysis completed successfully! Your results are ready for download.
+                            </p>
+                            {% if job.results_size %}
+                            <p class="mb-3">
+                                <strong>Results size:</strong> {{ job.results_size|filesizeformat }}
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <a href="{% url 'users:download_results' job_id=job.job_id %}" class="btn btn-success btn-lg">
+                                <i class="fas fa-download me-2"></i>Download Results
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Auto-refresh for running jobs -->
+{% if job.status in 'running,queued' %}
+<script>
+// Auto-refresh every 10 seconds for running/queued jobs
+setTimeout(function() {
+    location.reload();
+}, 10000);
+</script>
+{% endif %}
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.badge.fs-6 {
+    font-size: 1rem !important;
+}
+
+pre {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: #d63384;
+}
+
+dl.row dt {
+    font-weight: 600;
+}
+
+.table th {
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.125rem;
+}
+</style>
+{% endblock content %}

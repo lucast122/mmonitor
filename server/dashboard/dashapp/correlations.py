@@ -106,14 +106,14 @@ class Correlations:
                     variant="light",
                     style={"marginBottom": "20px"}
                 ),
-            ], spacing="sm", p=0)
+            ], gap="sm", p=0)
             
             # Control section
             control_section = dmc.Paper(
                 children=[
                     dmc.Title("Analysis Controls", order=3),
                     dmc.Grid([
-                        dmc.Col([
+                        dmc.GridCol([
                             dmc.Select(
                                 id="correlation-method",
                                 label="Correlation Method",
@@ -127,7 +127,7 @@ class Correlations:
                                 style={"width": "100%"},
                             ),
                         ], span=4),
-                        dmc.Col([
+                        dmc.GridCol([
                             dmc.NumberInput(
                                 id="pvalue-cutoff",
                                 label="P-value significance cutoff",
@@ -136,14 +136,14 @@ class Correlations:
                                 min=0.001,
                                 max=1,
                                 decimalSeparator=".",
-                                precision=3,
+                                decimalScale=3,
                                 step=0.001,
                                 stepHoldDelay=500,
                                 stepHoldInterval=100,
                                 style={"width": "100%"},
                             ),
                         ], span=4),
-                        dmc.Col([
+                        dmc.GridCol([
                             dmc.Switch(
                                 id="filter-significant",
                                 label="Show only significant correlations",
@@ -158,7 +158,7 @@ class Correlations:
                     dmc.Button(
                         "Apply Settings",
                         id="apply-correlation-settings",
-                        leftIcon=[DashIconify(icon="mdi:refresh")],
+                        leftSection=[DashIconify(icon="mdi:refresh")],
                         color="blue",
                         variant="filled",
                         size="md",
@@ -178,17 +178,17 @@ class Correlations:
                     dmc.Group([
                         dmc.Button(
                             "Download Metadata CSV Template",
-                            leftIcon=[DashIconify(icon="mdi:file-download-outline")],
+                            leftSection=[DashIconify(icon="mdi:file-download-outline")],
                             id="download-csv-button",
                         ),
                         dmc.Button(
                             "Download Correlations",
-                            leftIcon=[DashIconify(icon="mdi:chart-scatter-plot")],
+                            leftSection=[DashIconify(icon="mdi:chart-scatter-plot")],
                             id="btn-download-corr",
                         ),
                         dmc.Button(
                             "Download Plots as SVG",
-                            leftIcon=[DashIconify(icon="mdi:file-image-outline")],
+                            leftSection=[DashIconify(icon="mdi:file-image-outline")],
                             id="btn-download-svg-correlations",
                         ),
                     ]),
@@ -197,7 +197,7 @@ class Correlations:
                         id='upload-data',
                         children=dmc.Button(
                             "Upload Metadata CSV",
-                            leftIcon=[DashIconify(icon="mdi:file-upload-outline")],
+                            leftSection=[DashIconify(icon="mdi:file-upload-outline")],
                             variant="outline",
                             fullWidth=True,
                         ),

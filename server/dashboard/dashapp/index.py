@@ -50,7 +50,7 @@ import numpy as np
 import dash
 from dash import html, dcc, dash_table
 import dash_mantine_components as dmc
-import dash_bio as dashbio
+# import dash_bio as dashbio  # Temporarily commented out
 from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 from django_plotly_dash import DjangoDash
@@ -450,21 +450,19 @@ class Index:
             dmc.NavLink(
                 label=values['name'],
                 style={'font-size': '1.2rem'},
-                icon=DashIconify(icon=self._get_icon_for_app(values['name']), width=35),
+                leftSection=DashIconify(icon=self._get_icon_for_app(values['name']), width=35),
                 href=url,
             ) for url, values in self._apps.items()
         ]
 
-        navbar = dmc.Navbar(
-            fixed=True,
-            width={"base": 150},
+        navbar = dmc.AppShellNavbar(
             p="xs",
             children=[
                 dmc.ScrollArea(
                     type="hover",
                     children=[
                         dmc.Stack([
-                            dmc.Text(id="app-subtitle", size="xs", color="dimmed"),
+                            dmc.Text(id="app-subtitle", size="xs", c="dimmed"),
                             dmc.Divider(mb=20),
                             *nav_links
                         ])
@@ -473,15 +471,14 @@ class Index:
             ],
         )
 
-        header = dmc.Header(
-            height=10,
+        header = dmc.AppShellHeader(
             p="md",
             children=[
                 dmc.Group(
                     [
-                        dmc.Text(id="header-title", size="xl", weight=700),
+                        dmc.Text(id="header-title", size="xl", fw=700),
                     ],
-                    spacing="xl",
+                    gap="xl",
                 )
             ],
         )
@@ -490,29 +487,29 @@ class Index:
         page_content = html.Div(id='page-content', children=[initial_content], style={'width': '100%', 'padding': '0'})
 
         
-        layout = dmc.Container(
+        layout = dmc.AppShell(
             [
                 hidden_components,
                 location,
+                header,
                 navbar,
-                dmc.Container(
-                    id="page-content",
-                    fluid=True,
-                    style={
-                        'marginLeft': '160px',
-                        'padding': '0',
-                        'height': 'calc(100vh - 20px)',
-                        'overflow': 'auto',
-                        'minHeight': '0',
-                        'maxHeight': '100vh',
-                        'width': 'calc(100vw - 160px)',  # Account for navbar width
-                        'maxWidth': 'calc(100vw - 160px)'  # Ensure it doesn't overflow
-                    }
+                dmc.AppShellMain(
+                    children=[
+                        dmc.Container(
+                            id="page-content",
+                            fluid=True,
+                            style={
+                                'padding': '0',
+                                'height': 'calc(100vh - 20px)',
+                                'overflow': 'auto',
+                                'minHeight': '0',
+                                'maxHeight': '100vh'
+                            }
+                        )
+                    ]
                 ),
                 dmc.Text(id="header-title", style={"display": "none"})
             ],
-            fluid=True,
-            p=0,
             style={
                 'margin': '0',
                 'padding': '0',
@@ -533,9 +530,7 @@ class Index:
                 "fontFamily": "Arial, sans-serif",
                 "spacing": {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 20},
             },
-            children=[layout],
-            withGlobalStyles=True,
-            withNormalizeCSS=True
+            children=[layout]
         )
 
         self.app.layout = container
@@ -697,13 +692,13 @@ class Index:
                 # Create a list of property rows
                 property_rows = [
                     dmc.Group([
-                        dmc.Text(prop[0], weight=500, size="sm", style={"width": "150px"}),
+                        dmc.Text(prop[0], fw=500, size="sm", style={"width": "150px"}),
                         dmc.Text(prop[1], size="sm")
-                    ], position="apart", style={"marginBottom": "8px"})
+                    ], justify="apart", style={"marginBottom": "8px"})
                     for prop in properties
                 ]
                 
-                return dmc.Stack(property_rows, spacing="xs")
+                return dmc.Stack(property_rows, gap="xs")
                 
             except Exception as e:
                 logger.error(f"Error updating MAG info panel: {str(e)}", exc_info=True)
@@ -1404,7 +1399,6 @@ class Index:
                     template="plotly_white",
                     showlegend=True,
                     legend=dict(
-                        orientation="h",
                         yanchor="bottom",
                         y=1.02,
                         xanchor="right",
@@ -2326,7 +2320,7 @@ class Index:
                     sequence_info = html.Div([
                         html.H4(mag_name, className="mb-3"),
                         dmc.Grid([
-                            dmc.Col([
+                            dmc.GridCol([
                                 html.Div([
                                     html.Strong("Taxonomy: "),
                                     html.Span(taxonomy)
@@ -2340,7 +2334,7 @@ class Index:
                                     html.Span(completeness_display)
                                 ], className="mb-2"),
                             ], span=6),
-                            dmc.Col([
+                            dmc.GridCol([
                                 html.Div([
                                     html.Strong("Contamination: "),
                                     html.Span(contamination_display)
@@ -3355,13 +3349,13 @@ class Index:
                     dmc.Button(
                         "Copy Sequence",
                         id="copy-sequence-btn",
-                        leftIcon=DashIconify(icon="mdi:content-copy"),
+                        leftSection=DashIconify(icon="mdi:content-copy"),
                         style={'marginRight': '10px'}
                     ),
                     dmc.Button(
                         "Copy FASTA",
                         id="copy-fasta-btn",
-                        leftIcon=DashIconify(icon="mdi:dna"),
+                        leftSection=DashIconify(icon="mdi:dna"),
                         variant="outline"
                     ),
                     # Clipboard success message

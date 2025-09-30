@@ -736,7 +736,6 @@ class MAGs:
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
                 legend=dict(
-                    orientation="h",
                     yanchor="bottom",
                     y=1.02,
                     xanchor="right",
@@ -1331,7 +1330,7 @@ class MAGs:
             layout = dmc.Container([
                 dmc.Grid([
                     # Left column with controls and table
-                    dmc.Col([
+                    dmc.GridCol([
                         html.H4("MAGs Viewer"),
                         html.P("This tool allows you to explore Metagenome-Assembled Genomes (MAGs) in your dataset.",
                               style={"color": "#666"}),
@@ -1339,11 +1338,10 @@ class MAGs:
                         # Quality filter control
                         dmc.Paper([
                             dmc.Stack([
-                                dmc.Text("Quality Filter", weight=500),
+                                dmc.Text("Quality Filter", fw=500),
                                 dmc.RadioGroup(
                                     id="quality-filter",
                                     value="all",
-                                    orientation="horizontal",
                                     children=[
                                         dmc.Radio(label="All", value="all"),
                                         dmc.Radio(label="High", value="high"),
@@ -1416,7 +1414,7 @@ class MAGs:
                         # Quality scatter plot
                         dmc.Paper([
                             dmc.Stack([
-                                dmc.Text("MAG Quality Assessment", weight=500),
+                                dmc.Text("MAG Quality Assessment", fw=500),
                                 dcc.Graph(
                                     id="quality-scatter",
                                     figure=quality_scatter,
@@ -1428,7 +1426,7 @@ class MAGs:
                     ], span=5, p="md"),
                     
                     # Right column with MAG info and visualizations
-                    dmc.Col([
+                    dmc.GridCol([
                         # MAG Details Section
                         html.Div([
                             # Circos Plot - this is an OUTPUT of the callback
@@ -1454,7 +1452,7 @@ class MAGs:
                         # MAG content panel (holds circos plot and sequence info)
                         dmc.Paper([
                             dmc.Stack([
-                                dmc.Text("MAG Content", weight=500),
+                                dmc.Text("MAG Content", fw=500),
                                 dmc.Divider(),
                                 mag_content,
                             ]),
@@ -2060,13 +2058,13 @@ class MAGs:
                     dmc.Button(
                         "Copy Sequence",
                         id="copy-sequence-btn",
-                        leftIcon=DashIconify(icon="mdi:content-copy"),
+                        leftSection=DashIconify(icon="mdi:content-copy"),
                         style={'marginRight': '10px'}
                     ),
                     dmc.Button(
                         "Copy FASTA",
                         id="copy-fasta-btn",
-                        leftIcon=DashIconify(icon="mdi:dna"),
+                        leftSection=DashIconify(icon="mdi:dna"),
                         variant="outline"
                     ),
                     # Clipboard success message

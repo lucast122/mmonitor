@@ -1,6 +1,325 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Thank You - MMonitor{% endblock %}
 
 {% block content %}
-  <h2>Thank You for Your Feedback!</h2>
-  <p>Your feedback has been successfully submitted.</p>
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-6">
+            <!-- Thank You Card -->
+            <div class="thank-you-card">
+                <div class="card-header">
+                    <div class="success-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h1>Thank You for Your Feedback!</h1>
+                    <p class="lead">Your feedback has been successfully submitted and will help us improve MMonitor.</p>
+                </div>
+                <div class="card-body">
+                    <div class="success-message">
+                        <h5><i class="fas fa-heart"></i> We Appreciate Your Input</h5>
+                        <p>Your feedback is invaluable to us and helps us:</p>
+                        <ul>
+                            <li><i class="fas fa-bug"></i> Identify and fix bugs</li>
+                            <li><i class="fas fa-lightbulb"></i> Develop new features</li>
+                            <li><i class="fas fa-chart-line"></i> Improve user experience</li>
+                            <li><i class="fas fa-users"></i> Better serve our community</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="next-steps">
+                        <h6><i class="fas fa-arrow-right"></i> What's Next?</h6>
+                        <p>Our team will review your feedback and may reach out if we need additional information. In the meantime, feel free to:</p>
+                        <div class="action-buttons">
+                            <a href="{% url 'main:index' %}" class="btn btn-primary">
+                                <i class="fas fa-home"></i> Return to Home
+                            </a>
+                            <a href="{% url 'dashboard:index' %}" class="btn btn-outline-primary">
+                                <i class="fas fa-chart-bar"></i> Open Dashboard
+                            </a>
+                            <a href="{% url 'users:upload_dashboard' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-upload"></i> Upload Data
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Resources -->
+            <div class="resources-card">
+                <h6><i class="fas fa-book"></i> Additional Resources</h6>
+                <div class="resource-links">
+                    <a href="https://github.com/lucast122/MMonitor" target="_blank" class="resource-link">
+                        <i class="fab fa-github"></i>
+                        <span>GitHub Repository</span>
+                    </a>
+                    <a href="https://doi.org/10.1101/2025.09.08.674848" target="_blank" class="resource-link">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Publication</span>
+                    </a>
+                    <a href="{% url 'users:submit_feedback' %}" class="resource-link">
+                        <i class="fas fa-comment-dots"></i>
+                        <span>Submit More Feedback</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .thank-you-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        border: none;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .thank-you-card .card-header {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-bottom: 2px solid #c3e6cb;
+        padding: 3rem 2rem;
+        text-align: center;
+        position: relative;
+    }
+
+    .success-icon {
+        margin-bottom: 1.5rem;
+    }
+
+    .success-icon i {
+        font-size: 4rem;
+        color: #28a745;
+        animation: bounceIn 0.6s ease-out;
+    }
+
+    @keyframes bounceIn {
+        0% {
+            transform: scale(0.3);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(1.05);
+        }
+        70% {
+            transform: scale(0.9);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .thank-you-card .card-header h1 {
+        color: #155724;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        font-size: 2.5rem;
+    }
+
+    .thank-you-card .card-header .lead {
+        color: #155724;
+        font-size: 1.2rem;
+        margin: 0;
+    }
+
+    .thank-you-card .card-body {
+        padding: 2rem;
+    }
+
+    .success-message {
+        margin-bottom: 2rem;
+    }
+
+    .success-message h5 {
+        color: #16262C;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .success-message h5 i {
+        color: #e74c3c;
+        margin-right: 8px;
+    }
+
+    .success-message ul {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0;
+    }
+
+    .success-message li {
+        padding: 0.5rem 0;
+        color: #495057;
+        display: flex;
+        align-items: center;
+    }
+
+    .success-message li i {
+        color: #228be6;
+        margin-right: 12px;
+        width: 20px;
+        text-align: center;
+    }
+
+    .next-steps {
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+        border: 2px solid rgba(34, 139, 230, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .next-steps h6 {
+        color: #16262C;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .next-steps h6 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .next-steps p {
+        color: #495057;
+        margin-bottom: 1.5rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        border-radius: 8px;
+        font-weight: 600;
+        padding: 0.75rem 1.5rem;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+        box-shadow: 0 4px 15px rgba(34, 139, 230, 0.3);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(34, 139, 230, 0.4);
+        color: white;
+    }
+
+    .btn-outline-primary {
+        border: 2px solid #228be6;
+        color: #228be6;
+        background: transparent;
+    }
+
+    .btn-outline-primary:hover {
+        background-color: #228be6;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-outline-secondary {
+        border: 2px solid #6c757d;
+        color: #6c757d;
+        background: transparent;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn i {
+        margin-right: 8px;
+    }
+
+    .resources-card {
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+        border: 2px solid rgba(34, 139, 230, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .resources-card h6 {
+        color: #16262C;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .resources-card h6 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .resource-links {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .resource-link {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: white;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        color: #495057;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        flex: 1;
+        min-width: 150px;
+    }
+
+    .resource-link:hover {
+        border-color: #228be6;
+        color: #228be6;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(34, 139, 230, 0.2);
+    }
+
+    .resource-link i {
+        margin-right: 8px;
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .btn {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .resource-links {
+            flex-direction: column;
+        }
+        
+        .resource-link {
+            width: 100%;
+        }
+        
+        .thank-you-card .card-header {
+            padding: 2rem 1.5rem;
+        }
+        
+        .thank-you-card .card-header h1 {
+            font-size: 2rem;
+        }
+    }
+</style>
 {% endblock %}
