@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Sample {{ sample_id }} - MMonitor{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'main:index' %}">Home</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'users:edit_samples' %}">Edit Samples</a></li>
+                    <li class="breadcrumb-item active">Sample {{ sample_id }}</li>
+                </ol>
+            </nav>
+
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-edit"></i> Edit Sample {{ sample_id }}</h1>
+                <p class="text-muted">Update sample metadata and manage individual records.</p>
+            </div>
+
+            <!-- Messages -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Sample Overview -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ record_count }}</div>
+                            <div class="stat-label">Records</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ total_abundance|floatformat:0 }}</div>
+                            <div class="stat-label">Total Abundance</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-sitemap"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{{ taxonomies|length }}</div>
+                            <div class="stat-label">Unique Taxa</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-info-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number">{% if sequencing_stat %}Yes{% else %}No{% endif %}</div>
+                            <div class="stat-label">Sequencing Stats</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Sample Metadata -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-cog"></i> Sample Metadata</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if sequencing_stat %}
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <div class="mb-3">
+                                        <label for="sample_name" class="form-label">Sample Name</label>
+                                        <input type="text" class="form-control" id="sample_name" name="sample_name" 
+                                               value="{{ sequencing_stat.sample_name }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="project_id" class="form-label">Project ID</label>
+                                        <input type="text" class="form-control" id="project_id" name="project_id" 
+                                               value="{{ sequencing_stat.project_id }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="subproject_id" class="form-label">Subproject ID</label>
+                                        <input type="text" class="form-control" id="subproject_id" name="subproject_id" 
+                                               value="{{ sequencing_stat.subproject_id }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="date" class="form-label">Date</label>
+                                        <input type="date" class="form-control" id="date" name="date" 
+                                               value="{{ sequencing_stat.date }}">
+                                    </div>
+                                    <button type="submit" name="update_sample" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Update Sample
+                                    </button>
+                                </form>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    No sequencing statistics found for this sample. Metadata cannot be edited.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sample Actions -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-tools"></i> Sample Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'users:edit_samples' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left"></i> Back to Samples
+                                </a>
+                                
+                                <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#viewRecordsModal">
+                                    <i class="fas fa-eye"></i> View All Records
+                                </button>
+                                
+                                <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#deleteRecordsModal">
+                                    <i class="fas fa-trash"></i> Delete Selected Records
+                                </button>
+                                
+                                <form method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this entire sample and all {{ record_count }} records? This action cannot be undone.');">
+                                    {% csrf_token %}
+                                    <button type="submit" name="delete_sample" class="btn btn-danger">
+                                        <i class="fas fa-trash-alt"></i> Delete Entire Sample
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Records Table -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5><i class="fas fa-list"></i> Sample Records ({{ record_count }} total)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="recordsTable">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAll" class="form-check-input">
+                                    </th>
+                                    <th>Read ID</th>
+                                    <th>Taxonomy</th>
+                                    <th>Abundance</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in records %}
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox" name="record_ids" value="{{ record.read_id }}" class="form-check-input record-checkbox">
+                                        </td>
+                                        <td>{{ record.read_id }}</td>
+                                        <td>
+                                            <span class="taxonomy-text" title="{{ record.taxonomy }}">
+                                                {{ record.taxonomy|truncatechars:50 }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">{{ record.abundance }}</span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    onclick="deleteRecord({{ record.read_id }})">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Records Modal -->
+<div class="modal fade" id="viewRecordsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">All Records for Sample {{ sample_id }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Read ID</th>
+                                <th>Taxonomy</th>
+                                <th>Abundance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in records %}
+                                <tr>
+                                    <td>{{ record.read_id }}</td>
+                                    <td>{{ record.taxonomy }}</td>
+                                    <td>{{ record.abundance }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Records Modal -->
+<div class="modal fade" id="deleteRecordsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete Selected Records</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the selected records? This action cannot be undone.</p>
+                <form method="post" action="{% url 'users:delete_sample_records' sample_id %}">
+                    {% csrf_token %}
+                    <div id="selectedRecords"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="deleteForm" class="btn btn-danger">Delete Selected</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .page-header {
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .page-header h1 {
+        color: #16262C;
+        margin-bottom: 0.5rem;
+    }
+
+    .page-header h1 i {
+        color: #228be6;
+        margin-right: 10px;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        text-align: center;
+        height: 100%;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        border-color: rgba(34, 139, 230, 0.3);
+    }
+
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #228be6, #1c7ed6);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        margin: 0 auto 1rem auto;
+        box-shadow: 0 4px 10px rgba(34, 139, 230, 0.3);
+    }
+
+    .stat-content {
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #16262C;
+        margin-bottom: 0.5rem;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #6c757d;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .card {
+        border: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        border-radius: 12px;
+    }
+
+    .card-header {
+        background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+        border-bottom: 2px solid #e9ecef;
+        border-radius: 12px 12px 0 0 !important;
+    }
+
+    .card-header h5 {
+        color: #16262C;
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .card-header h5 i {
+        color: #228be6;
+        margin-right: 8px;
+    }
+
+    .table th {
+        background-color: #f8f9fa;
+        border-top: none;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .taxonomy-text {
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+
+    .breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .breadcrumb-item a {
+        color: #228be6;
+        text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+        text-decoration: underline;
+    }
+
+    @media (max-width: 768px) {
+        .stat-card {
+            margin-bottom: 1rem;
+        }
+        
+        .table-responsive {
+            font-size: 0.9rem;
+        }
+    }
+</style>
+
+<script>
+    // Select all functionality
+    document.getElementById('selectAll').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.record-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // Update selected records in modal
+    document.getElementById('deleteRecordsModal').addEventListener('show.bs.modal', function() {
+        const selectedCheckboxes = document.querySelectorAll('.record-checkbox:checked');
+        const selectedRecordsDiv = document.getElementById('selectedRecords');
+        selectedRecordsDiv.innerHTML = '';
+        
+        selectedCheckboxes.forEach(checkbox => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'record_ids';
+            input.value = checkbox.value;
+            selectedRecordsDiv.appendChild(input);
+        });
+    });
+
+    function deleteRecord(readId) {
+        if (confirm('Are you sure you want to delete this record?')) {
+            // Create a form and submit
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = '{% url "users:delete_sample_records" sample_id %}';
+            
+            const csrfToken = document.createElement('input');
+            csrfToken.type = 'hidden';
+            csrfToken.name = 'csrfmiddlewaretoken';
+            csrfToken.value = '{{ csrf_token }}';
+            form.appendChild(csrfToken);
+            
+            const recordIdInput = document.createElement('input');
+            recordIdInput.type = 'hidden';
+            recordIdInput.name = 'record_ids';
+            recordIdInput.value = readId;
+            form.appendChild(recordIdInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+</script>
+{% endblock %}

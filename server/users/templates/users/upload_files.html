@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>
+                    <i class="fas fa-cloud-upload-alt me-2"></i>Upload FASTQ Files
+                </h1>
+                <a href="{% url 'users:upload_dashboard' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quota Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Your Current Quota
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Jobs:</strong> {{ quota.remaining_jobs }} of {{ quota.DAILY_JOB_LIMIT }} remaining
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Storage:</strong> {{ quota.remaining_storage_mb|floatformat:1 }}MB of 2GB remaining
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-file-upload me-2"></i>File Upload & Analysis Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
+                        {% csrf_token %}
+                        
+                        <!-- File Upload Section -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Select FASTQ Files</label>
+                            {{ upload_form.files }}
+                            <div class="form-text">
+                                {{ upload_form.files.help_text }}
+                            </div>
+                            {% if upload_form.files.errors %}
+                            <div class="text-danger">
+                                {% for error in upload_form.files.errors %}
+                                <small>{{ error }}</small><br>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Analysis Configuration -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ job_form.sample_name.id_for_label }}" class="form-label fw-bold">
+                                    Sample Name
+                                </label>
+                                {{ job_form.sample_name }}
+                                <div class="form-text">{{ job_form.sample_name.help_text }}</div>
+                                {% if job_form.sample_name.errors %}
+                                <div class="text-danger">
+                                    {% for error in job_form.sample_name.errors %}
+                                    <small>{{ error }}</small><br>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ job_form.analysis_type.id_for_label }}" class="form-label fw-bold">
+                                    Analysis Type
+                                </label>
+                                {{ job_form.analysis_type }}
+                                <div class="form-text">{{ job_form.analysis_type.help_text }}</div>
+                                {% if job_form.analysis_type.errors %}
+                                <div class="text-danger">
+                                    {% for error in job_form.analysis_type.errors %}
+                                    <small>{{ error }}</small><br>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                <i class="fas fa-rocket me-2"></i>Start Analysis
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help & Information Sidebar -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-question-circle me-2"></i>Upload Guidelines
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6>File Requirements:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>FASTQ format (.fastq, .fq)</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Gzipped files (.fastq.gz, .fq.gz)</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Maximum 500MB per file</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Multiple files allowed</li>
+                    </ul>
+
+                    <h6 class="mt-3">Analysis Types:</h6>
+                    <div class="mb-3">
+                        <strong>Taxonomic Classification:</strong>
+                        <small class="text-muted d-block">
+                            Fast species identification using Centrifuge (~5-10 minutes)
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Full Pipeline:</strong>
+                        <small class="text-muted d-block">
+                            Complete analysis including assembly and annotation (~30-60 minutes)
+                        </small>
+                    </div>
+
+                    <h6 class="mt-3">Daily Limits:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-clock text-warning me-2"></i>3 jobs per day</li>
+                        <li><i class="fas fa-hdd text-warning me-2"></i>2GB storage per day</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Sample Data Card -->
+            <div class="card mt-3">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="fas fa-download me-2"></i>Need Sample Data?
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="small">Try MMonitor with our sample FASTQ files:</p>
+                    <div class="d-grid">
+                        <a href="#" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-file-download me-2"></i>Download Sample Files
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload me-2"></i>Uploading Files...
+                </h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Please wait while we upload and validate your files...</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 100%">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('uploadForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    
+    // File input change handler
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const files = Array.from(this.files);
+            if (files.length > 0) {
+                let totalSize = files.reduce((sum, file) => sum + file.size, 0);
+                let totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+                
+                // Update UI with file info
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'alert alert-info mt-2';
+                fileInfo.innerHTML = `
+                    <strong>Selected ${files.length} file(s):</strong><br>
+                    Total size: ${totalSizeMB}MB<br>
+                    ${files.map(f => `• ${f.name} (${(f.size / (1024 * 1024)).toFixed(1)}MB)`).join('<br>')}
+                `;
+                
+                // Remove existing file info
+                const existingInfo = document.querySelector('.alert-info');
+                if (existingInfo) existingInfo.remove();
+                
+                // Add new file info
+                fileInput.parentNode.appendChild(fileInfo);
+            }
+        });
+    }
+    
+    // Form submission handler
+    form.addEventListener('submit', function(e) {
+        const files = fileInput.files;
+        if (files.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one file to upload.');
+            return;
+        }
+        
+        // Show upload modal
+        submitBtn.disabled = true;
+        uploadModal.show();
+    });
+});
+</script>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.form-control:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+.progress {
+    height: 6px;
+}
+
+.list-unstyled li {
+    margin-bottom: 0.25rem;
+}
+</style>
+{% endblock content %}

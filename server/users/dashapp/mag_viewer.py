@@ -8,7 +8,7 @@ from django_plotly_dash import DjangoDash
 from ..models import MAG
 import json
 import logging
-import dash_bio as dashbio
+# import dash_bio as dashbio  # Temporarily commented out
 from Bio import SeqIO
 from io import StringIO
 import os

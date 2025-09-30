@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>
+                    <i class="fas fa-list me-2"></i>My Analysis Jobs
+                </h1>
+                <div>
+                    <a href="{% url 'users:upload_files' %}" class="btn btn-success me-2">
+                        <i class="fas fa-plus me-2"></i>New Job
+                    </a>
+                    <a href="{% url 'users:upload_dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label for="{{ filter_form.status.id_for_label }}" class="form-label">Status</label>
+                            {{ filter_form.status }}
+                        </div>
+                        <div class="col-md-3">
+                            <label for="{{ filter_form.analysis_type.id_for_label }}" class="form-label">Analysis Type</label>
+                            {{ filter_form.analysis_type }}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ filter_form.search.id_for_label }}" class="form-label">Search</label>
+                            {{ filter_form.search }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search me-2"></i>Filter
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jobs Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-table me-2"></i>Jobs
+                        {% if page_obj.paginator.count %}
+                        <span class="badge bg-secondary ms-2">{{ page_obj.paginator.count }} total</span>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if jobs %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Sample Name</th>
+                                    <th>Analysis Type</th>
+                                    <th>Status</th>
+                                    <th>Progress</th>
+                                    <th>Created</th>
+                                    <th>Runtime</th>
+                                    <th>Files</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in jobs %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ job.sample_name }}</strong><br>
+                                        <small class="text-muted">{{ job.job_id }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">
+                                            {{ job.get_analysis_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'failed' %}danger{% elif job.status == 'running' %}primary{% elif job.status == 'queued' %}warning{% elif job.status == 'cancelled' %}secondary{% else %}light text-dark{% endif %}">
+                                            {{ job.get_status_display }}
+                                        </span>
+                                        {% if job.status == 'running' and job.progress_message %}
+                                        <br><small class="text-muted">{{ job.progress_message }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="progress mb-1" style="height: 8px;">
+                                            <div class="progress-bar 
+                                                {% if job.status == 'completed' %}bg-success
+                                                {% elif job.status == 'failed' %}bg-danger
+                                                {% elif job.status == 'running' %}bg-primary
+                                                {% else %}bg-secondary{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ job.progress }}%">
+                                            </div>
+                                        </div>
+                                        <small class="text-muted">{{ job.progress }}%</small>
+                                    </td>
+                                    <td>
+                                        {{ job.created_at|date:"M d, Y" }}<br>
+                                        <small class="text-muted">{{ job.created_at|time:"H:i" }}</small>
+                                    </td>
+                                    <td>
+                                        {% if job.runtime_formatted %}
+                                        {{ job.runtime_formatted }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">
+                                            {{ job.uploaded_files.count }} file{{ job.uploaded_files.count|pluralize }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'users:job_status' job_id=job.job_id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% if job.results_available %}
+                                            <a href="{% url 'users:download_results' job_id=job.job_id %}" 
+                                               class="btn btn-sm btn-outline-success">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">No jobs found</h5>
+                        <p class="text-muted">Start your first analysis or adjust your filters.</p>
+                        <a href="{% url 'users:upload_files' %}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Create New Job
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <nav aria-label="Jobs pagination">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.analysis_type %}&analysis_type={{ request.GET.analysis_type }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">
+                            <i class="fas fa-angle-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.analysis_type %}&analysis_type={{ request.GET.analysis_type }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">
+                            <i class="fas fa-angle-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.analysis_type %}&analysis_type={{ request.GET.analysis_type }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.analysis_type %}&analysis_type={{ request.GET.analysis_type }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.analysis_type %}&analysis_type={{ request.GET.analysis_type }}{% endif %}{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}">
+                            <i class="fas fa-angle-double-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.table th {
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.btn-group .btn {
+    border-radius: 0.25rem;
+    margin-right: 0.25rem;
+}
+
+.btn-group .btn:last-child {
+    margin-right: 0;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.pagination .page-link {
+    color: #0d6efd;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+</style>
+{% endblock content %}

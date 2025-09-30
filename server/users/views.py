@@ -15,10 +15,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 
 from .forms import FeedbackForm
-from .models import NanoporeRecord  # Adjust the import according to your model's location
-from .models import SequencingStatistics
-from .models import UserProfile
-from .models import MAG
+from .models import NanoporeRecord, SequencingStatistics, UserProfile, MAG
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -697,3 +694,4 @@ class UploadMAGAnnotationsView(APIView):
                 {"error": f"Server error: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+

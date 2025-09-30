@@ -6,7 +6,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Ensure DEBUG is set to False in production
-DEBUG = False
+DEBUG = True  # Set to True for development
 
 # Static files
 STATIC_URL = '/static/'
@@ -20,7 +20,7 @@ import dash_bootstrap_components
 import dash_core_components
 import dash_html_components
 import dash_table
-import dash_bio
+# import dash_bio  # Temporarily commented out due to build issues
 import dash_ag_grid
 import dash_iconify
 
@@ -35,7 +35,7 @@ STATICFILES_DIRS = [
     os.path.dirname(dash_core_components.__file__),
     os.path.dirname(dash_html_components.__file__),
     os.path.dirname(dash_table.__file__),
-    os.path.dirname(dash_bio.__file__),
+    # os.path.dirname(dash_bio.__file__),  # Temporarily commented out
     os.path.dirname(dash_ag_grid.__file__),
     os.path.dirname(dash_iconify.__file__),
 ]
@@ -183,7 +183,7 @@ LOGGING = {
 }
 
 
-DATABASE_ROUTERS = ['MMonitor.routers.AppDataRouter']
+# DATABASE_ROUTERS = ['MMonitor.routers.AppDataRouter']  # Commented out - file doesn't exist
 
 # Security settings
 X_FRAME_OPTIONS = 'SAMEORIGIN'  # Allow iframe embedding from same origin

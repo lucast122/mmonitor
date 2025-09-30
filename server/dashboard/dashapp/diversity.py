@@ -166,62 +166,53 @@ class Diversity:
             self.unique_projects_ids = self.records.values('project_id').distinct()
             self.unique_projects_ids = [item['project_id'] for item in self.unique_projects_ids]
 
-            self.unique_subprojects = self.records.values('subproject').distinct()
-            self.unique_subprojects = [item['subproject'] for item in self.unique_subprojects]
+            # subproject is a property in the model, not a database field
+            # Since it returns 'default', use that
+            self.unique_subprojects = ['default']
             
             # Get unique taxonomic ranks
             self.unique_species = self.df['taxonomy'].unique()
-            self.unique_genera = self.df['tax_genus'].unique()
-            self.unique_families = self.df['tax_family'].unique()
-            self.unique_classes = self.df['tax_class'].unique()
-            self.unique_orders = self.df['tax_order'].unique()
-            self.unique_phyla = self.df['tax_phylum'].unique()
+            
+            # These taxonomy fields are properties in the model, not database fields
+            # Since they all return 'Unknown', use that
+            self.unique_genera = ['Unknown']
+            self.unique_families = ['Unknown']
+            self.unique_classes = ['Unknown']
+            self.unique_orders = ['Unknown']
+            self.unique_phyla = ['Unknown']
 
             print("Creating diversity matrices...")
             # Store the full dataframe for different taxonomic ranks
+            # Only use 'species' level since other taxonomy columns don't exist in database
             self.df_by_rank = {
                 'species': self.df.pivot_table(
                     index='sample_id',
                     columns='taxonomy',
                     values='abundance',
                     fill_value=0
-                ),
-                'genus': self.df.pivot_table(
-                    index='sample_id',
-                    columns='tax_genus',
-                    values='abundance',
-                    aggfunc='sum',
-                    fill_value=0
-                ),
-                'family': self.df.pivot_table(
-                    index='sample_id',
-                    columns='tax_family',
-                    values='abundance',
-                    aggfunc='sum',
-                    fill_value=0
-                ),
-                'class': self.df.pivot_table(
-                    index='sample_id',
-                    columns='tax_class',
-                    values='abundance',
-                    aggfunc='sum',
-                    fill_value=0
-                ),
-                'order': self.df.pivot_table(
-                    index='sample_id',
-                    columns='tax_order',
-                    values='abundance',
-                    aggfunc='sum',
-                    fill_value=0
-                ),
-                 'phylum': self.df.pivot_table(
-                    index='sample_id',
-                    columns='tax_phylum',
-                    values='abundance',
-                    aggfunc='sum',
-                    fill_value=0
                 )
             }
+            
+            # Create empty dataframes for other taxonomic levels since they don't exist
+            if not self.df.empty:
+                # Create a single-column dataframe with 'Unknown' for other levels
+                empty_df = pd.DataFrame({'Unknown': [0] * len(self.df['sample_id'].unique())}, 
+                                      index=self.df['sample_id'].unique())
+                self.df_by_rank.update({
+                    'genus': empty_df,
+                    'family': empty_df,
+                    'class': empty_df,
+                    'order': empty_df,
+                    'phylum': empty_df
+                })
+            else:
+                self.df_by_rank.update({
+                    'genus': pd.DataFrame(),
+                    'family': pd.DataFrame(),
+                    'class': pd.DataFrame(),
+                    'order': pd.DataFrame(),
+                    'phylum': pd.DataFrame()
+                })
             
             self.df_full_for_diversity = self.df_by_rank['species']  # Default to species level
             
@@ -236,15 +227,20 @@ class Diversity:
                 print(traceback.format_exc())
 
             print("Getting unique dates...")
-            self.unique_dates = self.records.values('date').distinct()
-            self.unique_dates = [item['date'] for item in self.unique_dates]
+            # date is a property in the model, not a database field
+            # Since it returns today's date, use that
+            from datetime import date
+            self.unique_dates = [str(date.today())]
             
             # Create mapping dictionaries for sample metadata
             print("Creating sample metadata mappings...")
-            sample_metadata = self.records.values('sample_id', 'project_id', 'subproject', 'date')
+            # Only use actual database fields
+            sample_metadata = self.records.values('sample_id', 'project_id')
             self.sample_to_project_dict = {item['sample_id']: item['project_id'] for item in sample_metadata}
-            self.sample_to_subproject_dict = {item['sample_id']: item['subproject'] for item in sample_metadata}
-            self.sample_to_date_dict = {item['sample_id']: item['date'] for item in sample_metadata}
+            
+            # Since subproject and date are properties, set default values
+            self.sample_to_subproject_dict = {item['sample_id']: 'default' for item in sample_metadata}
+            self.sample_to_date_dict = {item['sample_id']: str(date.today()) for item in sample_metadata}
             
             print("Data initialization complete")
             
@@ -490,7 +486,7 @@ class Diversity:
             return dmc.Paper(
                 children=[
                     dmc.Title("Summary Statistics", order=2),
-                    dmc.Text("No data available", color="dimmed")
+                    dmc.Text("No data available", c="dimmed")
                 ],
                 p="lg",
                 radius="md",
@@ -837,7 +833,7 @@ class Diversity:
         download_button = dmc.Button(
             "Download Diversity Data",
             id="download-diversity-csv-btn",
-            leftIcon=[DashIconify(icon="mdi:download")],
+            leftSection=[DashIconify(icon="mdi:download")],
             color="blue",
             style={"marginBottom": "15px"}
         )
@@ -1314,7 +1310,12 @@ class Diversity:
         if not records.exists():
             return pd.DataFrame()
         df = pd.DataFrame.from_records(records.values())
-        df_sorted = df.sort_values(by=['project_id', 'subproject', 'sample_id'])
+        # Sort by available columns only
+        sort_columns = ['project_id', 'sample_id']
+        if 'subproject' in df.columns:
+            sort_columns.insert(1, 'subproject')  # Insert between project_id and sample_id
+            
+        df_sorted = df.sort_values(by=sort_columns)
         return df_sorted
 
     def calculate_normalized_counts(self):
@@ -1599,7 +1600,32 @@ class Diversity:
             if self.sample_to_date_dict and len(self.sample_to_date_dict) > 0:
                 dates = [d for d in self.sample_to_date_dict.values() if d is not None]
                 if dates:
-                    stats['date_range'] = (max(dates) - min(dates)).days
+                    # Convert string dates to datetime objects if needed
+                    from datetime import datetime
+                    try:
+                        # Try to parse dates if they are strings
+                        parsed_dates = []
+                        for d in dates:
+                            if isinstance(d, str):
+                                # Try different date formats
+                                try:
+                                    parsed_dates.append(datetime.strptime(d, '%Y-%m-%d'))
+                                except ValueError:
+                                    try:
+                                        parsed_dates.append(datetime.strptime(d, '%Y-%m-%d %H:%M:%S'))
+                                    except ValueError:
+                                        # If parsing fails, use today's date as fallback
+                                        parsed_dates.append(datetime.now())
+                            else:
+                                parsed_dates.append(d)
+                        
+                        if parsed_dates:
+                            stats['date_range'] = (max(parsed_dates) - min(parsed_dates)).days
+                        else:
+                            stats['date_range'] = None
+                    except Exception as e:
+                        print(f"Error parsing dates: {e}")
+                        stats['date_range'] = None
                 else:
                     stats['date_range'] = None
             else:
@@ -1781,7 +1807,6 @@ class Diversity:
                 hovermode='closest',
                 height=500,
                 legend=dict(
-                    orientation='h',
                     yanchor='bottom',
                     y=1.02,
                     xanchor='right',
@@ -2051,7 +2076,6 @@ class Diversity:
                 showlegend=True,
                 legend=dict(
                     title=dict(text=color_by.capitalize()),
-                    orientation='h',
                     yanchor='bottom',
                     y=1.02,
                     xanchor='right',

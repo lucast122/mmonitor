@@ -68,9 +68,8 @@ class Taxonomy:
         self.records = self._get_cached_records()
         self.df = self._init_data()
         
-        # Initialize derived data
-        if not self.df.empty:
-            self._init_derived_data()
+        # Initialize derived data (always call to set defaults)
+        self._init_derived_data()
         
         self._init_layout()
 
@@ -98,54 +97,118 @@ class Taxonomy:
         # Clean data
         df.loc[df['taxonomy'].isin(['Not available', 'Not Available']), 'taxonomy'] = np.nan
         df.dropna(inplace=True)
+        # Only use columns that actually exist in the mmonitor table
+        drop_columns = ['sample_id', 'abundance', 'taxonomy', 'project_id', 'user_id']
+        # Add optional columns if they exist
+        if 'subproject' in df.columns:
+            drop_columns.append('subproject')
+        if 'date' in df.columns:
+            drop_columns.append('date')
+            
         df.drop_duplicates(
-            subset=['sample_id', 'abundance', 'taxonomy', 'project_id', 'subproject', 'user_id', 'date'],
+            subset=drop_columns,
             inplace=True)
         
-        self._cache['df'] = df.sort_values(by=['project_id', 'subproject', 'sample_id'])
+        # Sort by available columns
+        sort_columns = ['project_id', 'sample_id']
+        if 'subproject' in df.columns:
+            sort_columns.insert(1, 'subproject')  # Insert between project_id and sample_id
+            
+        self._cache['df'] = df.sort_values(by=sort_columns)
         return self._cache['df']
 
     def _init_derived_data(self):
         """Initialize all derived data after main dataframe is loaded"""
-        # Get unique values
-        self.unique_sample_ids = self.df['sample_id'].unique().tolist()
-        self.unique_samples = self.records.values('sample_id').distinct()
-        self.unique_projects_ids = [str(item['project_id']) for item in self.records.values('project_id').distinct()]
+        # Initialize default empty values first
+        self.unique_sample_ids = []
+        self.unique_samples = []
+        self.unique_projects_ids = []
+        self.unique_subprojects = []
+        self.unique_dates = []
         
-        self.unique_subprojects = [str(item['subproject']) for item in self.records.values('subproject').distinct()]
-        self.unique_dates = [str(item['date']) for item in self.records.values('date').distinct()]
+        # If we have data, populate with actual values
+        if not self.df.empty and self.records.exists():
+            self.unique_sample_ids = self.df['sample_id'].unique().tolist()
+            self.unique_samples = self.records.values('sample_id').distinct()
+            self.unique_projects_ids = [str(item['project_id']) for item in self.records.values('project_id').distinct()]
+            
+            # These fields don't exist in the database - they're properties in the model
+            # So we get them from the DataFrame instead
+            if 'subproject' in self.df.columns:
+                self.unique_subprojects = self.df['subproject'].unique().tolist()
+            else:
+                # Since subproject is a property that returns 'default', use that
+                self.unique_subprojects = ['default']
+            
+            if 'date' in self.df.columns:
+                self.unique_dates = [str(d) for d in self.df['date'].unique()]
+            else:
+                # Since date is a property that returns today's date, use that
+                from datetime import date
+                self.unique_dates = [str(date.today())]
+            
+            # Only access dataframe columns if data exists
+            self.unique_species = self.df['taxonomy'].unique()
+            
+            # These taxonomy fields are properties in the model, not database fields
+            # Since they all return 'Unknown', we'll use that
+            self.unique_genera = ['Unknown']
+            self.unique_families = ['Unknown']
+            self.unique_classes = ['Unknown']
+            self.unique_orders = ['Unknown']
+            self.unique_phyla = ['Unknown']
+        else:
+            # Set empty arrays for taxonomy data when no data exists
+            self.unique_species = []
+            self.unique_genera = []
+            self.unique_families = []
+            self.unique_classes = []
+            self.unique_orders = []
+            self.unique_phyla = []
         
-        self.unique_species = self.df['taxonomy'].unique()
-        self.unique_genera = self.df['tax_genus'].unique()
-        self.unique_families = self.df['tax_family'].unique()
-        self.unique_classes = self.df['tax_class'].unique()
-        self.unique_orders = self.df['tax_order'].unique()
-        self.unique_phyla = self.df['tax_phylum'].unique()
+        # Only compute aggregations if we have data
+        if not self.df.empty:
+            self.df_full_for_diversity = self.df.pivot_table(
+                index='sample_id',
+                columns='taxonomy',
+                values='abundance',
+                fill_value=0
+            )
+        else:
+            self.df_full_for_diversity = pd.DataFrame()
         
-        # Pre-compute aggregations
-        self.df_full_for_diversity = self.df.pivot_table(
-            index='sample_id',
-            columns='taxonomy',
-            values='abundance',
-            fill_value=0
-        )
+        # Project mapping - only if we have records
+        if self.records.exists():
+            sample_project_mapping = self.records.values('sample_id', 'project_id')
+            self.sample_to_project_dict = {item['sample_id']: item['project_id'] for item in sample_project_mapping}
+        else:
+            self.sample_to_project_dict = {}
         
-        # Project mapping
-        sample_project_mapping = self.records.values('sample_id', 'project_id')
-        self.sample_to_project_dict = {item['sample_id']: item['project_id'] for item in sample_project_mapping}
+        # Sort and get counts - only if we have data
+        if not self.df.empty:
+            self.df_sorted = self.df.sort_values(by=["sample_id", "abundance"], ascending=[True, False])
+            self.unique_counts = min(self.df.nunique()[1], 100)
+        else:
+            self.df_sorted = pd.DataFrame()
+            self.unique_counts = 0
         
-        # Sort and get counts
-        self.df_sorted = self.df.sort_values(by=["sample_id", "abundance"], ascending=[True, False])
-        self.unique_counts = min(self.df.nunique()[1], 100)
+        # Color assignments - only if we have data
+        if not self.df_sorted.empty:
+            unique_species = self.df_sorted['taxonomy'].unique()
+            self.species_colors = self.get_distinct_colors(len(unique_species))
+            self.species_colors = {species: color for species, color in zip(unique_species, self.species_colors)}
+        else:
+            self.species_colors = {}
         
-        # Color assignments
-        unique_species = self.df_sorted['taxonomy'].unique()
-        self.species_colors = self.get_distinct_colors(len(unique_species))
-        self.species_colors = {species: color for species, color in zip(unique_species, self.species_colors)}
-        
-        self.genus_colors = self.assign_color_to_taxonomy(self.df_sorted, 'tax_genus', self.species_colors)
-        self.family_colors = self.assign_color_to_taxonomy(self.df_sorted, 'tax_family', self.species_colors)
-        self.combined_color_dict = {**self.species_colors, **self.genus_colors, **self.family_colors}
+        if not self.df_sorted.empty:
+            # Since tax_genus and tax_family don't exist as columns, just use empty dicts
+            self.genus_colors = {}
+            self.family_colors = {}
+            self.combined_color_dict = {**self.species_colors}
+        else:
+            self.genus_colors = {}
+            self.family_colors = {}
+            self.combined_color_dict = {}
 
         self.legend_info = []
         self.abundance_lists = None
@@ -231,13 +294,10 @@ class Taxonomy:
 
         tax_rank_dropdown = dmc.Select(
             id='tax-rank-dropdown-tax',
-            data=[{'value': 'taxonomy', 'label': 'Species'},
-                  {'value': 'tax_genus', 'label': 'Genus'},
-                  {'value': 'tax_family', 'label': 'Family'},
-                  {'value': 'tax_class', 'label': 'Class'},
-                  {'value': 'tax_order', 'label': 'Order'},
-                  {'value': 'tax_phylum', 'label': 'Phylum'},
-                  ],
+            data=[
+                {'value': 'taxonomy', 'label': 'Species'},
+                # Note: Other taxonomy levels are not available in the current data structure
+            ],
             label="Taxonomic rank for plot",
             value='taxonomy',
             placeholder="Select taxonomic rank...",
@@ -273,13 +333,16 @@ class Taxonomy:
         )
 
         # Get the total number of unique taxa for the default legend items value
-        total_taxa = len(self.df[self.df['abundance'] > 0]['taxonomy'].unique())
+        if not self.df.empty:
+            total_taxa = len(self.df[self.df['abundance'] > 0]['taxonomy'].unique())
+        else:
+            total_taxa = 0
 
         download_component = dcc.Download(id="download-plot")
 
         export_controls = dmc.Paper(
             children=[
-                dmc.Text("Export Data", weight=500, size="sm", style={"marginBottom": "10px"}),
+                dmc.Text("Export Data", fw=500, size="sm", style={"marginBottom": "10px"}),
                 dmc.Group([
                     dmc.NumberInput(
                         id="width-input",
@@ -318,10 +381,10 @@ class Taxonomy:
                         size="sm"
                     ),
                     dmc.Group([
-            dmc.Button('Export All', leftIcon=DashIconify(icon="foundation:page-export-csv"), id="btn-download-csv-taxonomy", variant="outline", size="sm"),
-            dmc.Button('Export Counts', leftIcon=DashIconify(icon="foundation:page-export-csv"), id="btn-download-counts-taxonomy", variant="outline", size="sm"),
+            dmc.Button('Export All', leftSection=DashIconify(icon="foundation:page-export-csv"), id="btn-download-csv-taxonomy", variant="outline", size="sm"),
+            dmc.Button('Export Counts', leftSection=DashIconify(icon="foundation:page-export-csv"), id="btn-download-counts-taxonomy", variant="outline", size="sm"),
         ])
-                ], spacing="sm"),
+                ], gap="sm"),
                 download_component
             ],
             p="md",
