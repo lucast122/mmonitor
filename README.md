@@ -15,34 +15,34 @@ It pairs a **desktop app/CLI** for running pipelines with a **web dashboard** fo
 ---
 
 ## 🔎 Table of Contents
-- [✨ Features](#-features)
-- [🧭 Architecture](#-architecture)
-- [🚀 Quick Start](#-quick-start)
+- [ Features](#-features)
+- [ Architecture](#-architecture)
+- [ Quick Start](#-quick-start)
   - [macOS (App bundle)](#macos-app-bundle)
   - [Linux (from source)](#linux-from-source)
   - [Windows via WSL (CLI)](#windows-via-wsl-cli)
-- [🧪 Pipelines & Tools](#-pipelines--tools)
-- [🗃️ Databases](#-databases)
-- [⚙️ Configuration](#-configuration)
-- [📈 Dashboard](#-dashboard)
-- [🧰 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
-- [📚 Citation](#-citation)
-- [📜 License](#-license)
+- [ Pipelines & Tools](#-pipelines--tools)
+- [ Databases](#-databases)
+- [ Configuration](#-configuration)
+- [ Dashboard](#-dashboard)
+- [ Troubleshooting](#-troubleshooting)
+- [ Contributing](#-contributing)
+- [ Citation](#-citation)
+- [ License](#-license)
 
 ---
 
-## ✨ Features
-- ⚡ **Real-time analysis** as reads are produced (watch a directory; incremental updates)
-- 🖥️ **GUI & CLI**: run locally on laptops/workstations or headless servers
-- 🔧 **Configurable pipelines** (taxonomy, assembly/annotation; custom DBs)
-- 📊 **Interactive dashboard**: taxonomy, QC, diversity, functional summaries
-- 📝 **Automated reporting**: export figures/tables for manuscripts
-- 🖱️ **Cross-platform**: macOS, Linux; Windows via WSL (GUI for Windows coming soon)
+##  Features
+-  **Real-time analysis** as reads are produced (watch a directory; incremental updates)
+-  **GUI & CLI**: run locally on laptops/workstations or headless servers
+-  **Configurable pipelines** (taxonomy, assembly/annotation; custom DBs)
+-  **Interactive dashboard**: taxonomy, QC, diversity, functional summaries
+-  **Automated reporting**: export figures/tables for manuscripts
+-  **Cross-platform**: macOS, Linux; Windows via WSL (GUI for Windows coming soon)
 
 ---
 
-## 🧭 Architecture
+##  Architecture
 - **Desktop/CLI** (`desktop/`): orchestrates pipelines and file watching  
 - **Web server** (`server/`): Django + Plotly Dash dashboards  
 - **Pipelines**: call best-of-breed tools (e.g., Minimap2, Centrifuger, EMU, Flye, Bakta, CheckM2)  
@@ -50,7 +50,7 @@ It pairs a **desktop app/CLI** for running pipelines with a **web dashboard** fo
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### macOS (App bundle)
 1. Download the latest **macOS release** from **[Releases](https://github.com/lucast122/MMonitor/releases)**.  
