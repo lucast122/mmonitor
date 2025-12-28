@@ -7,10 +7,20 @@
 **MMonitor** is an open-source platform for **real-time metagenome monitoring** from Oxford Nanopore data.  
 It pairs a **desktop app/CLI** for running pipelines with a **web dashboard** for interactive exploration.
 
-> 📄 **Manuscript:** MMonitor: Software for Real-Time Monitoring of Microbial Communities Using Long Reads
-> Accepted by Cell Reports Methods
-> Preprint: **https://www.biorxiv.org/content/10.1101/2025.09.08.674848v1**  
-> Please cite if you use MMonitor in your research.
+
+
+
+## 📄 Publication
+
+**MMonitor for Real-Time Monitoring of Microbial Communities Using Long Reads**
+*Cell Reports Methods* (Elsevier, 2025)
+
+🔗 **DOI:** [https://doi.org/10.1016/j.crmeth.2025.101266](https://doi.org/10.1016/j.crmeth.2025.101266)
+
+**MMonitor** is an open-source software platform for real-time analysis and visualization of metagenomic Oxford Nanopore sequencing data. It supports both GUI- and CLI-based workflows and provides an interactive web dashboard for monitoring taxonomic composition, quality metrics, diversity indices, and metadata correlations over time.
+
+📌 **Please cite this paper if you use MMonitor in your research.**
+
 
 ---
 
