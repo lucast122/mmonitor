@@ -17,7 +17,10 @@ class Horizon:
         self._cache = {}
         self.df = self._get_cached_data()
         # Get unique projects for dropdown
-        self.projects = sorted(self.df['project_id'].unique())
+        if not self.df.empty and 'project_id' in self.df.columns:
+            self.projects = sorted(self.df['project_id'].unique())
+        else:
+            self.projects = []
         print(f"Initialized Horizon app with data shape: {self.df.shape}")
         self._init_layout()
 
@@ -29,18 +32,37 @@ class Horizon:
         records = NanoporeRecord.objects.filter(user_id=self.user_id).select_related()
         df = pd.DataFrame.from_records(records.values())
         
+        # Handle empty dataframe
+        if df.empty:
+            print("No records found for horizon app")
+            self._cache['df'] = df
+            return df
+        
         # Add date column since it doesn't exist in database
         # Use today's date as default since date is a model property
         from datetime import date
         df['date'] = pd.to_datetime(date.today())
         
+        # Check if required columns exist before grouping
+        if 'taxonomy' not in df.columns or 'abundance' not in df.columns:
+            print(f"WARNING: Missing required columns. Available: {list(df.columns)}")
+            # Add missing columns with defaults
+            if 'taxonomy' not in df.columns:
+                df['taxonomy'] = 'Unknown'
+            if 'abundance' not in df.columns:
+                df['abundance'] = 0
+        
         # Pre-compute common aggregations
         # Use 'abundance' instead of 'count' since that's what exists in our database
-        df['taxa_stats'] = df.groupby(['date', 'taxonomy'])['abundance'].transform(lambda x: {
-            'sum': x.sum(),
-            'mean': x.mean(),
-            'std': x.std()
-        })
+        try:
+            df['taxa_stats'] = df.groupby(['date', 'taxonomy'])['abundance'].transform(lambda x: {
+                'sum': x.sum(),
+                'mean': x.mean(),
+                'std': x.std()
+            })
+        except Exception as e:
+            print(f"Error computing taxa_stats: {e}")
+            df['taxa_stats'] = {}
         
         # Pre-compute date range
         df['date_range'] = {
@@ -526,7 +548,6 @@ class Horizon:
             dmc.Stack([
                 dmc.Title("Horizon Plot", order=2, style={"marginBottom": "5px"}),
                 
-                # Add explanation for horizon plots
                 dmc.Accordion(
                     children=[
                         dmc.AccordionItem(
@@ -564,10 +585,12 @@ class Horizon:
                     dmc.Select(
                         id='project-select-horizon',
                         label="Select Project",
-                        data=[{'value': 'ALL', 'label': 'All Projects'}] + [
-                            {'value': str(project_id), 'label': f'Project {project_id}'} 
-                            for project_id in self.df['project_id'].unique() if pd.notna(project_id)
-                        ],
+                        data=[{'value': 'ALL', 'label': 'All Projects'}] + (
+                            [] if self.df.empty or 'project_id' not in self.df.columns else [
+                                {'value': str(project_id), 'label': f'Project {project_id}'} 
+                                for project_id in self.df['project_id'].unique() if pd.notna(project_id)
+                            ]
+                        ),
                         value='ALL',
                         style={"width": "200px"}
                     ),
@@ -576,7 +599,6 @@ class Horizon:
                         label="Select Subproject",
                         data=[{'value': 'ALL', 'label': 'All Subprojects'}] + (
                             [{'value': 'default', 'label': 'Default Subproject'}]
-                            # subproject is a model property, not a database column
                         ),
                         value='ALL',
                         style={"width": "200px"}
@@ -591,7 +613,6 @@ class Horizon:
                     ),
                 ], align="flex-end", style={"padding": "5px 0"}),
                 
-                # Update the plot container to ensure tooltips are visible
                 dmc.Paper(
                     id='horizon-plot-container',
                     children=[
@@ -630,7 +651,6 @@ class Horizon:
             style={'width': '100%', 'margin': '0', 'padding': '0', 'maxWidth': '100%', 'overflow': 'hidden'}
         )
 
-        # Let's also update the HTML content to use full width
         html_style = """
     <style>
     body { 

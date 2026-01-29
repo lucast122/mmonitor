@@ -99,18 +99,6 @@ def benchmark(func):
         return result
     return wrapper
 
-def profile(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        profiler = cProfile.Profile()
-        try:
-            return profiler.runcall(func, *args, **kwargs)
-        finally:
-            stats = pstats.Stats(profiler)
-            stats.sort_stats('cumulative')
-            logger.info(f"\n{'='*20} Profiling for {func.__name__} {'='*20}")
-            stats.print_stats(20)  # Print top 20 time-consuming operations
-    return wrapper
 
 
 
@@ -123,9 +111,8 @@ class Index:
     def __init__(self, user_id):
         print("Initializing Index app")
         self.user_id = user_id
-        print(sys.executable)  # Add this to a Django view temporarily to check
         # Initialize the app with suppress_callback_exceptions=True to handle cross-app callbacks
-        self.app = DjangoDash('dashboard_index', add_bootstrap_links=True, suppress_callback_exceptions=True)
+        self.app = DjangoDash('dashboard_index', add_bootstrap_links=True, suppress_callback_exceptions=False)
         
         # Initialize all sub-apps
         print("Initializing Correlations app")
@@ -134,7 +121,7 @@ class Index:
         # Initialize other apps...
         
         self.taxonomy_app = taxonomy.Taxonomy(user_id)
-        self.diversity_app = diversity.Diversity(user_id)
+       # self.diversity_app = diversity.Diversity(user_id)
         self.correlations_app = correlations.Correlations(user_id)
         self.horizon_app = horizon.Horizon(user_id)
         self.qc_app = qc.QC(user_id)
@@ -153,11 +140,11 @@ class Index:
                 'app': self.horizon_app.app,
                 'instance': self.horizon_app
             },
-            '/dashapp/diversity': {
-                'name': 'Diversity',
-                'app': self.diversity_app.app,
-                'instance': self.diversity_app
-            },
+           # '/dashapp/diversity': {
+            #    'name': 'Diversity',
+             #   'app': self.diversity_app.app,
+              #  'instance': self.diversity_app
+      #      },
             '/dashapp/correlations': {
                 'name': 'Correlations',
                 'app': self.correlations_app.app,
@@ -178,7 +165,7 @@ class Index:
         # Ensure all apps have suppress_callback_exceptions=True
         for app_path, app_info in self._apps.items():
             if hasattr(app_info['app'], '_suppress_callback_exceptions'):
-                app_info['app']._suppress_callback_exceptions = True
+                app_info['app']._suppress_callback_exceptions = False
 
         self._init_data()
         

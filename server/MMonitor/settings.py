@@ -20,7 +20,7 @@ import dash_bootstrap_components
 import dash_core_components
 import dash_html_components
 import dash_table
-# import dash_bio  # Temporarily commented out due to build issues
+import dash_bio 
 import dash_ag_grid
 import dash_iconify
 
@@ -35,7 +35,7 @@ STATICFILES_DIRS = [
     os.path.dirname(dash_core_components.__file__),
     os.path.dirname(dash_html_components.__file__),
     os.path.dirname(dash_table.__file__),
-    # os.path.dirname(dash_bio.__file__),  # Temporarily commented out
+    os.path.dirname(dash_bio.__file__), 
     os.path.dirname(dash_ag_grid.__file__),
     os.path.dirname(dash_iconify.__file__),
 ]
@@ -47,26 +47,28 @@ MEDIA_ROOT = BASE_DIR / 'media'
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'mmonitor.org', 'www.mmonitor.org']
 CSRF_TRUSTED_ORIGINS = ['https://mmonitor.org', 'https://www.mmonitor.org']
 
-# Application definition
+
 INSTALLED_APPS = [
-    'dash_mantine_components',
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django_plotly_dash.apps.DjangoPlotlyDashConfig',
-    'plotly',
-    'users',
-    'main',
-    'dashboard',
-    'dashboard.dashapp',
-    'django_bootstrap5',
-    'channels',
-    'dash',
-    
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+
+    "django_plotly_dash.apps.DjangoPlotlyDashConfig",
+    "dpd_static_support",
+
+    "users",
+    "main",
+    "dashboard",
+    "dashboard.dashapp",
+
+    "channels",
+    "django_bootstrap5",
 ]
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -79,6 +81,29 @@ MIDDLEWARE = [
     'django_plotly_dash.middleware.ExternalRedirectionMiddleware',
     'django_plotly_dash.middleware.BaseMiddleware',
 ]
+
+PLOTLY_COMPONENTS = [
+    "dash_core_components",
+    "dash_html_components",
+    "dash_renderer",
+    "dash_table",
+    "dash_bootstrap_components",
+    "dash_mantine_components",
+    "dash_ag_grid",
+    "dash_iconify",
+]
+
+
+PLOTLY_DASH = {
+    "serve_locally": True,
+    "ws_route": "dpd/ws/channel",
+    "http_route": "dpd/views",
+    "http_poke_enabled": True,
+
+}
+
+
+
 
 # Static files finders
 STATICFILES_FINDERS = [
@@ -191,55 +216,4 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = ['https://mmonitor.org', 'https://www.mmonitor.org']
-
-# Configure django-plotly-dash
-PLOTLY_DASH = {
-    "ws_route": "dpd/ws/channel",
-    "http_route": "dpd/views",
-    "http_poke_enabled": True,
-    "insert_demo_migrations": False,
-    "cache_timeout_initial_arguments": 60,
-    "view_decorator": None,
-    "cache_arguments": False,
-    "serve_locally": False,
-    "external_stylesheets": [
-        "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css",
-    ],
-    "external_scripts": [
-        # Core dependencies
-        "https://unpkg.com/regenerator-runtime@0.13.9/runtime.js",
-        "https://unpkg.com/@babel/polyfill@7.12.1/dist/polyfill.min.js",
-        "https://unpkg.com/react@16.14.0/umd/react.production.min.js",
-        "https://unpkg.com/react-dom@16.14.0/umd/react-dom.production.min.js",
-        "https://unpkg.com/prop-types@15.8.1/prop-types.min.js",
-        "https://unpkg.com/dash-renderer@1.9.1/dash_renderer/dash_renderer.min.js",
-        
-        # Dash components
-        "https://cdn.jsdelivr.net/npm/dash-core-components@2.0.0/dash_core_components/dash_core_components.min.js",
-        "https://cdn.jsdelivr.net/npm/dash-html-components@2.0.0/dash_html_components/dash_html_components.min.js",
-        "https://cdn.jsdelivr.net/npm/dash-table@5.0.0/dash_table/dash_table.min.js",
-        "https://cdn.jsdelivr.net/npm/dash-bootstrap-components@1.4.1/dist/dash-bootstrap-components.min.js",
-        
-        # Use Github hosted version of dash_mantine_components
-        "https://raw.githubusercontent.com/lucast122/mmonitor-server/main/production_env/lib/python3.12/site-packages/dash_mantine_components/dash_mantine_components.min.js",
-        
-        "https://cdn.jsdelivr.net/npm/dash-ag-grid@2.2.0/dash_ag_grid/dash_ag_grid.min.js",
-        "https://cdn.jsdelivr.net/npm/dash-bio@1.0.2/dash_bio/dash_bio.min.js",
-        "https://cdn.jsdelivr.net/npm/dash-iconify@0.1.2/dist/dash-iconify.min.js"
-    ],
-    "components_pathname_prefix": "dash/component/",
-}
-
-# Define all Dash components for django-plotly-dash to register
-PLOTLY_COMPONENTS = [
-    'dash_core_components',
-    'dash_html_components',
-    'dash_bootstrap_components',
-    'dash_table',
-    'dash_mantine_components',
-    'dash_bio',
-    'dash_ag_grid',
-    'dash_iconify'
-]
-
 DPD_DEFAULT_DOWNLOAD = True

@@ -12,6 +12,8 @@ app_name = 'dashboard'
 
 urlpatterns = [
     path('', views.load_app, {'name': 'Index'}, name='index'),
-        path('get_user_id/', views.get_user_id, name='get_user_id')
+        path('get_user_id/', views.get_user_id, name='get_user_id'),
+    path("django_plotly_dash/", include("django_plotly_dash.urls"))
+
 
 ]

@@ -42,13 +42,10 @@ class Taxonomy:
             )
             
         except Exception as e:
-            logger.error(f"Error initializing {app_name} app: {str(e)}", exc_info=True)
+            print(f"Error initializing {app_name} app: {str(e)}")
             # Create a minimal app to avoid breaking the whole dashboard
             self.app = DjangoDash(app_name, suppress_callback_exceptions=True)
             self.app.layout = html.Div(f"Error loading {app_name} app")
-            
-            # Initialize the app layout
-            self.app.layout = self.create_layout()
         
         self._cache = {}
         
@@ -97,16 +94,17 @@ class Taxonomy:
         # Clean data
         df.loc[df['taxonomy'].isin(['Not available', 'Not Available']), 'taxonomy'] = np.nan
         df.dropna(inplace=True)
-        # Only use columns that actually exist in the mmonitor table
-        drop_columns = ['sample_id', 'abundance', 'taxonomy', 'project_id', 'user_id']
+        # Remove duplicate records based on key columns
+        # Keep only the essential columns for deduplication
+        dedup_columns = ['sample_id', 'taxonomy', 'project_id', 'user_id']
         # Add optional columns if they exist
         if 'subproject' in df.columns:
-            drop_columns.append('subproject')
+            dedup_columns.append('subproject')
         if 'date' in df.columns:
-            drop_columns.append('date')
+            dedup_columns.append('date')
             
         df.drop_duplicates(
-            subset=drop_columns,
+            subset=dedup_columns,
             inplace=True)
         
         # Sort by available columns
@@ -540,7 +538,29 @@ class Taxonomy:
 
     
     def plot_stacked_bar(self, df, use_date, taxonomic_rank):
+        # Handle empty dataframe
+        if df.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
+        
         x_axis = "date" if use_date else "sample_id"
+        
+        # Check if required columns exist
+        if x_axis not in df.columns or 'abundance' not in df.columns or taxonomic_rank not in df.columns:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Missing required columns: {x_axis}, abundance, or {taxonomic_rank}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
         
         # Sort the sample_ids alphanumerically
         sorted_samples = natsorted(df[x_axis].unique())
@@ -563,7 +583,29 @@ class Taxonomy:
         return self.apply_common_layout(fig)
 
     def plot_grouped_bar(self, df, use_date, taxonomic_rank):
+        # Handle empty dataframe
+        if df.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
+        
         x_axis = "date" if use_date else "sample_id"
+        
+        # Check if required columns exist
+        if x_axis not in df.columns or 'abundance' not in df.columns or taxonomic_rank not in df.columns:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Missing required columns: {x_axis}, abundance, or {taxonomic_rank}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
         
         sorted_samples = natsorted(df[x_axis].unique())
         df[x_axis] = pd.Categorical(df[x_axis], categories=sorted_samples, ordered=True)
@@ -576,7 +618,29 @@ class Taxonomy:
         return self.apply_common_layout(fig)
 
     def plot_area(self, df, use_date, taxonomic_rank):
+        # Handle empty dataframe
+        if df.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
+        
         x_axis = "date" if use_date else "sample_id"
+        
+        # Check if required columns exist
+        if x_axis not in df.columns or 'abundance' not in df.columns or taxonomic_rank not in df.columns:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Missing required columns: {x_axis}, abundance, or {taxonomic_rank}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
         
         sorted_samples = natsorted(df[x_axis].unique())
         df[x_axis] = pd.Categorical(df[x_axis], categories=sorted_samples, ordered=True)
@@ -589,7 +653,29 @@ class Taxonomy:
         return self.apply_common_layout(fig)
 
     def plot_line(self, df, use_date, taxonomic_rank):
+        # Handle empty dataframe
+        if df.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
+        
         x_axis = "date" if use_date else "sample_id"
+        
+        # Check if required columns exist
+        if x_axis not in df.columns or 'abundance' not in df.columns or taxonomic_rank not in df.columns:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Missing required columns: {x_axis}, abundance, or {taxonomic_rank}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
         
         sorted_samples = natsorted(df[x_axis].unique())
         df[x_axis] = pd.Categorical(df[x_axis], categories=sorted_samples, ordered=True)
@@ -602,7 +688,29 @@ class Taxonomy:
         return self.apply_common_layout(fig)
 
     def plot_heatmap(self, df, use_date, taxonomic_rank):
+        # Handle empty dataframe
+        if df.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
+        
         x_axis = "date" if use_date else "sample_id"
+        
+        # Check if required columns exist
+        if x_axis not in df.columns or 'abundance' not in df.columns or taxonomic_rank not in df.columns:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Missing required columns: {x_axis}, abundance, or {taxonomic_rank}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
         
         sorted_samples = natsorted(df[x_axis].unique())
         df[x_axis] = pd.Categorical(df[x_axis], categories=sorted_samples, ordered=True)
@@ -617,7 +725,29 @@ class Taxonomy:
         return self.apply_common_layout(fig)
 
     def plot_scatter(self, df, use_date, taxonomic_rank):
+        # Handle empty dataframe
+        if df.empty:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No data available to display",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
+        
         x_axis = "date" if use_date else "sample_id"
+        
+        # Check if required columns exist
+        if x_axis not in df.columns or 'abundance' not in df.columns or taxonomic_rank not in df.columns:
+            fig = go.Figure()
+            fig.add_annotation(
+                text=f"Missing required columns: {x_axis}, abundance, or {taxonomic_rank}",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=20)
+            )
+            return self.apply_common_layout(fig)
         
         sorted_samples = natsorted(df[x_axis].unique())
         df[x_axis] = pd.Categorical(df[x_axis], categories=sorted_samples, ordered=True)
@@ -663,14 +793,6 @@ class Taxonomy:
                       title=f'Pie chart of bioreactor taxonomy of sample {sample_value_piechart}')
         piechart_style = {'display': 'block'}
         return fig1, piechart_style
-
-    # def split_alphanumeric(self, text):
-    #     matches = re.findall(r'(\d+|\D+)', text)
-    #     numbers = [int(m) for m in matches if m.isdigit()]
-    #     non_numbers = [m for m in matches if not m.isdigit()]
-    #     number = numbers[0] if numbers else float('inf')
-    #     non_number = non_numbers[0] if non_numbers else ''
-    #     return (number, non_number)
 
 
     def calculate_normalized_counts(self):
