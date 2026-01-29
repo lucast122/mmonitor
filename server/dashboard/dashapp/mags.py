@@ -825,9 +825,23 @@ class MAGs:
             if selected_rows is not None and table_data is not None and len(selected_rows) > 0:
                 highlight_mag = table_data[selected_rows[0]]['name']
 
-            # Get RNA counts from annotation dictionary
-            self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
-            self.mag_data['rrna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'rRNA']) if isinstance(x, dict) else 0)
+            # Get RNA counts from annotation dictionary (if available)
+            # Handle case where mag_data is a dict instead of DataFrame
+            if isinstance(self.mag_data, dict):
+                logger.warning("mag_data is a dict, not a DataFrame - skipping RNA counts")
+                return go.Figure()
+
+            if hasattr(self.mag_data, 'columns') and 'annotations_dict' in self.mag_data.columns:
+                self.mag_data['trna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'tRNA']) if isinstance(x, dict) else 0)
+                self.mag_data['rrna_count'] = self.mag_data['annotations_dict'].apply(lambda x: len([g for g in x.get('genes', []) if g.get('type') == 'rRNA']) if isinstance(x, dict) else 0)
+            else:
+                # Use existing counts if available, otherwise default to 0
+                if not hasattr(self.mag_data, 'columns'):
+                    return go.Figure()
+                if 'trna_count' not in self.mag_data.columns:
+                    self.mag_data['trna_count'] = 0
+                if 'rrna_count' not in self.mag_data.columns:
+                    self.mag_data['rrna_count'] = 0
             
             df = self.mag_data.sort_values('rrna_count', ascending=False).head(20)
             
@@ -2626,10 +2640,21 @@ class MAGs:
                 logger.warning("No MAG data available for KEGG overview")
                 return go.Figure()
 
-            # Get KEGG pathways from annotation dictionary
-            self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
-                lambda x: [pathway for pathway in x.get('kegg_pathways', []) if isinstance(pathway, str)] if isinstance(x, dict) else []
-            )
+            # Get KEGG pathways from annotation dictionary (if available)
+            # Handle case where mag_data is a dict instead of DataFrame
+            if isinstance(self.mag_data, dict):
+                logger.warning("mag_data is a dict, not a DataFrame - skipping KEGG overview")
+                return go.Figure()
+
+            if hasattr(self.mag_data, 'columns') and 'annotations_dict' in self.mag_data.columns:
+                self.mag_data['kegg_pathways'] = self.mag_data['annotations_dict'].apply(
+                    lambda x: [pathway for pathway in x.get('kegg_pathways', []) if isinstance(pathway, str)] if isinstance(x, dict) else []
+                )
+            else:
+                # No annotations available, create empty kegg_pathways
+                if not hasattr(self.mag_data, '__len__'):
+                    return go.Figure()
+                self.mag_data['kegg_pathways'] = [[] for _ in range(len(self.mag_data))]
             
             # Flatten the list of pathways
             all_pathways = [pathway for pathways in self.mag_data['kegg_pathways'] for pathway in pathways]

@@ -191,7 +191,18 @@ class Index:
             
             # Create DataFrame with optimized dtypes
             self.df = pd.DataFrame.from_records(records)
-            self.df_sorted = self.df.sort_values(by=['project_id', 'subproject', 'sample_id'])
+
+            # Add missing columns that are defined as properties in the model
+            # but not returned by .values() (which only returns database fields)
+            if 'subproject' not in self.df.columns:
+                self.df['subproject'] = 'default'
+            if 'date' not in self.df.columns:
+                from datetime import date
+                self.df['date'] = date.today()
+
+            # Only sort by columns that exist
+            sort_cols = [c for c in ['project_id', 'subproject', 'sample_id'] if c in self.df.columns]
+            self.df_sorted = self.df.sort_values(by=sort_cols) if sort_cols else self.df
             
             # Initialize cache with size limit
             self._cache = {}
