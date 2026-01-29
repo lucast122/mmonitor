@@ -95,11 +95,11 @@ PLOTLY_COMPONENTS = [
 
 
 PLOTLY_DASH = {
-    "serve_locally": True,
+    "serve_locally": False,
     "ws_route": "dpd/ws/channel",
     "http_route": "dpd/views",
     "http_poke_enabled": True,
-
+    "cache_timeout_initial_arguments": 60,
 }
 
 
