@@ -2,10 +2,13 @@ version: '3.8'
 
 services:
   web:
-    build: .
-    command: gunicorn --chdir mmonitor --workers 3 --bind :8025 mmonitor.wsgi:application
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    command: gunicorn --workers 3 --bind :8025 MMonitor.wsgi:application
     volumes:
-      - .:/app
+      - ./:/app
+      - ../frontend/dist:/frontend/dist:ro
       - static_volume:/app/static
       - media_volume:/app/media
     env_file:

@@ -334,15 +334,15 @@ class LoginWindow(ctk.CTkFrame):
                     # Ask user about browser
                     dialog = CTkMessagebox(
                         title="Local Server Ready",
-                        message="Would you like to view the results in your browser?\n"
-                               "The local server is running at http://127.0.0.1:8000",
+                        message="Would you like to view the dashboard in your browser?\n"
+                               "The local server is running at http://127.0.0.1:8000/dashboard/",
                         icon="question",
                         option_1="Yes",
                         option_2="No"
                     )
-                    
+
                     if dialog.get() == "Yes":
-                        webbrowser.open("http://127.0.0.1:8000")
+                        webbrowser.open("http://127.0.0.1:8000/dashboard/")
                     
                     # Update UI state and show home screen
                     self.main_window.update_login_status()

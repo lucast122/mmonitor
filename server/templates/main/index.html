@@ -38,26 +38,12 @@
                     <div class="step-content">
                         <h3><i class="fas fa-cogs"></i> Choose Your Method</h3>
                         <div class="method-options">
-                            <div class="method-option">
+                            <div class="method-option" style="max-width: 400px; margin: 0 auto;">
                                 <h4><i class="fas fa-download"></i> Download Desktop App</h4>
                                 <p>Full control over the software and real-time analysis</p>
                                 <a href="https://www.github.com/lucast122/MMonitor" target="_blank" class="step-button download-btn">
-                                    <i class="fas fa-download"></i> Download v0.2.0
+                                    <i class="fas fa-download"></i> Download v0.3.0
                                 </a>
-                            </div>
-                            <div class="method-divider">OR</div>
-                            <div class="method-option">
-                                <h4><i class="fas fa-cloud-upload-alt"></i> Upload to Our Server</h4>
-                                <p>Automated processing - just upload and wait for results</p>
-                                {% if user.is_authenticated %}
-                                <a href="{% url 'users:upload_dashboard' %}" class="step-button upload-btn">
-                                    <i class="fas fa-upload"></i> Start Upload
-                                </a>
-                                {% else %}
-                                <div class="login-required">
-                                    <i class="fas fa-lock"></i> Login required
-                                </div>
-                                {% endif %}
                             </div>
                         </div>
                     </div>

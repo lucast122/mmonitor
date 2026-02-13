@@ -13,38 +13,15 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 SITE_URL = 'https://mmonitor.org/'
 
-# Find dash component directories
-import dash
-import dash_mantine_components
-import dash_bootstrap_components
-import dash_core_components
-import dash_html_components
-import dash_table
-import dash_bio 
-import dash_ag_grid
-import dash_iconify
-
-# Add paths to Dash components
-venv_path = os.path.join(BASE_DIR, 'py3.11venv', 'lib', 'python3.11', 'site-packages')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
-    # Add Dash component paths with their correct package location
-    os.path.dirname(dash.__file__),
-    os.path.dirname(dash_mantine_components.__file__),
-    os.path.dirname(dash_bootstrap_components.__file__),
-    os.path.dirname(dash_core_components.__file__),
-    os.path.dirname(dash_html_components.__file__),
-    os.path.dirname(dash_table.__file__),
-    os.path.dirname(dash_bio.__file__), 
-    os.path.dirname(dash_ag_grid.__file__),
-    os.path.dirname(dash_iconify.__file__),
 ]
 
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'mmonitor.org', 'www.mmonitor.org']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'mmonitor.org', 'www.mmonitor.org', '*']  # '*' for development only
 CSRF_TRUSTED_ORIGINS = ['https://mmonitor.org', 'https://www.mmonitor.org']
 
 
@@ -56,15 +33,18 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    "django_plotly_dash.apps.DjangoPlotlyDashConfig",
-    "dpd_static_support",
+    # Django REST Framework
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "django_filters",
 
+    # Project apps
+    "api",
     "users",
     "main",
     "dashboard",
-    "dashboard.dashapp",
 
-    "channels",
     "django_bootstrap5",
 ]
 
@@ -73,36 +53,13 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS - must be before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django_plotly_dash.middleware.ExternalRedirectionMiddleware',
-    'django_plotly_dash.middleware.BaseMiddleware',
 ]
-
-PLOTLY_COMPONENTS = [
-    "dash_core_components",
-    "dash_html_components",
-    "dash_renderer",
-    "dash_table",
-    "dash_bootstrap_components",
-    "dash_mantine_components",
-    "dash_ag_grid",
-    "dash_iconify",
-]
-
-
-PLOTLY_DASH = {
-    "serve_locally": False,
-    "ws_route": "dpd/ws/channel",
-    "http_route": "dpd/views",
-    "http_poke_enabled": True,
-    "cache_timeout_initial_arguments": 60,
-}
-
-
 
 
 # Static files finders
@@ -121,12 +78,14 @@ WHITENOISE_MAX_AGE = 31536000  # 1 year in seconds
 WHITENOISE_SKIP_COMPRESS_EXTENSIONS = []  # Empty list to compress all files
 
 ROOT_URLCONF = 'MMonitor.urls'
-DASH_APP_URL = 'https://www.mmonitor.org/dash/'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [
+            BASE_DIR / 'templates',
+            os.path.join(BASE_DIR, '..', 'frontend', 'dist'),
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -139,14 +98,12 @@ TEMPLATES = [
     },
 ]
 
-ASGI_APPLICATION = 'MMonitor.asgi.application'
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
-    
+
 }
 
 # Configure the 'default' database dynamically from the DATABASE_URL environment variable
@@ -182,12 +139,9 @@ LOGOUT_REDIRECT_URL = "main:index"
 LOGIN_REDIRECT_URL = '/'
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
-DATA_UPLOAD_MAX_MEMORY_SIZE = 429916160
-RSCRIPT = 'RScript'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100*1024*1024
+RSCRIPT = 'RScript'
 
-
-import os
 
 LOG_FILE_PATH = os.path.join(os.path.dirname(__file__), 'django_log.txt')
 
@@ -216,4 +170,92 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 CSRF_TRUSTED_ORIGINS = ['https://mmonitor.org', 'https://www.mmonitor.org']
-DPD_DEFAULT_DOWNLOAD = True
+
+
+# =============================================================================
+# Django REST Framework Configuration
+# =============================================================================
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.StandardPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour'
+    },
+}
+
+# =============================================================================
+# Simple JWT Configuration
+# =============================================================================
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# =============================================================================
+# CORS Configuration
+# =============================================================================
+
+# Allow all origins in development, restrict in production
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "https://mmonitor.org",
+    "https://www.mmonitor.org",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# In development, allow all origins
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True

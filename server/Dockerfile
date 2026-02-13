@@ -8,11 +8,13 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Copy the application code to the work directory
-COPY . /app/
+# Copy the server application code
+COPY server/ /app/
+
+# Copy frontend build output (built externally before docker build)
+COPY frontend/dist/ /frontend/dist/
 
 # Install dependencies
-COPY requirements.txt /app/
 RUN apt-get update && apt-get install -y \
     pkg-config \
     gcc \
@@ -28,4 +30,4 @@ RUN python manage.py collectstatic --noinput
 EXPOSE 8025
 
 # Command to run the application
-CMD ["gunicorn", "--chdir", "mmonitor", "--workers", "3", "--bind", ":8025", "mmonitor.wsgi:application"]
+CMD ["gunicorn", "--workers", "3", "--bind", ":8025", "MMonitor.wsgi:application"]
