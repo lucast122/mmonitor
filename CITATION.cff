@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use MMonitor in your research, please cite the following paper."
+title: "MMonitor"
+type: software
+
+preferred-citation:
+  type: article
+  title: "MMonitor for real-time monitoring of microbial communities using long reads"
+  journal: "Cell Reports Methods"
+  publisher: Elsevier
+  year: 2025
+  doi: 10.1016/j.crmeth.2025.101266
+  url: https://doi.org/10.1016/j.crmeth.2025.101266
+  authors:
+    - family-names: Lucas
+      given-names: Timo N.
+    - family-names: Biehain
+      given-names: Ulrike
+    - family-names: Gautam
+      given-names: Anupam
+    - family-names: Gemeinhardt
+      given-names: Kurt
+    - family-names: Lass
+      given-names: Tobias
+    - family-names: Konzalla
+      given-names: Simon
+    - family-names: Ley
+      given-names: Ruth E.
+    - family-names: Angenent
+      given-names: Largus T.
+    - family-names: Huson
+      given-names: Daniel H.

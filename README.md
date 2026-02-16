@@ -3,14 +3,19 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![GitHub release](https://img.shields.io/github/v/release/lucast122/MMonitor?color=brightgreen)](https://github.com/lucast122/MMonitor/releases)
 [![Issues](https://img.shields.io/github/issues/lucast122/MMonitor)](https://github.com/lucast122/MMonitor/issues)
+[![Journal](https://img.shields.io/badge/Cell%20Reports%20Methods-2025-green)](https://doi.org/10.1016/j.crmeth.2025.101266)
 
 **MMonitor** is an open-source platform for **real-time metagenome monitoring** from Oxford Nanopore data.
 It pairs a **desktop app / CLI** for running pipelines with a **web dashboard** for interactive exploration.
 
-> **Manuscript:** *MMonitor: Software for Real-Time Monitoring of Microbial Communities Using Long Reads*
-> Accepted by Cell Reports Methods
-> Preprint: **https://www.biorxiv.org/content/10.1101/2025.09.08.674848v1**
-> Please cite if you use MMonitor in your research.
+## Publication
+
+**MMonitor for Real-Time Monitoring of Microbial Communities Using Long Reads**
+*Cell Reports Methods* (Elsevier, 2025)
+
+**DOI:** [https://doi.org/10.1016/j.crmeth.2025.101266](https://doi.org/10.1016/j.crmeth.2025.101266)
+
+Please cite this paper if you use MMonitor in your research.
 
 ---
 
@@ -280,9 +285,9 @@ pytest desktop/tests/
 
 If you use MMonitor in your research, please cite:
 
-> MMonitor: Software for Real-Time Monitoring of Microbial Communities Using Long Reads
-> Accepted by Cell Reports Methods
-> Preprint: https://www.biorxiv.org/content/10.1101/2025.09.08.674848v1
+> **MMonitor for Real-Time Monitoring of Microbial Communities Using Long Reads**
+> *Cell Reports Methods* (Elsevier, 2025)
+> DOI: [https://doi.org/10.1016/j.crmeth.2025.101266](https://doi.org/10.1016/j.crmeth.2025.101266)
 
 ---
 
