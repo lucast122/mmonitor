@@ -1,0 +1,29 @@
+# Conda environment for functional annotation pipeline
+# Includes eggNOG-mapper for COG/KEGG/GO annotations
+name: mmonitor_functional
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - python>=3.9
+  - eggnog-mapper>=2.1.12
+  - pandas>=1.5
+  - biopython>=1.80
+  - requests>=2.28
+  - numpy>=1.21
+
+# Note: InterProScan requires Java and is best installed separately
+# Either via:
+#   - Docker: interpro/interproscan:latest
+#   - Manual installation from https://www.ebi.ac.uk/interpro/download/
+#
+# To install InterProScan manually:
+#   1. Download from EBI website
+#   2. Extract and add to PATH
+#   3. Configure interproscan.properties with data directory
+#
+# Alternatively, use the docker/singularity option:
+#   singularity exec docker://interpro/interproscan:latest interproscan.sh -i proteins.faa -f TSV

@@ -1,0 +1,12 @@
+# Snakemake environment for downloading data
+name: mmonitor-smk-download
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.10
+  - ncbi-datasets-cli
+  - entrez-direct
+  - wget
+  - curl

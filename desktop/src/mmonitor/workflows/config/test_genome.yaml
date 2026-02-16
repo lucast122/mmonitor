@@ -1,0 +1,41 @@
+# Test configuration for single genome annotation
+# Downloads and annotates Staphylococcus aureus NCTC 8325
+
+# ============ Sample Information ============
+sample_name: "test_genome_run"
+project_name: "genome_browser_test"
+genome_id: "Staph_aureus_NCTC8325"
+genome_ids:
+  - "Staph_aureus_NCTC8325"
+
+# ============ Input/Output ============
+# For single genome annotation, we'll download the genome
+input_fasta: ""  # Will be set by download rule
+output_dir: "results"
+
+# ============ Server Configuration ============
+server:
+  url: "http://localhost:8000"
+  username: "ulli"
+  password: "test123"
+  upload_results: true
+
+# ============ Resource Limits ============
+threads: 8
+memory_gb: 32
+
+# ============ Bakta Configuration ============
+bakta:
+  database: "/mnt/disk2/db/databases/bakta"
+  threads: 8
+  min_contig_length: 200
+
+# ============ Taxonomy (optional) ============
+taxonomy:
+  domain: "Bacteria"
+  phylum: "Bacillota"
+  class: "Bacilli"
+  order: "Bacillales"
+  family: "Staphylococcaceae"
+  genus: "Staphylococcus"
+  species: "Staphylococcus aureus"

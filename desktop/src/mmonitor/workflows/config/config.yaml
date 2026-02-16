@@ -1,0 +1,94 @@
+# MMonitor Pipeline Configuration
+# Copy this file and modify for your analysis
+#
+# Database paths: If left empty, databases will be automatically downloaded
+# to <db_base_dir>/<tool>/ on first run.
+
+# ============ Database Base Directory ============
+# Where auto-downloaded databases are stored. Defaults to ~/mmonitor_databases/
+# Set this to a large disk if your home directory is on a small SSD.
+db_base_dir: ""  # e.g. "/mnt/disk2/db/mmonitor_databases"
+
+# ============ Sample Information ============
+sample_name: "sample1"
+project_name: "my_project"
+subproject_name: ""
+sample_date: ""  # YYYY-MM-DD format
+
+# ============ Input/Output ============
+input_fastq: ""  # Path to input FASTQ file(s)
+output_dir: "results"
+
+# ============ Server Configuration ============
+server:
+  url: "www.mmonitor.org"
+  username: ""
+  password: ""
+  upload_results: true
+
+# ============ Resource Limits ============
+threads: 64
+memory_gb: 400
+
+# ============ Quality Filtering (Filtlong) ============
+filtlong:
+  enabled: true
+  min_length: 1000
+  min_mean_q: 10
+  keep_percent: 30
+  target_bases: null  # Optional: target number of bases
+  max_length: null    # Optional: maximum read length
+
+# ============ Taxonomy 16S (EMU) ============
+emu:
+  database: ""  # Path to EMU database directory (auto-downloads if empty)
+  min_abundance: 0.0001
+  threads: 64
+
+# ============ Taxonomy WGS (Centrifuger) ============
+centrifuger:
+  database: ""  # Path to Centrifuger database prefix (must be built manually)
+  threads: 64
+  min_hitlen: 22
+
+# ============ Assembly (Flye) ============
+flye:
+  mode: "nano-raw"  # nano-raw, nano-corr, nano-hq
+  min_overlap: 1000
+  threads: 64
+  meta: true  # Metagenome mode
+
+# ============ Polishing (Medaka) ============
+medaka:
+  model: "r1041_e82_400bps_fast_v5.0.0"
+  threads: 64
+
+# ============ Binning (MetaBAT2) ============
+metabat2:
+  min_contig: 2500
+
+# ============ Quality Assessment (CheckM2) ============
+checkm2:
+  threads: 64
+  database: ""  # Path to CheckM2 database (auto-downloads if empty)
+
+# ============ Taxonomic Classification (GTDB-TK) ============
+gtdbtk:
+  database: ""  # Path to GTDB-TK database (auto-downloads if empty, ~85GB)
+  threads: 64
+
+# ============ Annotation (Bakta) ============
+bakta:
+  database: ""  # Path to Bakta database (auto-downloads if empty)
+  db_type: "light"  # "light" or "full" (for auto-download)
+  threads: 64
+  min_contig_length: 1
+
+# ============ Functional (eggNOG-mapper) ============
+eggnog:
+  database: ""  # Path to eggNOG database (auto-downloads if empty)
+  sensmode: "default"
+
+# ============ Functional (KEGGCharter) ============
+keggcharter:
+  enabled: true

@@ -13,12 +13,14 @@ Usage:
 import os
 import sys
 import json
-import shutil
 import subprocess
 import click
 import logging
 from pathlib import Path
 from datetime import datetime
+
+import yaml
+from mmonitor.pipeline.runner import SnakemakeRunner
 
 # Setup logging
 logging.basicConfig(
@@ -30,31 +32,19 @@ logger = logging.getLogger('mmonitor')
 # Version
 __version__ = '0.3.0'
 
-# Find project paths
-def get_project_root() -> Path:
-    """Find the MMonitor project root directory."""
-    # Try to find relative to this file
-    current = Path(__file__).resolve().parent
-    while current != current.parent:
-        if (current / 'workflows' / 'Snakefile').exists():
-            return current
-        if (current / 'desktop' / 'workflows' / 'Snakefile').exists():
-            return current / 'desktop'
-        current = current.parent
-    # Fallback
-    return Path(__file__).resolve().parent.parent.parent
-
-PROJECT_ROOT = get_project_root()
-WORKFLOWS_DIR = PROJECT_ROOT / 'workflows'
-CONFIG_DIR = PROJECT_ROOT / 'workflows' / 'config'
-
 
 class Config:
-    """CLI configuration management."""
+    """CLI configuration management.
+
+    Uses the same nested Snakemake-compatible YAML schema as the GUI
+    (PipelineConfig). The config file is ``~/.mmonitor/config.yaml`` (YAML).
+    A legacy ``config.json`` is migrated on first load.
+    """
 
     def __init__(self):
         self.config_dir = Path.home() / '.mmonitor'
-        self.config_file = self.config_dir / 'config.json'
+        self.config_file = self.config_dir / 'config.yaml'
+        self._legacy_json = self.config_dir / 'config.json'
         self.credentials_file = self.config_dir / 'credentials.json'
         self._config = None
 
@@ -65,43 +55,115 @@ class Config:
         return self._config
 
     def load(self) -> dict:
-        """Load configuration from file."""
+        """Load configuration from YAML file, migrating from JSON if needed."""
         if self.config_file.exists():
             with open(self.config_file) as f:
-                return json.load(f)
+                return yaml.safe_load(f) or self.defaults()
+        # Migrate legacy JSON if it exists
+        if self._legacy_json.exists():
+            try:
+                with open(self._legacy_json) as f:
+                    legacy = json.load(f)
+                # Best-effort migration: merge legacy values into defaults
+                cfg = self.defaults()
+                cfg = self._deep_merge(cfg, legacy)
+                self.save(cfg)
+                return cfg
+            except Exception:
+                pass
         return self.defaults()
 
     def save(self, config: dict):
-        """Save configuration to file."""
+        """Save configuration to YAML file."""
         self.config_dir.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, 'w') as f:
-            json.dump(config, f, indent=2)
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
         self._config = config
+
+    def load_config_file(self, path: str) -> dict:
+        """Load an external YAML config file (e.g. exported from GUI)."""
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+
+    @staticmethod
+    def _deep_merge(base: dict, override: dict) -> dict:
+        """Recursively merge override into base."""
+        result = dict(base)
+        for k, v in override.items():
+            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+                result[k] = Config._deep_merge(result[k], v)
+            else:
+                result[k] = v
+        return result
 
     @staticmethod
     def defaults() -> dict:
-        """Default configuration."""
+        """Default configuration matching the Snakemake config schema."""
         return {
             'threads': os.cpu_count() or 4,
+            'memory_gb': 16,
             'output_dir': str(Path.home() / 'mmonitor_results'),
+            'db_base_dir': '',  # Empty = ~/mmonitor_databases; set to e.g. /mnt/disk2/db
+
             'server': {
                 'url': 'http://localhost:8000',
                 'username': '',
-                'upload_results': True
+                'upload_results': True,
             },
-            'databases': {
-                'emu': '',
-                'centrifuger': '',
-                'gtdbtk': '',
-                'checkm2': '',
-                'bakta': ''
-            },
+
             'filtlong': {
                 'enabled': True,
                 'min_length': 1000,
                 'min_mean_q': 7.0,
-                'keep_percent': 90.0
-            }
+                'keep_percent': 90.0,
+                'target_bases': None,
+                'max_length': None,
+            },
+
+            'emu': {
+                'database': '',
+                'min_abundance': 0.0001,
+            },
+
+            'centrifuger': {
+                'database': '',
+                'min_hitlen': 22,
+            },
+
+            'flye': {
+                'mode': 'nano-raw',
+                'meta': True,
+                'min_overlap': 1000,
+            },
+
+            'medaka': {
+                'model': 'r1041_e82_400bps_hac_v5.0.0',
+            },
+
+            'metabat2': {
+                'min_contig': 2500,
+            },
+
+            'checkm2': {
+                'database': '',
+            },
+
+            'gtdbtk': {
+                'database': '',
+            },
+
+            'bakta': {
+                'database': '',
+                'min_contig_length': 1,
+            },
+
+            'eggnog': {
+                'database': '',
+            },
+
+            'realtime': {
+                'min_files_for_auto_analysis': 5,
+            },
         }
 
 
@@ -183,13 +245,16 @@ def common_run_options(f):
                      help='Path to config file')(f)
     f = click.option('--dry-run', is_flag=True,
                      help='Show what would be done without executing')(f)
+    f = click.option('--docker', is_flag=True, default=False,
+                     help='Run pipeline inside Docker (auto-enabled on Windows)')(f)
     return f
 
 
 def run_snakemake(target: str, config_dict: dict, dry_run: bool = False,
-                  cores: int = 4, verbose: bool = False) -> int:
+                  cores: int = 4, verbose: bool = False,
+                  use_docker: bool = False) -> int:
     """
-    Run a Snakemake workflow.
+    Run a Snakemake workflow via the unified SnakemakeRunner.
 
     Args:
         target: Snakemake target rule
@@ -197,45 +262,16 @@ def run_snakemake(target: str, config_dict: dict, dry_run: bool = False,
         dry_run: If True, only show what would be done
         cores: Number of cores to use
         verbose: Enable verbose output
+        use_docker: Force Docker mode
 
     Returns:
         Exit code (0 for success)
     """
-    import subprocess
-    import tempfile
-
-    # Write config to temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-        import yaml
-        yaml.dump(config_dict, f)
-        config_file = f.name
-
-    try:
-        cmd = [
-            'snakemake',
-            '--snakefile', str(WORKFLOWS_DIR / 'Snakefile'),
-            '--configfile', config_file,
-            '--cores', str(cores),
-            target
-        ]
-
-        if dry_run:
-            cmd.append('--dry-run')
-
-        if verbose:
-            cmd.append('--verbose')
-
-        # Use conda environments
-        cmd.extend(['--use-conda', '--conda-frontend', 'mamba'])
-
-        logger.info(f"Running: {' '.join(cmd)}")
-
-        result = subprocess.run(cmd, check=False)
-        return result.returncode
-
-    finally:
-        # Cleanup temp config
-        os.unlink(config_file)
+    runner = SnakemakeRunner(use_docker=use_docker if use_docker else None)
+    return runner.run(
+        target, config_dict,
+        threads=cores, dry_run=dry_run, verbose=verbose,
+    )
 
 
 @run.command('taxonomy-16s')
@@ -248,7 +284,7 @@ def run_snakemake(target: str, config_dict: dict, dry_run: bool = False,
               help='Enable/disable Filtlong pre-filtering')
 @click.pass_context
 def run_taxonomy_16s(ctx, input_files, sample, project, subproject, date,
-                     output_dir, threads, config_file, dry_run,
+                     output_dir, threads, config_file, dry_run, docker,
                      emu_db, min_abundance, use_filtlong):
     """
     Run 16S rRNA taxonomy analysis using EMU.
@@ -260,30 +296,36 @@ def run_taxonomy_16s(ctx, input_files, sample, project, subproject, date,
     """
     click.echo(f"Running 16S taxonomy analysis for sample: {sample}")
 
-    # Build config
-    cfg = config.config.copy()
-    cfg.update({
-        'sample_name': sample,
-        'project_name': project,
-        'subproject_name': subproject,
-        'sample_date': date or datetime.now().strftime('%Y-%m-%d'),
-        'input_fastq': list(input_files),
-        'output_dir': output_dir or cfg.get('output_dir', 'results'),
-        'threads': threads or cfg.get('threads', 4),
-        'filtlong': {
-            'enabled': use_filtlong,
-            **cfg.get('filtlong', {})
-        },
-        'emu': {
-            'database': emu_db or cfg.get('databases', {}).get('emu', ''),
-            'min_abundance': min_abundance,
-            'threads': threads or cfg.get('threads', 4)
-        }
-    })
+    # Build config: start with config-file or defaults
+    if config_file:
+        cfg = config.load_config_file(config_file)
+    else:
+        cfg = config.config.copy()
+
+    # Overlay CLI options
+    t = threads or cfg.get('threads', 4)
+    cfg['sample_name'] = sample
+    cfg['project_name'] = project
+    cfg['subproject_name'] = subproject
+    cfg['sample_date'] = date or datetime.now().strftime('%Y-%m-%d')
+    cfg['input_fastq'] = list(input_files)
+    cfg['output_dir'] = output_dir or cfg.get('output_dir', 'results')
+    cfg['threads'] = t
+
+    if 'filtlong' not in cfg:
+        cfg['filtlong'] = {}
+    cfg['filtlong']['enabled'] = use_filtlong
+
+    if 'emu' not in cfg:
+        cfg['emu'] = {}
+    if emu_db:
+        cfg['emu']['database'] = emu_db
+    cfg['emu']['min_abundance'] = min_abundance
+    cfg['emu']['threads'] = t
 
     # Validate EMU database
-    if not cfg['emu']['database']:
-        click.echo("Error: EMU database path required. Use --emu-db or configure in ~/.mmonitor/config.json", err=True)
+    if not cfg['emu'].get('database'):
+        click.echo("Error: EMU database path required. Use --emu-db or configure in ~/.mmonitor/config.yaml", err=True)
         click.echo("To download a database: mmonitor database emu download --preset silva138", err=True)
         sys.exit(1)
 
@@ -293,28 +335,29 @@ def run_taxonomy_16s(ctx, input_files, sample, project, subproject, date,
         cfg,
         dry_run=dry_run,
         cores=cfg['threads'],
-        verbose=ctx.obj.get('verbose', False)
+        verbose=ctx.obj.get('verbose', False),
+        use_docker=docker,
     )
 
     if exit_code == 0:
-        click.echo(click.style("✓ Analysis complete!", fg='green'))
+        click.echo(click.style("Analysis complete!", fg='green'))
     else:
-        click.echo(click.style("✗ Analysis failed!", fg='red'), err=True)
+        click.echo(click.style("Analysis failed!", fg='red'), err=True)
 
     sys.exit(exit_code)
 
 
 @run.command('taxonomy-wgs')
 @common_run_options
-@click.option('--centrifuger-db', type=click.Path(exists=True),
-              help='Path to Centrifuger database prefix')
+@click.option('--centrifuger-db', type=str,
+              help='Path to Centrifuger database prefix (e.g. /path/to/cfr_gtdb_r226)')
 @click.option('--min-hitlen', type=int, default=22,
               help='Minimum hit length')
 @click.option('--use-filtlong/--no-filtlong', default=True,
               help='Enable/disable Filtlong pre-filtering')
 @click.pass_context
 def run_taxonomy_wgs(ctx, input_files, sample, project, subproject, date,
-                     output_dir, threads, config_file, dry_run,
+                     output_dir, threads, config_file, dry_run, docker,
                      centrifuger_db, min_hitlen, use_filtlong):
     """
     Run whole-genome taxonomy analysis using Centrifuger.
@@ -326,30 +369,36 @@ def run_taxonomy_wgs(ctx, input_files, sample, project, subproject, date,
     """
     click.echo(f"Running WGS taxonomy analysis for sample: {sample}")
 
-    # Build config
-    cfg = config.config.copy()
-    cfg.update({
-        'sample_name': sample,
-        'project_name': project,
-        'subproject_name': subproject,
-        'sample_date': date or datetime.now().strftime('%Y-%m-%d'),
-        'input_fastq': list(input_files),
-        'output_dir': output_dir or cfg.get('output_dir', 'results'),
-        'threads': threads or cfg.get('threads', 4),
-        'filtlong': {
-            'enabled': use_filtlong,
-            **cfg.get('filtlong', {})
-        },
-        'centrifuger': {
-            'database': centrifuger_db or cfg.get('databases', {}).get('centrifuger', ''),
-            'min_hitlen': min_hitlen,
-            'threads': threads or cfg.get('threads', 4)
-        }
-    })
+    # Build config: start with config-file or defaults
+    if config_file:
+        cfg = config.load_config_file(config_file)
+    else:
+        cfg = config.config.copy()
+
+    # Overlay CLI options
+    t = threads or cfg.get('threads', 4)
+    cfg['sample_name'] = sample
+    cfg['project_name'] = project
+    cfg['subproject_name'] = subproject
+    cfg['sample_date'] = date or datetime.now().strftime('%Y-%m-%d')
+    cfg['input_fastq'] = list(input_files)
+    cfg['output_dir'] = output_dir or cfg.get('output_dir', 'results')
+    cfg['threads'] = t
+
+    if 'filtlong' not in cfg:
+        cfg['filtlong'] = {}
+    cfg['filtlong']['enabled'] = use_filtlong
+
+    if 'centrifuger' not in cfg:
+        cfg['centrifuger'] = {}
+    if centrifuger_db:
+        cfg['centrifuger']['database'] = centrifuger_db
+    cfg['centrifuger']['min_hitlen'] = min_hitlen
+    cfg['centrifuger']['threads'] = t
 
     # Validate Centrifuger database
-    if not cfg['centrifuger']['database']:
-        click.echo("Error: Centrifuger database path required. Use --centrifuger-db or configure in ~/.mmonitor/config.json", err=True)
+    if not cfg['centrifuger'].get('database'):
+        click.echo("Error: Centrifuger database path required. Use --centrifuger-db or configure in ~/.mmonitor/config.yaml", err=True)
         click.echo("To download a database: mmonitor database centrifuger download --preset bacteria", err=True)
         sys.exit(1)
 
@@ -359,13 +408,14 @@ def run_taxonomy_wgs(ctx, input_files, sample, project, subproject, date,
         cfg,
         dry_run=dry_run,
         cores=cfg['threads'],
-        verbose=ctx.obj.get('verbose', False)
+        verbose=ctx.obj.get('verbose', False),
+        use_docker=docker,
     )
 
     if exit_code == 0:
-        click.echo(click.style("✓ Analysis complete!", fg='green'))
+        click.echo(click.style("Analysis complete!", fg='green'))
     else:
-        click.echo(click.style("✗ Analysis failed!", fg='red'), err=True)
+        click.echo(click.style("Analysis failed!", fg='red'), err=True)
 
     sys.exit(exit_code)
 
@@ -380,7 +430,7 @@ def run_taxonomy_wgs(ctx, input_files, sample, project, subproject, date,
               help='Enable/disable metagenomic mode')
 @click.pass_context
 def run_assembly(ctx, input_files, sample, project, subproject, date,
-                 output_dir, threads, config_file, dry_run,
+                 output_dir, threads, config_file, dry_run, docker,
                  mode, medaka_model, meta):
     """
     Run metagenomic assembly with Flye and Medaka polishing.
@@ -392,26 +442,32 @@ def run_assembly(ctx, input_files, sample, project, subproject, date,
     """
     click.echo(f"Running assembly for sample: {sample}")
 
-    # Build config
-    cfg = config.config.copy()
-    cfg.update({
-        'sample_name': sample,
-        'project_name': project,
-        'subproject_name': subproject,
-        'sample_date': date or datetime.now().strftime('%Y-%m-%d'),
-        'input_fastq': list(input_files),
-        'output_dir': output_dir or cfg.get('output_dir', 'results'),
-        'threads': threads or cfg.get('threads', 4),
-        'flye': {
-            'mode': mode,
-            'meta': meta,
-            'threads': threads or cfg.get('threads', 4)
-        },
-        'medaka': {
-            'model': medaka_model,
-            'threads': threads or cfg.get('threads', 4)
-        }
-    })
+    # Build config: start with config-file or defaults
+    if config_file:
+        cfg = config.load_config_file(config_file)
+    else:
+        cfg = config.config.copy()
+
+    # Overlay CLI options
+    t = threads or cfg.get('threads', 4)
+    cfg['sample_name'] = sample
+    cfg['project_name'] = project
+    cfg['subproject_name'] = subproject
+    cfg['sample_date'] = date or datetime.now().strftime('%Y-%m-%d')
+    cfg['input_fastq'] = list(input_files)
+    cfg['output_dir'] = output_dir or cfg.get('output_dir', 'results')
+    cfg['threads'] = t
+
+    if 'flye' not in cfg:
+        cfg['flye'] = {}
+    cfg['flye']['mode'] = mode
+    cfg['flye']['meta'] = meta
+    cfg['flye']['threads'] = t
+
+    if 'medaka' not in cfg:
+        cfg['medaka'] = {}
+    cfg['medaka']['model'] = medaka_model
+    cfg['medaka']['threads'] = t
 
     # Run Snakemake
     exit_code = run_snakemake(
@@ -419,13 +475,105 @@ def run_assembly(ctx, input_files, sample, project, subproject, date,
         cfg,
         dry_run=dry_run,
         cores=cfg['threads'],
-        verbose=ctx.obj.get('verbose', False)
+        verbose=ctx.obj.get('verbose', False),
+        use_docker=docker,
     )
 
     if exit_code == 0:
-        click.echo(click.style("✓ Assembly complete!", fg='green'))
+        click.echo(click.style("Assembly complete!", fg='green'))
     else:
-        click.echo(click.style("✗ Assembly failed!", fg='red'), err=True)
+        click.echo(click.style("Assembly failed!", fg='red'), err=True)
+
+    sys.exit(exit_code)
+
+
+@run.command('assembly-full')
+@common_run_options
+@click.option('--mode', type=click.Choice(['nano-raw', 'nano-corr', 'nano-hq']),
+              default='nano-raw', help='Flye assembly mode')
+@click.option('--medaka-model', default='r1041_e82_400bps_hac_v5.0.0',
+              help='Medaka polishing model')
+@click.option('--meta/--no-meta', default=True,
+              help='Enable/disable metagenomic mode')
+@click.option('--gtdbtk-db', type=click.Path(exists=True),
+              help='Path to GTDB-TK database')
+@click.option('--bakta-db', type=click.Path(exists=True),
+              help='Path to Bakta database')
+@click.option('--checkm2-db', type=click.Path(exists=True),
+              help='Path to CheckM2 database')
+@click.option('--eggnog-db', type=click.Path(exists=True),
+              help='Path to eggNOG database')
+@click.pass_context
+def run_assembly_full(ctx, input_files, sample, project, subproject, date,
+                      output_dir, threads, config_file, dry_run, docker,
+                      mode, medaka_model, meta, gtdbtk_db, bakta_db,
+                      checkm2_db, eggnog_db):
+    """
+    Run the full WGS assembly pipeline: assembly + binning + annotation + functional + upload.
+
+    Chains: Flye assembly -> Medaka polishing -> MetaBAT2 binning -> CheckM2 quality ->
+    GTDB-TK taxonomy -> Bakta annotation -> eggNOG-mapper (COG/KEGG) ->
+    InterProScan (PFAM) -> Upload to server.
+
+    \b
+    Example:
+      mmonitor run assembly-full -i reads.fastq -s sample1 -p project1
+      mmonitor run assembly-full -i reads.fastq -s sample1 -p project1 --mode nano-hq
+    """
+    click.echo(f"Running full assembly pipeline for sample: {sample}")
+
+    # Build config: start with config-file or defaults
+    if config_file:
+        cfg = config.load_config_file(config_file)
+    else:
+        cfg = config.config.copy()
+
+    # Overlay CLI options
+    t = threads or cfg.get('threads', 4)
+    cfg['sample_name'] = sample
+    cfg['project_name'] = project
+    cfg['subproject_name'] = subproject
+    cfg['sample_date'] = date or datetime.now().strftime('%Y-%m-%d')
+    cfg['input_fastq'] = list(input_files)
+    cfg['output_dir'] = output_dir or cfg.get('output_dir', 'results')
+    cfg['threads'] = t
+
+    if 'flye' not in cfg:
+        cfg['flye'] = {}
+    cfg['flye']['mode'] = mode
+    cfg['flye']['meta'] = meta
+    cfg['flye']['threads'] = t
+
+    if 'medaka' not in cfg:
+        cfg['medaka'] = {}
+    cfg['medaka']['model'] = medaka_model
+    cfg['medaka']['threads'] = t
+
+    # Override database paths only if CLI flags are given
+    for tool, cli_db in [('checkm2', checkm2_db), ('gtdbtk', gtdbtk_db),
+                         ('bakta', bakta_db), ('eggnog', eggnog_db)]:
+        if tool not in cfg:
+            cfg[tool] = {}
+        if cli_db:
+            cfg[tool]['database'] = cli_db
+        cfg[tool].setdefault('database', '')
+        if tool != 'eggnog':
+            cfg[tool]['threads'] = t
+
+    # Run Snakemake
+    exit_code = run_snakemake(
+        'assembly_full',
+        cfg,
+        dry_run=dry_run,
+        cores=cfg['threads'],
+        verbose=ctx.obj.get('verbose', False),
+        use_docker=docker,
+    )
+
+    if exit_code == 0:
+        click.echo(click.style("Full assembly pipeline complete!", fg='green'))
+    else:
+        click.echo(click.style("Full assembly pipeline failed!", fg='red'), err=True)
 
     sys.exit(exit_code)
 
@@ -438,7 +586,7 @@ def run_assembly(ctx, input_files, sample, project, subproject, date,
               help='Path to CheckM2 database')
 @click.pass_context
 def run_binning(ctx, input_files, sample, project, subproject, date,
-                output_dir, threads, config_file, dry_run,
+                output_dir, threads, config_file, dry_run, docker,
                 min_contig, checkm2_db):
     """
     Run MAG binning with MetaBAT2 and quality assessment with CheckM2.
@@ -451,24 +599,32 @@ def run_binning(ctx, input_files, sample, project, subproject, date,
     """
     click.echo(f"Running binning for sample: {sample}")
 
-    # Build config
-    cfg = config.config.copy()
-    cfg.update({
-        'sample_name': sample,
-        'project_name': project,
-        'subproject_name': subproject,
-        'sample_date': date or datetime.now().strftime('%Y-%m-%d'),
-        'input_fastq': list(input_files),
-        'output_dir': output_dir or cfg.get('output_dir', 'results'),
-        'threads': threads or cfg.get('threads', 4),
-        'metabat2': {
-            'min_contig': min_contig
-        },
-        'checkm2': {
-            'database': checkm2_db or cfg.get('databases', {}).get('checkm2', ''),
-            'threads': threads or cfg.get('threads', 4)
-        }
-    })
+    # Build config: start with config-file or defaults
+    if config_file:
+        cfg = config.load_config_file(config_file)
+    else:
+        cfg = config.config.copy()
+
+    # Overlay CLI options
+    t = threads or cfg.get('threads', 4)
+    cfg['sample_name'] = sample
+    cfg['project_name'] = project
+    cfg['subproject_name'] = subproject
+    cfg['sample_date'] = date or datetime.now().strftime('%Y-%m-%d')
+    cfg['input_fastq'] = list(input_files)
+    cfg['output_dir'] = output_dir or cfg.get('output_dir', 'results')
+    cfg['threads'] = t
+
+    if 'metabat2' not in cfg:
+        cfg['metabat2'] = {}
+    cfg['metabat2']['min_contig'] = min_contig
+
+    if 'checkm2' not in cfg:
+        cfg['checkm2'] = {}
+    if checkm2_db:
+        cfg['checkm2']['database'] = checkm2_db
+    cfg['checkm2'].setdefault('database', '')
+    cfg['checkm2']['threads'] = t
 
     # Run Snakemake
     exit_code = run_snakemake(
@@ -476,13 +632,14 @@ def run_binning(ctx, input_files, sample, project, subproject, date,
         cfg,
         dry_run=dry_run,
         cores=cfg['threads'],
-        verbose=ctx.obj.get('verbose', False)
+        verbose=ctx.obj.get('verbose', False),
+        use_docker=docker,
     )
 
     if exit_code == 0:
-        click.echo(click.style("✓ Binning complete!", fg='green'))
+        click.echo(click.style("Binning complete!", fg='green'))
     else:
-        click.echo(click.style("✗ Binning failed!", fg='red'), err=True)
+        click.echo(click.style("Binning failed!", fg='red'), err=True)
 
     sys.exit(exit_code)
 
@@ -495,7 +652,7 @@ def run_binning(ctx, input_files, sample, project, subproject, date,
               help='Path to Bakta database')
 @click.pass_context
 def run_functional(ctx, input_files, sample, project, subproject, date,
-                   output_dir, threads, config_file, dry_run,
+                   output_dir, threads, config_file, dry_run, docker,
                    gtdbtk_db, bakta_db):
     """
     Run full functional analysis pipeline.
@@ -508,25 +665,35 @@ def run_functional(ctx, input_files, sample, project, subproject, date,
     """
     click.echo(f"Running functional analysis for sample: {sample}")
 
-    # Build config
-    cfg = config.config.copy()
-    cfg.update({
-        'sample_name': sample,
-        'project_name': project,
-        'subproject_name': subproject,
-        'sample_date': date or datetime.now().strftime('%Y-%m-%d'),
-        'input_fastq': list(input_files),
-        'output_dir': output_dir or cfg.get('output_dir', 'results'),
-        'threads': threads or cfg.get('threads', 4),
-        'gtdbtk': {
-            'database': gtdbtk_db or cfg.get('databases', {}).get('gtdbtk', ''),
-            'threads': threads or cfg.get('threads', 4)
-        },
-        'bakta': {
-            'database': bakta_db or cfg.get('databases', {}).get('bakta', ''),
-            'threads': threads or cfg.get('threads', 4)
-        }
-    })
+    # Build config: start with config-file or defaults
+    if config_file:
+        cfg = config.load_config_file(config_file)
+    else:
+        cfg = config.config.copy()
+
+    # Overlay CLI options
+    t = threads or cfg.get('threads', 4)
+    cfg['sample_name'] = sample
+    cfg['project_name'] = project
+    cfg['subproject_name'] = subproject
+    cfg['sample_date'] = date or datetime.now().strftime('%Y-%m-%d')
+    cfg['input_fastq'] = list(input_files)
+    cfg['output_dir'] = output_dir or cfg.get('output_dir', 'results')
+    cfg['threads'] = t
+
+    if 'gtdbtk' not in cfg:
+        cfg['gtdbtk'] = {}
+    if gtdbtk_db:
+        cfg['gtdbtk']['database'] = gtdbtk_db
+    cfg['gtdbtk'].setdefault('database', '')
+    cfg['gtdbtk']['threads'] = t
+
+    if 'bakta' not in cfg:
+        cfg['bakta'] = {}
+    if bakta_db:
+        cfg['bakta']['database'] = bakta_db
+    cfg['bakta'].setdefault('database', '')
+    cfg['bakta']['threads'] = t
 
     # Run Snakemake
     exit_code = run_snakemake(
@@ -534,13 +701,14 @@ def run_functional(ctx, input_files, sample, project, subproject, date,
         cfg,
         dry_run=dry_run,
         cores=cfg['threads'],
-        verbose=ctx.obj.get('verbose', False)
+        verbose=ctx.obj.get('verbose', False),
+        use_docker=docker,
     )
 
     if exit_code == 0:
-        click.echo(click.style("✓ Functional analysis complete!", fg='green'))
+        click.echo(click.style("Functional analysis complete!", fg='green'))
     else:
-        click.echo(click.style("✗ Functional analysis failed!", fg='red'), err=True)
+        click.echo(click.style("Functional analysis failed!", fg='red'), err=True)
 
     sys.exit(exit_code)
 
@@ -608,393 +776,12 @@ def emu_download(preset, output, force):
 
         # Update config
         cfg = config.config
-        cfg.setdefault('databases', {})['emu'] = str(result)
+        cfg.setdefault('emu', {})['database'] = str(result)
         config.save(cfg)
         click.echo(f"Configuration updated with database path")
     else:
         click.echo(click.style("✗ Download failed", fg='red'), err=True)
         sys.exit(1)
-
-
-@database_emu.command('build')
-@click.option('--fasta', '-f', required=True, type=click.Path(exists=True),
-              help='Input FASTA file with sequences')
-@click.option('--taxonomy', '-t', required=True, type=click.Path(exists=True),
-              help='Taxonomy TSV file (columns: tax_id, species, genus, family, etc.)')
-@click.option('--output', '-o', required=True, type=click.Path(),
-              help='Output directory')
-@click.option('--name', '-n', required=True,
-              help='Database name')
-@click.option('--threads', type=int, default=4,
-              help='Threads for indexing')
-def emu_build(fasta, taxonomy, output, name, threads):
-    """
-    Build custom EMU database.
-
-    \b
-    Input files:
-      - FASTA file with 16S sequences (headers should contain tax_id)
-      - TSV file with taxonomy mapping
-
-    \b
-    Example:
-      mmonitor database emu build -f sequences.fasta -t taxonomy.tsv -o /data/db -n mydb
-    """
-    result = db_manager.build_emu_database(
-        Path(fasta), Path(taxonomy), Path(output), name, threads
-    )
-
-    if result:
-        click.echo(click.style(f"✓ EMU database built at: {result}", fg='green'))
-    else:
-        click.echo(click.style("✗ Build failed", fg='red'), err=True)
-        sys.exit(1)
-
-
-@database_emu.command('restrict')
-@click.option('--source', '-s', required=True, type=click.Path(exists=True),
-              help='Source EMU database directory')
-@click.option('--taxids', '-t', required=True,
-              help='Comma-separated list of taxonomy IDs to include')
-@click.option('--output', '-o', required=True, type=click.Path(),
-              help='Output directory')
-@click.option('--name', '-n', required=True,
-              help='Database name')
-def emu_restrict(source, taxids, output, name):
-    """
-    Create restricted EMU database for specific taxa.
-
-    \b
-    Example:
-      mmonitor database emu restrict -s /data/emu_full -t 1279,1280,1281 -o /data/staph -n staph_db
-    """
-    taxid_list = [int(t.strip()) for t in taxids.split(',')]
-
-    result = db_manager.restrict_emu_database(
-        Path(source), taxid_list, Path(output), name
-    )
-
-    if result:
-        click.echo(click.style(f"✓ Restricted database created at: {result}", fg='green'))
-    else:
-        click.echo(click.style("✗ Restriction failed", fg='red'), err=True)
-        sys.exit(1)
-
-
-@database_emu.command('build-from-sources')
-@click.option('--name', '-n', required=True, help='Database name (used in manifest)')
-@click.option('--output', '-o', required=True, type=click.Path(),
-              help='Output directory')
-@click.option('--rrndb-version', default='latest',
-              type=click.Choice(['latest', '5.8']),
-              help='rrnDB version to use')
-@click.option('--refseq-domains', default='bacteria,archaea',
-              help='RefSeq domains to include (comma-separated: bacteria,archaea)')
-@click.option('--email', default='mmonitor@example.com',
-              help='Email for NCBI Entrez queries (required by NCBI)')
-@click.option('--threads', '-t', type=int, default=4,
-              help='Threads for indexing')
-@click.option('--keep-downloads', is_flag=True,
-              help='Keep downloaded source files after build')
-def emu_build_from_sources(name, output, rrndb_version, refseq_domains,
-                           email, threads, keep_downloads):
-    """
-    Build EMU database from rrnDB + NCBI RefSeq sources.
-
-    This follows the original EMU database construction methodology:
-    - Downloads rrnDB 16S sequences
-    - Downloads NCBI 16S RefSeq for bacteria/archaea
-    - Assigns NCBI taxonomy to all sequences
-    - Removes duplicates (identical sequence + same species)
-    - Builds minimap2 index
-    - Creates FAIR-compliant manifest for reproducibility
-
-    \b
-    The resulting database can be shared and rebuilt by others using
-    the manifest.json file which contains the exact build command.
-
-    \b
-    Example:
-      mmonitor database emu build-from-sources -n emu_2024 -o /data/emu_2024
-      mmonitor database emu build-from-sources -n emu_2024 -o /data/emu_2024 --rrndb-version 5.8
-
-    \b
-    Note: This process downloads several GB of data and may take
-    several hours depending on your internet connection.
-    """
-    from mmonitor.cli.emu_db_builder import EmuDatabaseBuilder
-
-    domains = [d.strip() for d in refseq_domains.split(',')]
-
-    click.echo(f"Building EMU database '{name}'")
-    click.echo(f"  rrnDB version: {rrndb_version}")
-    click.echo(f"  RefSeq domains: {', '.join(domains)}")
-    click.echo(f"  Output: {output}")
-    click.echo()
-    click.echo("This will download several GB of data and may take hours.")
-
-    if not click.confirm("Continue?"):
-        click.echo("Aborted.")
-        return
-
-    builder = EmuDatabaseBuilder(
-        output_dir=Path(output),
-        name=name,
-        email=email,
-        threads=threads
-    )
-
-    try:
-        result = builder.build_from_sources(
-            rrndb_version=rrndb_version,
-            refseq_domains=domains,
-            keep_downloads=keep_downloads
-        )
-
-        click.echo()
-        click.echo(click.style("✓ Database built successfully!", fg='green'))
-        click.echo()
-        click.echo("Database statistics:")
-        click.echo(f"  Total sequences: {builder.manifest.total_sequences}")
-        click.echo(f"  Unique species: {builder.manifest.unique_species}")
-        click.echo(f"  Duplicates removed: {builder.manifest.duplicates_removed}")
-        click.echo()
-        click.echo("To use this database:")
-        click.echo(f"  mmonitor run taxonomy-16s -i reads.fastq -s sample -p project --emu-db {output}")
-        click.echo()
-        click.echo("FAIR manifest saved to:")
-        click.echo(f"  {output}/manifest.json")
-        click.echo()
-        click.echo("Others can reproduce this database using the build command in the manifest.")
-
-        # Update config
-        cfg = config.config
-        cfg.setdefault('databases', {})['emu'] = str(result)
-        config.save(cfg)
-
-    except Exception as e:
-        click.echo(click.style(f"✗ Build failed: {e}", fg='red'), err=True)
-        logger.exception("Build failed")
-        sys.exit(1)
-
-
-@database_emu.command('rebuild')
-@click.option('--manifest', '-m', required=True, type=click.Path(exists=True),
-              help='Path to manifest.json from a previous build')
-@click.option('--output', '-o', required=True, type=click.Path(),
-              help='Output directory for rebuilt database')
-@click.option('--threads', '-t', type=int, default=4,
-              help='Threads for indexing')
-def emu_rebuild(manifest, output, threads):
-    """
-    Rebuild EMU database from a FAIR manifest.
-
-    This allows exact reproduction of a database build using
-    the manifest.json file from a previous build.
-
-    \b
-    Example:
-      mmonitor database emu rebuild -m /shared/emu_db/manifest.json -o /data/my_emu_db
-    """
-    from mmonitor.cli.emu_db_builder import EmuDatabaseBuilder, DatabaseBuildManifest
-
-    click.echo(f"Loading manifest: {manifest}")
-
-    manifest_data = DatabaseBuildManifest.load(Path(manifest))
-
-    click.echo(f"Rebuilding database: {manifest_data.name}")
-    click.echo(f"  Original build date: {manifest_data.build_date}")
-    click.echo(f"  Original command: {manifest_data.build_command}")
-    click.echo()
-
-    params = manifest_data.parameters
-
-    builder = EmuDatabaseBuilder(
-        output_dir=Path(output),
-        name=manifest_data.name,
-        threads=threads
-    )
-
-    try:
-        builder.build_from_sources(
-            rrndb_version=params.get('rrndb_version', 'latest'),
-            refseq_domains=params.get('refseq_domains', ['bacteria', 'archaea'])
-        )
-
-        click.echo(click.style("✓ Database rebuilt successfully!", fg='green'))
-
-    except Exception as e:
-        click.echo(click.style(f"✗ Rebuild failed: {e}", fg='red'), err=True)
-        sys.exit(1)
-
-
-@database_emu.command('info')
-@click.argument('database_path', type=click.Path(exists=True))
-def emu_info(database_path):
-    """
-    Show information about an EMU database.
-
-    Displays the FAIR manifest including build parameters,
-    sources, and checksums for reproducibility.
-
-    \b
-    Example:
-      mmonitor database emu info /data/emu_db
-      mmonitor database emu info /data/emu_db/manifest.json
-    """
-    from mmonitor.cli.emu_db_builder import DatabaseBuildManifest
-
-    db_path = Path(database_path)
-
-    # Find manifest
-    if db_path.is_file() and db_path.name == 'manifest.json':
-        manifest_path = db_path
-    else:
-        manifest_path = db_path / 'manifest.json'
-
-    if not manifest_path.exists():
-        click.echo(click.style("No manifest.json found in database directory", fg='yellow'))
-        click.echo("This database may have been built with an older version of MMonitor")
-
-        # Show basic file info
-        fasta = db_path / 'species_taxid.fasta'
-        taxonomy = db_path / 'taxonomy.tsv'
-
-        if fasta.exists():
-            size_mb = fasta.stat().st_size / (1024 * 1024)
-            click.echo(f"\nFASTA file: {fasta.name} ({size_mb:.1f} MB)")
-
-        if taxonomy.exists():
-            import pandas as pd
-            df = pd.read_csv(taxonomy, sep='\t')
-            click.echo(f"Taxonomy file: {len(df)} species")
-
-        return
-
-    manifest = DatabaseBuildManifest.load(manifest_path)
-
-    click.echo()
-    click.echo("=" * 60)
-    click.echo(f"EMU Database: {manifest.name}")
-    click.echo("=" * 60)
-    click.echo()
-    click.echo(f"Version:      {manifest.version}")
-    click.echo(f"Build date:   {manifest.build_date}")
-    click.echo(f"Builder:      {manifest.builder_version}")
-    click.echo()
-    click.echo("Statistics:")
-    click.echo(f"  Sequences:          {manifest.total_sequences:,}")
-    click.echo(f"  Unique species:     {manifest.unique_species:,}")
-    click.echo(f"  Duplicates removed: {manifest.duplicates_removed:,}")
-    click.echo()
-
-    if manifest.sources:
-        click.echo("Sources:")
-        for source in manifest.sources:
-            click.echo(f"  - {source.get('name', 'Unknown')}")
-            if 'version' in source:
-                click.echo(f"    Version: {source['version']}")
-            if 'url' in source:
-                click.echo(f"    URL: {source['url']}")
-            if 'download_date' in source:
-                click.echo(f"    Downloaded: {source['download_date'][:10]}")
-        click.echo()
-
-    if manifest.build_command:
-        click.echo("Reproducibility:")
-        click.echo(f"  Build command: {manifest.build_command}")
-        click.echo()
-
-    click.echo("Checksums:")
-    if manifest.fasta_checksum:
-        click.echo(f"  FASTA:    {manifest.fasta_checksum[:16]}...")
-    if manifest.taxonomy_checksum:
-        click.echo(f"  Taxonomy: {manifest.taxonomy_checksum[:16]}...")
-    if manifest.index_checksum:
-        click.echo(f"  Index:    {manifest.index_checksum[:16]}...")
-
-    if manifest.doi:
-        click.echo()
-        click.echo(f"DOI: {manifest.doi}")
-
-    click.echo()
-
-
-@database_emu.command('add-sequences')
-@click.option('--database', '-d', required=True, type=click.Path(exists=True),
-              help='Existing EMU database directory')
-@click.option('--fasta', '-f', required=True, type=click.Path(exists=True),
-              help='FASTA file with new sequences to add')
-@click.option('--output', '-o', required=True, type=click.Path(),
-              help='Output directory for new database')
-@click.option('--name', '-n', help='New database name (default: append to original)')
-@click.option('--threads', '-t', type=int, default=4,
-              help='Threads for indexing')
-def emu_add_sequences(database, fasta, output, name, threads):
-    """
-    Add new sequences to an existing EMU database.
-
-    Creates a new database combining the original sequences
-    with additional sequences from the provided FASTA file.
-
-    \b
-    Example:
-      mmonitor database emu add-sequences -d /data/emu_db -f new_seqs.fasta -o /data/emu_db_v2
-    """
-    from Bio import SeqIO
-
-    db_path = Path(database)
-    new_fasta = Path(fasta)
-    out_path = Path(output)
-
-    # Load existing database
-    existing_fasta = db_path / 'species_taxid.fasta'
-    existing_taxonomy = db_path / 'taxonomy.tsv'
-
-    if not existing_fasta.exists():
-        click.echo(click.style("Error: species_taxid.fasta not found in database", fg='red'))
-        sys.exit(1)
-
-    out_path.mkdir(parents=True, exist_ok=True)
-
-    # Copy existing sequences
-    click.echo("Copying existing sequences...")
-    existing_count = 0
-    with open(out_path / 'species_taxid.fasta', 'w') as out_f:
-        for record in SeqIO.parse(existing_fasta, 'fasta'):
-            SeqIO.write(record, out_f, 'fasta')
-            existing_count += 1
-
-        # Add new sequences
-        click.echo("Adding new sequences...")
-        new_count = 0
-        for record in SeqIO.parse(new_fasta, 'fasta'):
-            # Write in EMU format
-            # Assuming header format: >taxid sequence_info
-            out_f.write(f">{record.id}\n{str(record.seq)}\n")
-            new_count += 1
-
-    click.echo(f"Combined {existing_count} + {new_count} = {existing_count + new_count} sequences")
-
-    # Copy taxonomy
-    if existing_taxonomy.exists():
-        shutil.copy(existing_taxonomy, out_path / 'taxonomy.tsv')
-        click.echo("Copied taxonomy file")
-
-    # Rebuild index
-    click.echo("Building minimap2 index...")
-    try:
-        subprocess.run([
-            'minimap2', '-d',
-            str(out_path / 'species_taxid.fasta.mmi'),
-            str(out_path / 'species_taxid.fasta'),
-            '-t', str(threads)
-        ], check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        click.echo(click.style(f"Index build failed: {e.stderr.decode()}", fg='red'))
-        sys.exit(1)
-
-    click.echo(click.style(f"✓ Extended database created at: {out_path}", fg='green'))
 
 
 # ============ Centrifuger Database Commands ============
@@ -1049,7 +836,7 @@ def centrifuger_download(preset, output, threads, force):
 
         # Update config
         cfg = config.config
-        cfg.setdefault('databases', {})['centrifuger'] = str(result)
+        cfg.setdefault('centrifuger', {})['database'] = str(result)
         config.save(cfg)
         click.echo(f"Configuration updated with database path")
     else:
@@ -1130,7 +917,7 @@ def gtdbtk_download(release, output, force):
 
         # Update config
         cfg = config.config
-        cfg.setdefault('databases', {})['gtdbtk'] = str(result)
+        cfg.setdefault('gtdbtk', {})['database'] = str(result)
         config.save(cfg)
     else:
         click.echo(click.style("✗ Download failed", fg='red'), err=True)
@@ -1166,7 +953,7 @@ def checkm2_download(output, force):
 
         # Update config
         cfg = config.config
-        cfg.setdefault('databases', {})['checkm2'] = str(result)
+        cfg.setdefault('checkm2', {})['database'] = str(result)
         config.save(cfg)
     else:
         click.echo(click.style("✗ Download failed", fg='red'), err=True)
@@ -1209,7 +996,7 @@ def bakta_download(db_type, output, force):
 
         # Update config
         cfg = config.config
-        cfg.setdefault('databases', {})['bakta'] = str(result)
+        cfg.setdefault('bakta', {})['database'] = str(result)
         config.save(cfg)
     else:
         click.echo(click.style("✗ Download failed", fg='red'), err=True)
@@ -1283,8 +1070,7 @@ def config_group():
 @config_group.command('show')
 def config_show():
     """Show current configuration."""
-    import json
-    click.echo(json.dumps(config.config, indent=2))
+    click.echo(yaml.dump(config.config, default_flow_style=False, sort_keys=False))
 
 
 @config_group.command('set')
@@ -1297,7 +1083,7 @@ def config_set(key, value):
     \b
     Example:
       mmonitor config set threads 8
-      mmonitor config set databases.emu /path/to/emu/db
+      mmonitor config set emu.database /path/to/emu/db
     """
     cfg = config.config
 
@@ -1374,6 +1160,23 @@ def status(project, sample):
                 click.echo(f"  {pipeline:15} {status}")
 
 
+# ============ GUI Command ============
+@cli.command()
+def gui():
+    """Launch the MMonitor graphical interface."""
+    try:
+        from mmonitor.userside.view import GUI
+    except ImportError as e:
+        click.echo(click.style(
+            f"Error: GUI dependencies not installed. Install with: pip install mmonitor[gui]",
+            fg='red'), err=True)
+        click.echo(f"Details: {e}", err=True)
+        sys.exit(1)
+
+    app = GUI()
+    app.mainloop()
+
+
 # ============ Serve Command ============
 @cli.command()
 @click.option('--host', default='127.0.0.1', help='Host to bind to')
@@ -1385,13 +1188,16 @@ def serve(ctx, host, port, no_browser):
     import signal
     import time
 
-    # Find server directory
-    server_dir = PROJECT_ROOT / 'server'
-    if not server_dir.exists():
-        # Try parent (in case PROJECT_ROOT is desktop/)
-        server_dir = PROJECT_ROOT.parent / 'server'
-    if not server_dir.exists():
-        click.echo(click.style(f"Error: Server directory not found", fg='red'), err=True)
+    # Find server directory by walking up from this file
+    _here = Path(__file__).resolve().parent
+    server_dir = None
+    for parent in [_here] + list(_here.parents):
+        candidate = parent / 'server'
+        if (candidate / 'manage.py').exists():
+            server_dir = candidate
+            break
+    if server_dir is None:
+        click.echo(click.style("Error: Server directory not found", fg='red'), err=True)
         sys.exit(1)
 
     manage_py = server_dir / 'manage.py'

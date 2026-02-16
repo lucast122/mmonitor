@@ -14,7 +14,7 @@ import fcntl
 import os
 import tkinter.messagebox as messagebox
 
-from mmonitor.paths import ROOT,SERVER_DIR
+from mmonitor.paths import ROOT, SERVER_DIR, RESOURCES_DIR
 
 # Define colors here as well for consistency
 COLORS = {
@@ -29,7 +29,7 @@ class LoginWindow(ctk.CTkFrame):
     def __init__(self, parent, db_path):
         super().__init__(parent)
         # Use db_config.json for login settings
-        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.db_path = os.path.join(RESOURCES_DIR, "db_config.json")
         self.parent = parent
         
         

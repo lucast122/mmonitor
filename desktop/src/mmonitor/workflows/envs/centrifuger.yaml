@@ -1,0 +1,9 @@
+# Snakemake environment for Centrifuger taxonomy classification
+name: mmonitor-smk-centrifuger
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.10
+  - centrifuger>=1.0.12
