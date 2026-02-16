@@ -14,7 +14,7 @@ import fcntl
 import os
 import tkinter.messagebox as messagebox
 
-from mmonitor.paths import ROOT,SERVER_DIR
+from mmonitor.paths import ROOT, SERVER_DIR, RESOURCES_DIR
 
 # Define colors here as well for consistency
 COLORS = {
@@ -29,7 +29,7 @@ class LoginWindow(ctk.CTkFrame):
     def __init__(self, parent, db_path):
         super().__init__(parent)
         # Use db_config.json for login settings
-        self.db_path = os.path.join(ROOT, "src", "resources", "db_config.json")
+        self.db_path = os.path.join(RESOURCES_DIR, "db_config.json")
         self.parent = parent
         
         
@@ -334,15 +334,15 @@ class LoginWindow(ctk.CTkFrame):
                     # Ask user about browser
                     dialog = CTkMessagebox(
                         title="Local Server Ready",
-                        message="Would you like to view the results in your browser?\n"
-                               "The local server is running at http://127.0.0.1:8000",
+                        message="Would you like to view the dashboard in your browser?\n"
+                               "The local server is running at http://127.0.0.1:8000/dashboard/",
                         icon="question",
                         option_1="Yes",
                         option_2="No"
                     )
-                    
+
                     if dialog.get() == "Yes":
-                        webbrowser.open("http://127.0.0.1:8000")
+                        webbrowser.open("http://127.0.0.1:8000/dashboard/")
                     
                     # Update UI state and show home screen
                     self.main_window.update_login_status()

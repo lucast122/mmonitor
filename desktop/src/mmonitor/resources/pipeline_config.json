@@ -1,0 +1,13 @@
+{
+    "threads": "12",
+    "min_length": "1000",
+    "min_quality": "10",
+    "min_abundance": "0.01",
+    "emu_db": "/Users/timo/PycharmProjects/MMonitor/desktop/src/resources/emu_db",
+    "centrifuge_db": "/Users/timo/PycharmProjects/MMonitor/src/resources/custom_centrifuger_db/ncbi_build_20250401_110630/cfr_ncbi",
+    "assembly_mode": "nano-raw",
+    "medaka_model": "r1041_e82_400bps_hac_v5.0.0",
+    "is_isolate": false,
+    "min_contig_length": "1000",
+    "min_files_for_auto_analysis": "5"
+}

@@ -1,0 +1,9 @@
+# Snakemake environment for CheckM2 MAG quality assessment
+name: mmonitor-smk-checkm2
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.9
+  - checkm2>=1.1.0

@@ -296,7 +296,7 @@ def redirect_to_dash(request):
 def register(request):
     """Register a new user"""
     if request.method != "POST":
-        # Display black registration form
+        # Display blank registration form
         form = UserCreationForm()
 
     else:
@@ -305,8 +305,8 @@ def register(request):
 
         if form.is_valid():
             new_user = form.save()
-            # default to non-active so admin needs to authorize user
-            new_user.is_active = False
+            # Auto-approve new users - they can immediately access the dashboard
+            new_user.is_active = True
             new_user.save()
             UserProfile.objects.create(user=new_user, some_field="default value")
 
@@ -590,11 +590,9 @@ def offline_login(request):
 @login_required
 def mag_viewer(request):
     """
-    View for the MAG analysis dashboard
+    Redirect to the React frontend MAGs page.
     """
-    return render(request, 'users/mag_viewer.html', {
-        'title': 'MAG Analysis Dashboard'
-    })
+    return redirect('/dashboard/mags')
 
 # Add a custom logout view that supports both GET and POST
 def custom_logout(request):

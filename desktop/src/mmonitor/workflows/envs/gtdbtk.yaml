@@ -1,0 +1,9 @@
+# Snakemake environment for GTDB-TK taxonomy classification
+name: mmonitor-smk-gtdbtk
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.9
+  - gtdbtk>=2.4.0

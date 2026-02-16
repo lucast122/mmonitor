@@ -20,14 +20,11 @@ import webbrowser
 from mmonitor.userside.utils import create_tooltip
 from mmonitor.userside.LoginWindow import LoginWindow
 from mmonitor.userside.FolderWatcherWindow import FolderWatcherWindow
-from mmonitor.userside.PipelineConfig import PipelineConfig
+from mmonitor.userside.PipelineConfig import PipelineConfig, YAML_CONFIG_PATH
 from mmonitor.userside.DatabaseWindow import DatabaseWindow
-from mmonitor.userside.MMonitorCMD import MMonitorCMD
-from mmonitor.userside.CentrifugerRunner import CentrifugerRunner
-from mmonitor.userside.EmuRunner import EmuRunner
 from mmonitor.userside.FastqStatistics import FastqStatistics
 from mmonitor.userside.InputWindow import InputWindow
-from mmonitor.userside.FunctionalRunner import FunctionalRunner
+from mmonitor.pipeline.runner import SnakemakeRunner
 
 from mmonitor.database.DBConfigForm import DataBaseConfigForm
 from mmonitor.database.django_db_interface import DjangoDBInterface
@@ -35,7 +32,7 @@ from mmonitor.database.mmonitor_db import MMonitorDBInterface
 
 from mmonitor.dashapp.index import Index
 from mmonitor.config import _MMONITOR_ROOT as ROOT, _RESOURCES
-from ..paths import IMAGES_DIR, RESOURCES_DIR
+from ..paths import IMAGES_DIR, RESOURCES_DIR, ROOT as _PROJECT_ROOT
 
 
 import sys
@@ -166,19 +163,11 @@ class GUI(ctk.CTk):
             self.config = load_config()
             logger.info(f"Loaded config: {self.config}")
             
-            # Set default pipeline config
+            # Set default pipeline config (nested Snakemake-compatible schema)
             self.pipeline_config = {
                 'analysis_type': 'taxonomy-wgs',
-                'threads': '12',
-                'min_length': '1000',
-                'min_quality': '10',
-                'emu_db': '',
-                'centrifuger_db': 'ncbi_build_20241229_184111',
-                'min_abundance': '0.01',
-                'assembly_mode': 'nano-hq',
-                'medaka_model': 'r1041_e82_400bps_sup_v5.0.0',
-                'is_isolate': False,
-                'min_contig_length': '1000'
+                'threads': 12,
+                'memory_gb': 16,
             }
             
             logger.info("Setting up window properties")
@@ -206,7 +195,7 @@ class GUI(ctk.CTk):
             
             logger.info("Loading appearance mode")
             # Load appearance mode from system and config
-            self.config_file = os.path.join(_RESOURCES, "pipeline_config.json")
+            self.config_file = YAML_CONFIG_PATH
             self.load_appearance_mode()
             
             # Define theme colors based on mode
@@ -219,7 +208,7 @@ class GUI(ctk.CTk):
             self.folder_monitor = None
             self.folder_watcher_window = None
             self.database_window = None
-            self.db_path = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+            self.db_path = os.path.join(_RESOURCES, "db_config.json")
             self.logged_in = False
             self.offline_mode = False
             self.current_user = None
@@ -441,8 +430,8 @@ class GUI(ctk.CTk):
     def setup_variables(self):
         """Initialize variables and configurations"""
         # Use separate config files for different purposes
-        self.db_config_file = os.path.join(ROOT, "src", "resources", "db_config.json")
-        self.pipeline_config_file = os.path.join(ROOT, "src", "resources", "pipeline_config.json")
+        self.db_config_file = os.path.join(_RESOURCES, "db_config.json")
+        self.pipeline_config_file = YAML_CONFIG_PATH
         
         # Initialize database interface with login config
         self.django_db = DjangoDBInterface(self.db_config_file)
@@ -454,10 +443,7 @@ class GUI(ctk.CTk):
 
     def setup_runners(self):
         print("Setting up runners...")
-        self.centrifugr_runner = CentrifugerRunner()
-        self.emu_runner = EmuRunner()
-        self.functional_analysis_runner = FunctionalRunner()
-        self.cmd_runner = MMonitorCMD()
+        self.snakemake_runner = SnakemakeRunner()
         print("Runners setup complete.")
 
     def init_layout(self):
@@ -468,9 +454,11 @@ class GUI(ctk.CTk):
             # If we're in the bundled app
             theme_path = os.path.join(sys._MEIPASS, "mmonitor", "resources", "grey_theme.json")
         else:
-            # If we're in development
-            theme_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 
-                                    "src", "resources", "themes", "grey_theme.json")
+            # Use package-internal resources path
+            theme_path = os.path.join(_RESOURCES, "themes", "grey_theme.json")
+            if not os.path.exists(theme_path):
+                # Fallback: grey_theme.json directly in resources dir
+                theme_path = os.path.join(_RESOURCES, "grey_theme.json")
             
         print(f"Loading theme from: {theme_path}")
         
@@ -826,6 +814,73 @@ class GUI(ctk.CTk):
     def show_info(self, message):
         CTkMessagebox(message=message, icon="check", title="Info")
 
+    def _get_snakemake_target(self, analysis_type: str) -> str:
+        """Map GUI analysis type string to Snakemake target rule name."""
+        mapping = {
+            'taxonomy-16s': 'taxonomy_16s',
+            'taxonomy-wgs': 'taxonomy_wgs',
+            'assembly': 'assembly_full',   # Full pipeline: assembly+binning+annotation+functional+upload
+            'functional': 'functional_full',
+        }
+        return mapping.get(analysis_type, analysis_type)
+
+    def _build_snakemake_config(self, analysis_type, sample_name, project_name,
+                                subproject_name, sample_date, files):
+        """Build Snakemake config dict from GUI parameters.
+
+        The PipelineConfig widget now stores a nested Snakemake-compatible dict,
+        so we start with that and overlay sample-specific fields.
+        """
+        import yaml as _yaml
+
+        # Load pipeline config from PipelineConfig widget (already nested)
+        pipeline_cfg = {}
+        if hasattr(self, 'pipeline_config_frame') and self.pipeline_config_frame:
+            pipeline_cfg = getattr(self.pipeline_config_frame, 'pipeline_config', {})
+
+        # If the widget config is empty, load from YAML file directly
+        if not pipeline_cfg and os.path.exists(YAML_CONFIG_PATH):
+            try:
+                with open(YAML_CONFIG_PATH) as f:
+                    pipeline_cfg = _yaml.safe_load(f) or {}
+            except Exception:
+                pass
+
+        # Start with a copy of the nested config
+        cfg = dict(pipeline_cfg)
+
+        # Add sample-specific fields
+        cfg['sample_name'] = sample_name
+        cfg['project_name'] = project_name
+        cfg['subproject_name'] = subproject_name
+        cfg['sample_date'] = sample_date
+        cfg['input_fastq'] = list(files)
+        cfg['output_dir'] = os.path.join(os.path.expanduser('~'), 'mmonitor_results')
+
+        # Server config for result upload
+        db_config = {}
+        db_config_path = self.db_path if self.db_path else os.path.join(_RESOURCES, "db_config.json")
+        if os.path.exists(db_config_path):
+            try:
+                with open(db_config_path) as f:
+                    db_config = json.load(f)
+            except Exception:
+                pass
+
+        cfg['server'] = {
+            'url': db_config.get('server_url', 'http://localhost:8000'),
+            'username': db_config.get('user', ''),
+            'upload_results': not getattr(self, 'offline_mode', False),
+        }
+
+        # Set per-tool thread counts to match global threads
+        t = cfg.get('threads', 4)
+        for tool in ('emu', 'centrifuger', 'flye', 'medaka', 'checkm2', 'gtdbtk', 'bakta'):
+            if tool in cfg and isinstance(cfg[tool], dict):
+                cfg[tool]['threads'] = t
+
+        return cfg
+
     def run_single_sample_pipeline(self, analysis_type, input_window):
         sample_name = input_window.sample_name
         project_name = input_window.project_name
@@ -839,72 +894,61 @@ class GUI(ctk.CTk):
         print(f"Sample date: {sample_date}")
         print(f"Number of input files: {len(files)}")
 
-        config_path = self.db_path if self.db_path else os.path.join(ROOT, "src", "resources", "db_config.json")
-        
-        cmd = [
-            sys.executable,
-            "-m", "mmonitor.userside.MMonitorCMD",
-            "-a", analysis_type,
-            "-c", config_path,
-            "-i", *files,
-            "-s", sample_name,
-            "-d", sample_date,
-            "-p", project_name,
-            "-u", subproject_name
-        ]
-        
-        env = os.environ.copy()
-        mmonitor_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        env["PYTHONPATH"] = f"{mmonitor_path}:{env.get('PYTHONPATH', '')}"
+        target = self._get_snakemake_target(analysis_type)
+        cfg = self._build_snakemake_config(
+            analysis_type, sample_name, project_name,
+            subproject_name, sample_date, files
+        )
 
         try:
-            print("Executing pipeline command...")
-            result = subprocess.run(cmd, env=env, text=True, capture_output=True)
-            print(result.stdout)
-            print(result.stderr, file=sys.stderr)
-            print("Pipeline command executed successfully.")
+            print("Executing Snakemake pipeline...")
+            runner = SnakemakeRunner()
+            exit_code = runner.run(
+                target, cfg,
+                threads=cfg.get('threads', 4),
+                callback=lambda line: print(line),
+            )
+            if exit_code == 0:
+                print("Pipeline completed successfully.")
+            else:
+                print(f"Pipeline failed with exit code {exit_code}")
         except Exception as e:
             print(f"Error running pipeline: {e}")
 
     def run_multi_sample_pipeline(self, analysis_type, multi_sample_input):
         print("Preparing multi-sample pipeline...")
-        temp_csv_path = "temp_multi_sample.csv"
-        with open(temp_csv_path, 'w', newline='') as csvfile:
-            fieldnames = ['sample_name', 'date', 'project_name', 'subproject_name', 'sample_folder']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for i in range(len(multi_sample_input['sample_names'])):
-                writer.writerow({
-                    'sample_name': multi_sample_input['sample_names'][i],
-                    'date': multi_sample_input['dates'][i],
-                    'project_name': multi_sample_input['project_names'][i],
-                    'subproject_name': multi_sample_input['subproject_names'][i],
-                    'sample_folder': os.path.dirname(multi_sample_input['file_paths_lists'][i][0])
-                })
-        print(f"Temporary CSV file created: {temp_csv_path}")
+        target = self._get_snakemake_target(analysis_type)
+        runner = SnakemakeRunner()
 
-        config_path = self.db_path if self.db_path else os.path.join(ROOT, "src", "resources", "db_config.json")
+        num_samples = len(multi_sample_input['sample_names'])
+        for i in range(num_samples):
+            sample_name = multi_sample_input['sample_names'][i]
+            sample_date = multi_sample_input['dates'][i]
+            project_name = multi_sample_input['project_names'][i]
+            subproject_name = multi_sample_input['subproject_names'][i]
+            files = multi_sample_input['file_paths_lists'][i]
 
-        cmd = [
-            sys.executable,
-            "-m", "mmonitor.userside.MMonitorCMD",
-            "-a", analysis_type,
-            "-c", config_path,
-            "-m", temp_csv_path
-        ]
+            print(f"\n--- Running sample {i+1}/{num_samples}: {sample_name} ---")
 
-        env = os.environ.copy()
-        mmonitor_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        env["PYTHONPATH"] = f"{mmonitor_path}:{env.get('PYTHONPATH', '')}"
+            cfg = self._build_snakemake_config(
+                analysis_type, sample_name, project_name,
+                subproject_name, sample_date, files
+            )
 
-        try:
-            print("Executing multi-sample pipeline command...")
-            result = subprocess.run(cmd, env=env, text=True, capture_output=True)
-            print(result.stdout)
-            print(result.stderr, file=sys.stderr)
-            print("Multi-sample pipeline command executed successfully.")
-        except Exception as e:
-            print(f"Error running multi-sample pipeline: {e}")
+            try:
+                exit_code = runner.run(
+                    target, cfg,
+                    threads=cfg.get('threads', 4),
+                    callback=lambda line: print(line),
+                )
+                if exit_code == 0:
+                    print(f"Sample {sample_name} completed successfully.")
+                else:
+                    print(f"Sample {sample_name} failed with exit code {exit_code}")
+            except Exception as e:
+                print(f"Error running pipeline for {sample_name}: {e}")
+
+        print("Multi-sample pipeline finished.")
 
     def start_app(self):
         print("Starting MMonitor application...")
@@ -931,32 +975,29 @@ class GUI(ctk.CTk):
     def run_analysis_for_sample(self, sample_name):
         analysis_type = self.analysis_var.get()
         sample_date = self.selected_date.strftime("%Y-%m-%d") if not self.use_file_date.get() else datetime.datetime.fromtimestamp(os.path.getctime(self.samples[sample_name][0])).strftime("%Y-%m-%d")
-        
+
         concat_file = self.get_or_create_concat_file(sample_name)
-        
-        cmd = [
-            sys.executable,
-            "-m", "mmonitor.userside.MMonitorCMD",
-            "-a", analysis_type,
-            "-c", self.db_path or os.path.join(ROOT, "src", "resources", "db_config.json"),
-            "-i", concat_file,
-            "-s", sample_name,
-            "-d", sample_date,
-            "-p", self.project_entry.get(),
-            "-u", self.subproject_entry.get(),
-            "--overwrite"
-        ]
-        
-        env = os.environ.copy()
-        mmonitor_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        env["PYTHONPATH"] = f"{mmonitor_path}:{env.get('PYTHONPATH', '')}"
+        project_name = self.project_entry.get() if hasattr(self, 'project_entry') else ''
+        subproject_name = self.subproject_entry.get() if hasattr(self, 'subproject_entry') else ''
+
+        target = self._get_snakemake_target(analysis_type)
+        cfg = self._build_snakemake_config(
+            analysis_type, sample_name, project_name,
+            subproject_name, sample_date, [concat_file]
+        )
 
         try:
-            print("Executing analysis command...")
-            result = subprocess.run(cmd, env=env, text=True, capture_output=True)
-            print(result.stdout)
-            print(result.stderr, file=sys.stderr)
-            print("Analysis command executed successfully.")
+            print("Executing Snakemake analysis...")
+            runner = SnakemakeRunner()
+            exit_code = runner.run(
+                target, cfg,
+                threads=cfg.get('threads', 4),
+                callback=lambda line: print(line),
+            )
+            if exit_code == 0:
+                print("Analysis completed successfully.")
+            else:
+                print(f"Analysis failed with exit code {exit_code}")
         except Exception as e:
             print(f"Error running analysis: {e}")
 
@@ -1038,7 +1079,7 @@ class GUI(ctk.CTk):
         self.check_and_start_analysis(sample_name)
 
     def update_db_config_path(self):
-        self.django_db = DjangoDBInterface(f"{ROOT}/src/resources/db_config.json")
+        self.django_db = DjangoDBInterface(os.path.join(_RESOURCES, "db_config.json"))
 
 
     def create_browser_button(self):
@@ -1088,8 +1129,8 @@ class GUI(ctk.CTk):
                     'threads': str(multiprocessing.cpu_count()),
                     'min_length': '1000',
                     'min_quality': '10',
-                    'emu_db': os.path.join(ROOT, "src", "resources", "emu_db"),
-                    'centrifuge_db': os.path.join(ROOT, "src", "resources", "centrifuge_db"),
+                    'emu_db': os.path.join(_RESOURCES, "emu_db"),
+                    'centrifuge_db': os.path.join(_RESOURCES, "centrifuge_db"),
                     'min_abundance': '0.01'
                 }
                 with open(config_file, 'w') as f:

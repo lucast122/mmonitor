@@ -37,7 +37,7 @@ class NanoporeRecord(models.Model):
     user_id = models.IntegerField()
     
     class Meta:
-        db_table = 'mmonitor'  # Map to your existing mmonitor table
+        db_table = 'users_nanoporerecord'  # Map to your existing mmonitor table
         managed = False  # Don't let Django manage this table
     
     # Add properties for fields that the dashboard expects but don't exist in the table

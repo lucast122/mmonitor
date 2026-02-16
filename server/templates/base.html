@@ -1,7 +1,5 @@
 {% load static %}
 
-{% load plotly_dash %}
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -10,57 +8,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metagenome Monitor</title>
 
-    <!-- Add babel polyfill for regeneratorRuntime before anything else -->
-    <script src="https://unpkg.com/regenerator-runtime@0.13.9/runtime.js"></script>
-    <script src="https://unpkg.com/@babel/polyfill@7.12.1/dist/polyfill.min.js"></script>
-
-    <!-- React dependencies -->
-    <script src="https://unpkg.com/react@16.14.0/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@16.14.0/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
-
-    <!-- Dash core dependencies -->
-    <!-- <script src="https://unpkg.com/dash-renderer@1.9.1/dash_renderer/dash_renderer.min.js"></script> -->
-    <!-- <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script> -->
-    <script
-        src="https://cdn.jsdelivr.net/npm/dash-core-components@2.0.0/dash_core_components/dash_core_components.min.js"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/dash-html-components@2.0.0/dash_html_components/dash_html_components.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dash-table@5.0.0/dash_table/dash_table.min.js"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/dash-bootstrap-components@1.4.1/dist/dash-bootstrap-components.min.js"></script>
-
-    <!-- Additional Dash components -->
-    <script
-        src="https://raw.githubusercontent.com/lucast122/mmonitor-server/main/production_env/lib/python3.12/site-packages/dash_mantine_components/dash_mantine_components.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dash-ag-grid@2.2.0/dash_ag_grid/dash_ag_grid.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dash-bio@1.0.2/dash_bio/dash_bio.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dash-iconify@0.1.2/dist/dash-iconify.min.js"></script>
-
     <!-- Include Bootstrap CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-    
+
     <!-- Include Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
-    <!-- Global window component definitions -->
-    <script>
-        // Define components globally for Dash
-        window.dash_mantine_components = window.dash_mantine_components || {};
-        window.dash_core_components = window.dash_core_components || {};
-        window.dash_html_components = window.dash_html_components || {};
-        window.dash_table = window.dash_table || {};
-        window.dash_bootstrap_components = window.dash_bootstrap_components || {};
-        window.dash_ag_grid = window.dash_ag_grid || {};
-        window.dash_bio = window.dash_bio || {};
-        window.dash_iconify = window.dash_iconify || {};
-    </script>
-
-    <!-- Load Django-Plotly-Dash header -->
-    {% plotly_header %}
-
-    <!-- NO additional script tags for Dash components here -->
-    <!-- Django-Plotly-Dash will handle loading all required files -->
 
     <style>
         /* Root styles and variables */
@@ -166,72 +118,6 @@
             overflow-x: hidden;
         }
 
-        /* Dash specific styles */
-        .django-plotly-dash {
-            width: 100%;
-            height: 10%;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-            overflow-x: hidden;
-        }
-
-        .dash-graph {
-            height: 400px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-        }
-
-        /* Plotly graph container */
-        .js-plotly-plot {
-            margin: 0 !important;
-            padding: 0 !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-        }
-
-        /* Mantine specific adjustments */
-        .mantine-Grid-root {
-            margin: 0 !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-        }
-
-        .mantine-Col-root {
-            padding: 0 !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-        }
-
-        /* Reduce space in form elements and controls */
-        .mantine-Select-root,
-        .mantine-MultiSelect-root,
-        .mantine-TextInput-root,
-        .mantine-Checkbox-root,
-        .mantine-Switch-root {
-            margin-bottom: 4px !important;
-        }
-
-        .mantine-Space-root {
-            height: 5px !important;
-        }
-
-        /* Stack spacing reduction */
-        .mantine-Stack-root {
-            gap: 4px !important;
-        }
-
-        /* Dashboard-specific adjustments */
-        .mantine-Container-root {
-            padding: 0 !important;
-            margin: 0 !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            overflow-x: hidden !important;
-        }
-
         /* Responsive design */
         @media (max-width: 768px) {
             .navbar {
@@ -282,8 +168,6 @@
                 <ul class="navbar-menu">
                     <li><a href="{% url 'main:index' %}">Home</a></li>
                     {% if user.is_authenticated %}
-                    <li><a href="{% url 'users:upload_dashboard' %}">Upload</a></li>
-                    <li><a href="{% url 'users:edit_samples' %}">Edit Samples</a></li>
                     <li><a href="{% url 'dashboard:index' %}">Dashboard</a></li>
                     {% endif %}
                     {% if user.is_staff %}
@@ -306,19 +190,6 @@
     <main>
         {% block content %}{% endblock content %}
     </main>
-
-    <!-- Keep the footer tags, but add a verification check to ensure scripts are loaded -->
-    {% plotly_footer %}
-
-    <script>
-        // Basic check for React to verify the environment is ready
-        document.addEventListener('DOMContentLoaded', function () {
-            console.log("DOM fully loaded - Django-Plotly-Dash environment initializing...");
-
-            // Let Django-Plotly-Dash handle all component loading and management
-            // No need to manually create or register components
-        });
-    </script>
 </body>
 
 </html>

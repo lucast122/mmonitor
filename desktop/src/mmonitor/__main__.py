@@ -1,31 +1,14 @@
-import os
+"""Allow running MMonitor as ``python -m mmonitor``."""
 import sys
-import traceback
-# fix module not found mmonitor
-# Add the parent directory of 'src' to sys.path
-src_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, src_parent_dir)
-src_parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, src_parent_dir)
 
-from mmonitor.userside.view import GUI
-
-# Determine the absolute path to the 'src' directory to append to sys.path
-# Now we can import from mmonitor
+from mmonitor.cli.main import main
 
 
-import tkinter as tk
-from mmonitor.userside.view import GUI
+def _exception_handler(exc_type, exc_value, exc_tb):
+    print(f"{exc_type.__name__}: {exc_value}")
 
-def main():
-    app = GUI()  # No need to pass root
-    app.mainloop()
+
+sys.excepthook = _exception_handler
 
 if __name__ == "__main__":
     main()
-def exception_handler(exception_type, exception, traceback):
-    print(f"{exception_type.__name__}: {exception}")
-
-sys.excepthook = exception_handler
-
-

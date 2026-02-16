@@ -1,0 +1,146 @@
+# MMonitor Snakemake Workflow
+# Main entry point for all MMonitor pipelines
+#
+# Usage:
+#   snakemake --configfile config/myconfig.yaml --cores 8 taxonomy_16s
+#   snakemake --configfile config/myconfig.yaml --cores 8 taxonomy_wgs
+#   snakemake --configfile config/myconfig.yaml --cores 8 assembly
+#   snakemake --configfile config/myconfig.yaml --cores 8 functional
+
+import os
+from pathlib import Path
+
+# ============ Configuration ============
+configfile: "config/config.yaml"
+
+# Sample and output configuration
+SAMPLE = config.get("sample_name", "sample")
+OUTPUT_DIR = Path(config.get("output_dir", "results"))
+INPUT_FASTQ = config.get("input_fastq", "")
+
+# Default database base directory (configurable via db_base_dir in config)
+DB_BASE = Path(config.get("db_base_dir", os.path.join(os.path.expanduser("~"), "mmonitor_databases")))
+
+# Validate input
+if not INPUT_FASTQ:
+    print("Warning: No input_fastq specified in config")
+
+# ============ Helper Functions ============
+def get_input_fastq(wildcards=None):
+    """Get input FASTQ file(s)"""
+    fastq = config.get("input_fastq", "")
+    if isinstance(fastq, list):
+        return fastq
+    return [fastq] if fastq else []
+
+def get_threads(rule_name):
+    """Get threads for a specific rule, falling back to global default"""
+    rule_config = config.get(rule_name, {})
+    if isinstance(rule_config, dict):
+        return rule_config.get("threads", config.get("threads", 4))
+    return config.get("threads", 4)
+
+# ============ Include Pipeline Rules ============
+include: "rules/common.smk"
+include: "rules/database_setup.smk"
+include: "rules/taxonomy_16s.smk"
+include: "rules/taxonomy_wgs.smk"
+include: "rules/assembly.smk"
+include: "rules/binning.smk"
+include: "rules/annotation.smk"
+include: "rules/functional_annotation.smk"
+include: "rules/single_genome.smk"
+
+# ============ Target Rules ============
+rule all:
+    """Default target - show help"""
+    run:
+        print("""
+MMonitor Snakemake Workflows
+============================
+
+Available targets:
+  taxonomy_16s   - 16S rRNA taxonomy analysis (EMU)
+  taxonomy_wgs   - Whole genome taxonomy analysis (Centrifuger)
+  assembly       - Metagenomic assembly (Flye + Medaka)
+  assembly_full  - Full assembly pipeline (assembly + binning + annotation + functional + upload)
+  binning        - MAG binning and quality (MetaBAT2 + CheckM2)
+  annotation     - MAG annotation (GTDB-TK + Bakta)
+  functional     - Basic functional analysis (legacy)
+  functional_full - Full functional annotation (eggNOG + InterProScan)
+  annotate_genome - Annotate a single genome with Bakta and upload
+
+Database setup:
+  setup_databases_16s   - Download EMU database
+  setup_databases_assembly - Download CheckM2, GTDB-TK, Bakta, eggNOG databases
+  setup_all_databases   - Download all databases
+
+Usage:
+  snakemake --configfile config/myconfig.yaml --cores 8 taxonomy_16s
+
+For dry-run:
+  snakemake --configfile config/myconfig.yaml -n taxonomy_16s
+        """)
+
+rule taxonomy_16s:
+    """16S rRNA taxonomy analysis using EMU"""
+    input:
+        OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu_results.json"
+
+rule taxonomy_wgs:
+    """Whole genome taxonomy analysis using Centrifuger"""
+    input:
+        OUTPUT_DIR / SAMPLE / "taxonomy_wgs" / "centrifuger_results.json"
+
+rule assembly:
+    """Metagenomic assembly with Flye and Medaka polishing"""
+    input:
+        OUTPUT_DIR / SAMPLE / "assembly" / "polished" / "consensus.fasta"
+
+rule binning:
+    """MAG binning with MetaBAT2 and quality assessment with CheckM2"""
+    input:
+        OUTPUT_DIR / SAMPLE / "binning" / "checkm2" / "quality_report.tsv"
+
+rule annotation:
+    """MAG annotation with GTDB-TK and Bakta"""
+    input:
+        OUTPUT_DIR / SAMPLE / "annotation" / "annotation_complete.json"
+
+rule functional:
+    """Basic functional analysis pipeline (legacy)"""
+    input:
+        OUTPUT_DIR / SAMPLE / "functional" / "functional_complete.json"
+
+rule functional_full:
+    """Full functional annotation with eggNOG-mapper and InterProScan"""
+    input:
+        OUTPUT_DIR / SAMPLE / "functional" / "functional_analysis_complete.json"
+
+rule assembly_full:
+    """Full WGS assembly pipeline: assembly -> binning -> annotation -> functional -> upload"""
+    input:
+        OUTPUT_DIR / SAMPLE / "functional" / "functional_analysis_complete.json"
+
+rule annotate_genome:
+    """Annotate a single genome with Bakta and upload to server"""
+    input:
+        lambda wildcards: expand(
+            OUTPUT_DIR / SAMPLE / "upload" / "{genome_id}_complete.json",
+            genome_id=config.get("genome_ids", [config.get("genome_id", "input_genome")])
+        )
+
+# ============ Utility Rules ============
+rule clean:
+    """Remove all output files"""
+    shell:
+        "rm -rf {OUTPUT_DIR}/{SAMPLE}"
+
+rule clean_intermediate:
+    """Remove intermediate files, keep final results"""
+    shell:
+        """
+        find {OUTPUT_DIR}/{SAMPLE} -name "*.sam" -delete
+        find {OUTPUT_DIR}/{SAMPLE} -name "*.bam" -delete
+        find {OUTPUT_DIR}/{SAMPLE} -name "*_filtered.fastq" -delete
+        """

@@ -5,7 +5,7 @@ import threading
 import shutil
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
-from mmonitor.paths import ROOT
+from mmonitor.paths import ROOT, RESOURCES_DIR
 import traceback
 import datetime
 import multiprocessing
@@ -22,6 +22,8 @@ import wget
 import ftplib
 from io import BytesIO
 from mmonitor.userside.utils import create_tooltip
+from mmonitor.userside.PipelineConfig import YAML_CONFIG_PATH
+import yaml
 import psutil
 import logging
 import tkinter as tk
@@ -34,11 +36,11 @@ class DatabaseWindow(ctk.CTkFrame):
         self.gui = gui
 
         # Initialize paths in resources directory
-        self.resources_dir = os.path.join(ROOT, "src", "resources")
+        self.resources_dir = RESOURCES_DIR
         self.emu_db_path = os.path.join(self.resources_dir, "custom_emu_db")
         self.centrifuger_db_path = os.path.join(self.resources_dir, "custom_centrifuger_db")
         self.gtdb_db_path = os.path.join(self.resources_dir, "custom_gtdb_db")
-        self.config_file = os.path.join(self.resources_dir, "pipeline_config.json")
+        self.config_file = YAML_CONFIG_PATH
         self.log_file = os.path.join(self.resources_dir, "database_build.log")
 
         # Create necessary directories
@@ -400,68 +402,76 @@ class DatabaseWindow(ctk.CTkFrame):
         self.after(0, show_message)
 
     def load_config(self):
-        """Load configuration from pipeline_config.json"""
+        """Load configuration from YAML pipeline config."""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-                    print(f"Loaded database config: {config}")
-                    
-                    # Update paths from config if they exist
-                    if 'emu_db' in config and os.path.exists(config['emu_db']):
-                        self.emu_db_path = config['emu_db']
+                    config = yaml.safe_load(f) or {}
+                    print(f"Loaded database config from YAML: {self.config_file}")
+
+                    # Read nested EMU database path
+                    emu_db = config.get('emu', {}).get('database', '')
+                    if emu_db and os.path.exists(emu_db):
+                        self.emu_db_path = emu_db
                         if hasattr(self, 'emu_path_entry'):
                             self.emu_path_entry.delete(0, tk.END)
                             self.emu_path_entry.insert(0, self.emu_db_path)
-                    
-                    if 'centrifuge_db' in config and os.path.exists(config['centrifuge_db']):
-                        self.centrifuger_db_path = config['centrifuge_db']
+
+                    # Read nested Centrifuger database path
+                    centrifuger_db = config.get('centrifuger', {}).get('database', '')
+                    if centrifuger_db and os.path.exists(centrifuger_db):
+                        self.centrifuger_db_path = centrifuger_db
                         if hasattr(self, 'centrifuger_path_entry'):
                             self.centrifuger_path_entry.delete(0, tk.END)
                             self.centrifuger_path_entry.insert(0, self.centrifuger_db_path)
-                    
+
             # If no config exists or paths not found, scan resources directory
             if not self.emu_db_path or not os.path.exists(self.emu_db_path):
                 default_emu_path = os.path.join(self.resources_dir, "custom_emu_db")
                 if os.path.exists(default_emu_path):
                     self.emu_db_path = default_emu_path
                     self.save_config()
-            
+
             if not self.centrifuger_db_path or not os.path.exists(self.centrifuger_db_path):
                 default_centrifuge_path = os.path.join(self.resources_dir, "custom_centrifuger_db")
                 if os.path.exists(default_centrifuge_path):
                     self.centrifuger_db_path = default_centrifuge_path
                     self.save_config()
-                    
+
         except Exception as e:
             print(f"Error loading config: {e}")
             traceback.print_exc()
 
     def save_config(self):
-        """Save current configuration to pipeline_config.json"""
+        """Save current database paths to YAML pipeline config."""
         try:
-            # Read existing config first
+            # Read existing YAML config first
             config = {}
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-            
-            # Update database paths
+                    config = yaml.safe_load(f) or {}
+
+            # Update nested database paths
+            if 'emu' not in config:
+                config['emu'] = {}
             if hasattr(self, 'emu_path_entry'):
-                config['emu_db'] = self.emu_path_entry.get()
+                config['emu']['database'] = self.emu_path_entry.get()
             elif self.emu_db_path:
-                config['emu_db'] = self.emu_db_path
-                
+                config['emu']['database'] = self.emu_db_path
+
+            if 'centrifuger' not in config:
+                config['centrifuger'] = {}
             if hasattr(self, 'centrifuger_path_entry'):
-                config['centrifuge_db'] = self.centrifuger_path_entry.get()
+                config['centrifuger']['database'] = self.centrifuger_path_entry.get()
             elif self.centrifuger_db_path:
-                config['centrifuge_db'] = self.centrifuger_db_path
-            
-            # Save updated config
+                config['centrifuger']['database'] = self.centrifuger_db_path
+
+            # Save updated YAML config
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
             with open(self.config_file, 'w') as f:
-                json.dump(config, f, indent=4)
-            print(f"Saved database config: {config}")
-            
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+            print(f"Saved database config to {self.config_file}")
+
         except Exception as e:
             print(f"Error saving config: {e}")
             traceback.print_exc()
@@ -529,7 +539,7 @@ class DatabaseWindow(ctk.CTkFrame):
 
                 # Build Emu database
                 self.log_progress("Building Emu database...")
-                emu_output_path = os.path.join(ROOT, "src", "resources", "emu_custom_db")
+                emu_output_path = os.path.join(RESOURCES_DIR, "emu_custom_db")
                 if os.path.exists(emu_output_path):
                     shutil.rmtree(emu_output_path)
                 
@@ -989,16 +999,20 @@ class DatabaseWindow(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Error", f"Could not open folder: {str(e)}")
 
-    def save_config(self):
-        """Save current configuration to file"""
-        config = {
-            'emu_db': self.emu_db_path,
-            'centrifuge_db': self.centrifuger_db_path,
-            'gtdb_db': self.gtdb_db_path
-        }
+    def save_config_after_build(self):
+        """Save database paths to YAML config after a build completes."""
         try:
+            config = {}
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r') as f:
+                    config = yaml.safe_load(f) or {}
+
+            config.setdefault('emu', {})['database'] = self.emu_db_path
+            config.setdefault('centrifuger', {})['database'] = self.centrifuger_db_path
+
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
             with open(self.config_file, 'w') as f:
-                json.dump(config, f, indent=4)
+                yaml.dump(config, f, default_flow_style=False, sort_keys=False)
         except Exception as e:
             messagebox.showerror("Error", f"Could not save configuration: {str(e)}")
 

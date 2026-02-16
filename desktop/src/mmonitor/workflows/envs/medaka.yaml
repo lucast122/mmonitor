@@ -1,0 +1,16 @@
+# Snakemake environment for Medaka polishing
+# Medaka is installed via pip so it can auto-detect CUDA for GPU acceleration.
+# If CUDA toolkit is available on the system, medaka will use GPU automatically.
+# Python is pinned to <3.13 for medaka pip compatibility.
+name: mmonitor-smk-medaka
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.10,<3.13
+  - samtools>=1.21
+  - minimap2>=2.28
+  - pip
+  - pip:
+    - medaka>=2.2.0
