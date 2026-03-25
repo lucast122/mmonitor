@@ -83,7 +83,8 @@ cython_debug/
 [Ll]ib
 [Ll]ib64
 [Ll]ocal
-[Ss]cripts
+# Only ignore top-level Scripts/ (Windows venv), not nested workflow scripts/
+/[Ss]cripts/
 pyvenv.cfg
 .venv/
 venv/
