@@ -159,6 +159,9 @@ desktop/build/
 # Workflow runtime artifacts
 desktop/src/mmonitor/workflows/results/
 desktop/src/mmonitor/workflows/.snakemake/
+desktop/workflows/results/
+desktop/workflows/.snakemake/
+.snakemake/
 
 # Desktop taxonomy files
 desktop/citations.dmp
