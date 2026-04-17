@@ -1,0 +1,7 @@
+export { LoginPage } from './LoginPage'
+export { DashboardPage } from './DashboardPage'
+export { TaxonomyPage } from './TaxonomyPage'
+export { QCPage } from './QCPage'
+export { DiversityPage } from './DiversityPage'
+export { CorrelationsPage } from './CorrelationsPage'
+export { MAGsPage } from './MAGsPage'

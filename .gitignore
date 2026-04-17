@@ -78,12 +78,12 @@ cython_debug/
 # Virtual Environments
 # ===================
 .Python
-[Bb]in
-[Ii]nclude
-[Ll]ib
-[Ll]ib64
-[Ll]ocal
-[Ss]cripts
+/[Bb]in/
+/[Ii]nclude/
+/[Ll]ib/
+/[Ll]ib64/
+/[Ll]ocal/
+/[Ss]cripts/
 pyvenv.cfg
 .venv/
 venv/
@@ -186,7 +186,7 @@ server/py3.11venv/
 htslib/
 samtools/
 local-build/
-lib/
+/lib/
 
 # ===================
 # Static generated files
