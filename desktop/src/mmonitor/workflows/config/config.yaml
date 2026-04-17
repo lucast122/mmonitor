@@ -10,20 +10,42 @@
 db_base_dir: ""  # e.g. "/mnt/disk2/db/mmonitor_databases"
 
 # ============ Sample Information ============
+# Option 1: Single sample (backwards compatible)
 sample_name: "sample1"
+input_fastq: ""  # Path to input FASTQ file(s)
+
+# Option 2: Multiple samples via samples dict
+# When using the CLI with --sample-sheet, this is populated automatically.
+# You can also specify it directly:
+#
+# samples:
+#   sample1:
+#     fastq:
+#       - /path/to/sample1_reads.fastq
+#   sample2:
+#     fastq:
+#       - /path/to/sample2_reads.fastq
+#
+# Sample sheet format (CSV or TSV, used with: mmonitor run taxonomy-16s --sample-sheet samples.csv):
+#   sample_name,file_path
+#   sample1,/path/to/sample1_reads.fastq
+#   sample2,/path/to/sample2_reads.fastq
+
+# Project metadata (applies to all samples in a batch)
 project_name: "my_project"
 subproject_name: ""
 sample_date: ""  # YYYY-MM-DD format
 
 # ============ Input/Output ============
-input_fastq: ""  # Path to input FASTQ file(s)
 output_dir: "results"
 
 # ============ Server Configuration ============
+# Password is stored securely in the system keyring, not in this file.
+# Use 'mmonitor config set-password' to store your password.
+# If no password is found, you will be prompted before each pipeline run.
 server:
   url: "www.mmonitor.org"
   username: ""
-  password: ""
   upload_results: true
 
 # ============ Resource Limits ============

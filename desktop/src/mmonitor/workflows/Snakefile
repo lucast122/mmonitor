@@ -1,6 +1,14 @@
 # MMonitor Snakemake Workflow
 # Main entry point for all MMonitor pipelines
 #
+# Supports both single-sample and multi-sample (sample sheet) modes.
+#
+# Single sample:
+#   Config provides sample_name + input_fastq
+#
+# Multi-sample (sample sheet):
+#   Config provides samples dict: {"sample1": {"fastq": ["/path/to/reads.fastq"]}, ...}
+#
 # Usage:
 #   snakemake --configfile config/myconfig.yaml --cores 8 taxonomy_16s
 #   snakemake --configfile config/myconfig.yaml --cores 8 taxonomy_wgs
@@ -13,25 +21,47 @@ from pathlib import Path
 # ============ Configuration ============
 configfile: "config/config.yaml"
 
-# Sample and output configuration
-SAMPLE = config.get("sample_name", "sample")
+# Output and database directories
 OUTPUT_DIR = Path(config.get("output_dir", "results"))
-INPUT_FASTQ = config.get("input_fastq", "")
-
-# Default database base directory (configurable via db_base_dir in config)
+OUTDIR = str(OUTPUT_DIR)
 DB_BASE = Path(config.get("db_base_dir", os.path.join(os.path.expanduser("~"), "mmonitor_databases")))
 
+# ============ Sample Configuration ============
+# Build SAMPLES dict from either:
+#   1. config["samples"] - multi-sample mode (from sample sheet or GUI)
+#   2. config["sample_name"] + config["input_fastq"] - single sample (backwards compat)
+if "samples" in config and config["samples"]:
+    SAMPLES = config["samples"]
+else:
+    _sample_name = config.get("sample_name", "sample")
+    _input_fastq = config.get("input_fastq", "")
+    SAMPLES = {
+        _sample_name: {
+            "fastq": _input_fastq,
+        }
+    }
+
+# Legacy: keep SAMPLE for single_genome.smk which uses it as a global
+SAMPLE = config.get("sample_name", list(SAMPLES.keys())[0])
+
 # Validate input
-if not INPUT_FASTQ:
-    print("Warning: No input_fastq specified in config")
+if not SAMPLES:
+    print("Warning: No samples configured")
 
 # ============ Helper Functions ============
-def get_input_fastq(wildcards=None):
-    """Get input FASTQ file(s)"""
-    fastq = config.get("input_fastq", "")
+def get_input_fastq(wildcards):
+    """Get input FASTQ file(s) for a sample"""
+    fastq = SAMPLES[wildcards.sample]["fastq"]
     if isinstance(fastq, list):
         return fastq
     return [fastq] if fastq else []
+
+def get_filtered_reads(wildcards):
+    """Get filtered or unfiltered reads based on config"""
+    if config.get("filtlong", {}).get("enabled", True):
+        return OUTDIR + f"/{wildcards.sample}/filtered/filtered.fastq.gz"
+    else:
+        return OUTDIR + f"/{wildcards.sample}/filtered/unfiltered.fastq.gz"
 
 def get_threads(rule_name):
     """Get threads for a specific rule, falling back to global default"""
@@ -59,88 +89,78 @@ rule all:
 MMonitor Snakemake Workflows
 ============================
 
-Available targets:
-  taxonomy_16s   - 16S rRNA taxonomy analysis (EMU)
-  taxonomy_wgs   - Whole genome taxonomy analysis (Centrifuger)
-  assembly       - Metagenomic assembly (Flye + Medaka)
-  assembly_full  - Full assembly pipeline (assembly + binning + annotation + functional + upload)
-  binning        - MAG binning and quality (MetaBAT2 + CheckM2)
-  annotation     - MAG annotation (GTDB-TK + Bakta)
-  functional     - Basic functional analysis (legacy)
-  functional_full - Full functional annotation (eggNOG + InterProScan)
+Analysis pipelines:
+  taxonomy_16s   - 16S rRNA taxonomy (EMU)
+  taxonomy_wgs   - Whole genome taxonomy (Centrifuger)
+  assembly       - Assembly + binning + taxonomy + annotation + upload
+                   (Flye -> Medaka -> MetaBAT2 -> CheckM2 -> GTDB-TK -> Bakta -> upload)
+  assembly_full  - Assembly + functional analysis + upload
+                   (Everything in assembly + eggNOG + InterProScan -> upload MAGs)
+
+Single genome:
   annotate_genome - Annotate a single genome with Bakta and upload
 
 Database setup:
-  setup_databases_16s   - Download EMU database
+  setup_databases_16s      - Download EMU database
   setup_databases_assembly - Download CheckM2, GTDB-TK, Bakta, eggNOG databases
-  setup_all_databases   - Download all databases
+  setup_all_databases      - Download all databases
+
+Multi-sample:
+  Provide a samples dict in config or use --sample-sheet in the CLI.
+  All samples are processed in parallel.
 
 Usage:
   snakemake --configfile config/myconfig.yaml --cores 8 taxonomy_16s
-
-For dry-run:
-  snakemake --configfile config/myconfig.yaml -n taxonomy_16s
         """)
 
 rule taxonomy_16s:
     """16S rRNA taxonomy analysis using EMU"""
     input:
-        OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu_results.json"
+        expand(OUTDIR + "/{sample}/taxonomy_16s/emu_results.json", sample=SAMPLES.keys())
 
 rule taxonomy_wgs:
     """Whole genome taxonomy analysis using Centrifuger"""
     input:
-        OUTPUT_DIR / SAMPLE / "taxonomy_wgs" / "centrifuger_results.json"
+        expand(OUTDIR + "/{sample}/taxonomy_wgs/centrifuger_results.json", sample=SAMPLES.keys())
 
 rule assembly:
-    """Metagenomic assembly with Flye and Medaka polishing"""
-    input:
-        OUTPUT_DIR / SAMPLE / "assembly" / "polished" / "consensus.fasta"
+    """Assembly + binning + quality + taxonomy + annotation + upload.
 
-rule binning:
-    """MAG binning with MetaBAT2 and quality assessment with CheckM2"""
+    Flye assembly -> Medaka polishing -> MetaBAT2 binning -> CheckM2 quality ->
+    GTDB-TK taxonomy -> Bakta annotation -> upload to server.
+    """
     input:
-        OUTPUT_DIR / SAMPLE / "binning" / "checkm2" / "quality_report.tsv"
-
-rule annotation:
-    """MAG annotation with GTDB-TK and Bakta"""
-    input:
-        OUTPUT_DIR / SAMPLE / "annotation" / "annotation_complete.json"
-
-rule functional:
-    """Basic functional analysis pipeline (legacy)"""
-    input:
-        OUTPUT_DIR / SAMPLE / "functional" / "functional_complete.json"
-
-rule functional_full:
-    """Full functional annotation with eggNOG-mapper and InterProScan"""
-    input:
-        OUTPUT_DIR / SAMPLE / "functional" / "functional_analysis_complete.json"
+        expand(OUTDIR + "/{sample}/annotation/annotation_complete.json", sample=SAMPLES.keys())
 
 rule assembly_full:
-    """Full WGS assembly pipeline: assembly -> binning -> annotation -> functional -> upload"""
+    """Full assembly + functional analysis pipeline.
+
+    Everything in 'assembly' plus:
+    eggNOG-mapper (COG/KEGG) -> InterProScan (PFAM) -> upload MAGs with functional data.
+    """
     input:
-        OUTPUT_DIR / SAMPLE / "functional" / "functional_analysis_complete.json"
+        expand(OUTDIR + "/{sample}/functional/functional_analysis_complete.json", sample=SAMPLES.keys())
 
 rule annotate_genome:
     """Annotate a single genome with Bakta and upload to server"""
     input:
         lambda wildcards: expand(
-            OUTPUT_DIR / SAMPLE / "upload" / "{genome_id}_complete.json",
+            str(OUTPUT_DIR / SAMPLE / "upload" / "{genome_id}_complete.json"),
             genome_id=config.get("genome_ids", [config.get("genome_id", "input_genome")])
         )
 
 # ============ Utility Rules ============
 rule clean:
-    """Remove all output files"""
+    """Remove all output files for all samples"""
     shell:
-        "rm -rf {OUTPUT_DIR}/{SAMPLE}"
+        "rm -rf " + " ".join([OUTDIR + "/" + s for s in SAMPLES.keys()])
 
 rule clean_intermediate:
     """Remove intermediate files, keep final results"""
     shell:
-        """
-        find {OUTPUT_DIR}/{SAMPLE} -name "*.sam" -delete
-        find {OUTPUT_DIR}/{SAMPLE} -name "*.bam" -delete
-        find {OUTPUT_DIR}/{SAMPLE} -name "*_filtered.fastq" -delete
-        """
+        " ; ".join([
+            f'find {OUTDIR}/{s} -name "*.sam" -delete ; '
+            f'find {OUTDIR}/{s} -name "*.bam" -delete ; '
+            f'find {OUTDIR}/{s} -name "*_filtered.fastq" -delete'
+            for s in SAMPLES.keys()
+        ])

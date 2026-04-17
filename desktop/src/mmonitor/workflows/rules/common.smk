@@ -1,4 +1,5 @@
 # Common rules shared across pipelines
+# All rules use {sample} wildcard for multi-sample support
 
 # ============ Quality Filtering ============
 rule filtlong:
@@ -6,7 +7,7 @@ rule filtlong:
     input:
         fastq=get_input_fastq
     output:
-        filtered=OUTPUT_DIR / SAMPLE / "filtered" / "filtered.fastq.gz"
+        filtered=OUTDIR + "/{sample}/filtered/filtered.fastq.gz"
     params:
         min_length=config.get("filtlong", {}).get("min_length", 1000),
         min_mean_q=config.get("filtlong", {}).get("min_mean_q", 7.0),
@@ -15,7 +16,7 @@ rule filtlong:
         max_length=lambda wildcards: config.get("filtlong", {}).get("max_length") or ""
     threads: 4
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "filtlong.log"
+        OUTDIR + "/{sample}/logs/filtlong.log"
     conda:
         "../envs/taxonomy.yaml"
     shell:
@@ -34,7 +35,7 @@ rule skip_filtlong:
     input:
         fastq=get_input_fastq
     output:
-        filtered=OUTPUT_DIR / SAMPLE / "filtered" / "unfiltered.fastq.gz"
+        filtered=OUTDIR + "/{sample}/filtered/unfiltered.fastq.gz"
     shell:
         """
         if [[ "{input.fastq}" == *.gz ]]; then
@@ -44,23 +45,16 @@ rule skip_filtlong:
         fi
         """
 
-def get_filtered_reads(wildcards=None):
-    """Get filtered or unfiltered reads based on config"""
-    if config.get("filtlong", {}).get("enabled", True):
-        return OUTPUT_DIR / SAMPLE / "filtered" / "filtered.fastq.gz"
-    else:
-        return OUTPUT_DIR / SAMPLE / "filtered" / "unfiltered.fastq.gz"
-
 # ============ Statistics ============
 rule fastq_stats:
     """Calculate FASTQ statistics using seqkit"""
     input:
         fastq=get_filtered_reads
     output:
-        stats=OUTPUT_DIR / SAMPLE / "stats" / "fastq_stats.tsv"
+        stats=OUTDIR + "/{sample}/stats/fastq_stats.tsv"
     threads: 4
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "fastq_stats.log"
+        OUTDIR + "/{sample}/logs/fastq_stats.log"
     conda:
         "../envs/taxonomy.yaml"
     shell:
@@ -77,7 +71,7 @@ rule upload_results:
         upload_status="{results_file}.uploaded"
     params:
         server_url=config.get("server", {}).get("url", "http://localhost:8000"),
-        sample=SAMPLE,
+        sample=lambda wildcards: wildcards.results_file.split("/")[-3] if "/" in wildcards.results_file else "",
         project=config.get("project_name", ""),
         subproject=config.get("subproject_name", ""),
         date=config.get("sample_date", "")

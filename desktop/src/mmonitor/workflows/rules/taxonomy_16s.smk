@@ -1,5 +1,6 @@
 # 16S rRNA Taxonomy Pipeline using EMU
 # Workflow: filtlong -> EMU abundance -> parse results -> upload
+# All rules use {sample} wildcard for multi-sample support
 
 # ============ EMU Abundance Estimation ============
 rule emu_abundance:
@@ -8,16 +9,16 @@ rule emu_abundance:
         fastq=get_filtered_reads,
         db_ready=DB_BASE / "emu" / ".db_ready"
     output:
-        abundance=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu" / f"{SAMPLE}_rel-abundance.tsv",
-        alignments=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu" / f"{SAMPLE}_emu_alignments.sam"
+        abundance=OUTDIR + "/{sample}/taxonomy_16s/emu/{sample}_rel-abundance.tsv",
+        alignments=OUTDIR + "/{sample}/taxonomy_16s/emu/{sample}_emu_alignments.sam"
     params:
         db=get_db_path("emu"),
         min_abundance=config.get("emu", {}).get("min_abundance", 0.0001),
-        output_dir=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu",
-        output_basename=SAMPLE
+        output_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/taxonomy_16s/emu",
+        output_basename=lambda wildcards: wildcards.sample
     threads: get_threads("emu")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "emu_abundance.log"
+        OUTDIR + "/{sample}/logs/emu_abundance.log"
     conda:
         "../envs/taxonomy.yaml"
     shell:
@@ -39,19 +40,19 @@ rule emu_abundance:
 rule parse_emu_results:
     """Parse EMU output into standardized JSON format"""
     input:
-        abundance=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu" / f"{SAMPLE}_rel-abundance.tsv",
-        stats=OUTPUT_DIR / SAMPLE / "stats" / "fastq_stats.tsv"
+        abundance=OUTDIR + "/{sample}/taxonomy_16s/emu/{sample}_rel-abundance.tsv",
+        stats=OUTDIR + "/{sample}/stats/fastq_stats.tsv"
     output:
-        json=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu_parsed.json"
+        json=OUTDIR + "/{sample}/taxonomy_16s/emu_parsed.json"
     params:
-        sample=SAMPLE,
+        sample=lambda wildcards: wildcards.sample,
         project=config.get("project_name", ""),
         subproject=config.get("subproject_name", ""),
         date=config.get("sample_date", ""),
         min_abundance=config.get("emu", {}).get("min_abundance", 0.0001),
         emu_db=get_db_path("emu")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "parse_emu.log"
+        OUTDIR + "/{sample}/logs/parse_emu.log"
     script:
         "../scripts/parse_emu_output.py"
 
@@ -59,15 +60,15 @@ rule parse_emu_results:
 rule upload_emu_results:
     """Upload EMU results to MMonitor server"""
     input:
-        results=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu_parsed.json"
+        results=OUTDIR + "/{sample}/taxonomy_16s/emu_parsed.json"
     output:
-        status=OUTPUT_DIR / SAMPLE / "taxonomy_16s" / "emu_results.json"
+        status=OUTDIR + "/{sample}/taxonomy_16s/emu_results.json"
     params:
         server_url=config.get("server", {}).get("url", "http://localhost:8000"),
         username=config.get("server", {}).get("username", ""),
         password=config.get("server", {}).get("password", ""),
         upload=config.get("server", {}).get("upload_results", True)
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "upload_emu.log"
+        OUTDIR + "/{sample}/logs/upload_emu.log"
     script:
         "../scripts/upload_taxonomy_results.py"

@@ -152,7 +152,7 @@ class SnakemakeRunner:
                 '--cores', str(threads),
                 target,
                 '--use-conda',
-                '--conda-frontend', 'mamba',
+                '--rerun-incomplete',
             ]
 
             if dry_run:
@@ -189,18 +189,43 @@ class SnakemakeRunner:
         docker_config['output_dir'] = '/data/output'
 
         # Map input files to container paths
-        input_fastq = config.get('input_fastq', '')
         volume_mounts = []
-        if isinstance(input_fastq, list) and input_fastq:
-            input_dir = str(Path(input_fastq[0]).resolve().parent)
-            volume_mounts.append(f"{input_dir}:/data/input:ro")
-            docker_config['input_fastq'] = [
-                f"/data/input/{Path(f).name}" for f in input_fastq
-            ]
-        elif isinstance(input_fastq, str) and input_fastq:
-            input_dir = str(Path(input_fastq).resolve().parent)
-            volume_mounts.append(f"{input_dir}:/data/input:ro")
-            docker_config['input_fastq'] = f"/data/input/{Path(input_fastq).name}"
+
+        # Handle multi-sample 'samples' dict
+        samples = config.get('samples', {})
+        if samples:
+            docker_samples = {}
+            mounted_dirs = {}  # host_dir -> container_dir (dedup mounts)
+            for sname, sinfo in samples.items():
+                fastq = sinfo.get('fastq', '')
+                if isinstance(fastq, str):
+                    fastq = [fastq] if fastq else []
+                docker_fastq = []
+                for fpath in fastq:
+                    host_dir = str(Path(fpath).resolve().parent)
+                    if host_dir not in mounted_dirs:
+                        idx = len(mounted_dirs)
+                        container_dir = f"/data/input/{idx}"
+                        volume_mounts.append(f"{host_dir}:{container_dir}:ro")
+                        mounted_dirs[host_dir] = container_dir
+                    docker_fastq.append(
+                        f"{mounted_dirs[host_dir]}/{Path(fpath).name}"
+                    )
+                docker_samples[sname] = {'fastq': docker_fastq}
+            docker_config['samples'] = docker_samples
+        else:
+            # Legacy single-sample fallback
+            input_fastq = config.get('input_fastq', '')
+            if isinstance(input_fastq, list) and input_fastq:
+                input_dir = str(Path(input_fastq[0]).resolve().parent)
+                volume_mounts.append(f"{input_dir}:/data/input:ro")
+                docker_config['input_fastq'] = [
+                    f"/data/input/{Path(f).name}" for f in input_fastq
+                ]
+            elif isinstance(input_fastq, str) and input_fastq:
+                input_dir = str(Path(input_fastq).resolve().parent)
+                volume_mounts.append(f"{input_dir}:/data/input:ro")
+                docker_config['input_fastq'] = f"/data/input/{Path(input_fastq).name}"
 
         volume_mounts.append(f"{output_dir}:/data/output")
 
@@ -236,6 +261,7 @@ class SnakemakeRunner:
                 '--configfile', '/opt/mmonitor/config.yaml',
                 '--use-conda',
                 '--cores', str(threads),
+                '--rerun-incomplete',
             ])
 
             if dry_run:

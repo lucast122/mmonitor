@@ -857,6 +857,11 @@ class GUI(ctk.CTk):
         cfg['input_fastq'] = list(files)
         cfg['output_dir'] = os.path.join(os.path.expanduser('~'), 'mmonitor_results')
 
+        # Build samples dict for Snakemake wildcard support
+        cfg['samples'] = {
+            sample_name: {'fastq': list(files)}
+        }
+
         # Server config for result upload
         db_config = {}
         db_config_path = self.db_path if self.db_path else os.path.join(_RESOURCES, "db_config.json")
@@ -921,32 +926,40 @@ class GUI(ctk.CTk):
         runner = SnakemakeRunner()
 
         num_samples = len(multi_sample_input['sample_names'])
+
+        # Build config using first sample's metadata as base
+        cfg = self._build_snakemake_config(
+            analysis_type,
+            multi_sample_input['sample_names'][0],
+            multi_sample_input['project_names'][0],
+            multi_sample_input['subproject_names'][0],
+            multi_sample_input['dates'][0],
+            multi_sample_input['file_paths_lists'][0]
+        )
+
+        # Build samples dict for all samples (single Snakemake invocation)
+        samples = {}
         for i in range(num_samples):
             sample_name = multi_sample_input['sample_names'][i]
-            sample_date = multi_sample_input['dates'][i]
-            project_name = multi_sample_input['project_names'][i]
-            subproject_name = multi_sample_input['subproject_names'][i]
             files = multi_sample_input['file_paths_lists'][i]
+            samples[sample_name] = {'fastq': list(files)}
+        cfg['samples'] = samples
 
-            print(f"\n--- Running sample {i+1}/{num_samples}: {sample_name} ---")
+        sample_names = list(samples.keys())
+        print(f"Running {num_samples} samples in parallel: {', '.join(sample_names)}")
 
-            cfg = self._build_snakemake_config(
-                analysis_type, sample_name, project_name,
-                subproject_name, sample_date, files
+        try:
+            exit_code = runner.run(
+                target, cfg,
+                threads=cfg.get('threads', 4),
+                callback=lambda line: print(line),
             )
-
-            try:
-                exit_code = runner.run(
-                    target, cfg,
-                    threads=cfg.get('threads', 4),
-                    callback=lambda line: print(line),
-                )
-                if exit_code == 0:
-                    print(f"Sample {sample_name} completed successfully.")
-                else:
-                    print(f"Sample {sample_name} failed with exit code {exit_code}")
-            except Exception as e:
-                print(f"Error running pipeline for {sample_name}: {e}")
+            if exit_code == 0:
+                print("All samples completed successfully.")
+            else:
+                print(f"Pipeline failed with exit code {exit_code}")
+        except Exception as e:
+            print(f"Error running multi-sample pipeline: {e}")
 
         print("Multi-sample pipeline finished.")
 

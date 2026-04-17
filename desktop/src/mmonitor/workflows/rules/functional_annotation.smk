@@ -1,23 +1,24 @@
 # Functional Annotation Pipeline
 # Uses eggNOG-mapper for COG/KEGG/GO annotations
 # Uses InterProScan for PFAM/TIGRFAM domain annotations
+# All rules use {sample} wildcard for multi-sample support
 
 # ============ eggNOG-mapper ============
 rule eggnog_mapper:
     """Run eggNOG-mapper for COG, KEGG, GO annotations"""
     input:
-        proteins=OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.faa",
+        proteins=OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.faa",
         db_ready=DB_BASE / "eggnog" / ".db_ready"
     output:
-        annotations=OUTPUT_DIR / SAMPLE / "functional" / "eggnog" / "{bin_id}.emapper.annotations",
-        orthologs=OUTPUT_DIR / SAMPLE / "functional" / "eggnog" / "{bin_id}.emapper.seed_orthologs"
+        annotations=OUTDIR + "/{sample}/functional/eggnog/{bin_id}.emapper.annotations",
+        orthologs=OUTDIR + "/{sample}/functional/eggnog/{bin_id}.emapper.seed_orthologs"
     params:
         db=get_db_path("eggnog"),
-        output_prefix=lambda wildcards: str(OUTPUT_DIR / SAMPLE / "functional" / "eggnog" / wildcards.bin_id),
+        output_prefix=lambda wildcards: OUTDIR + f"/{wildcards.sample}/functional/eggnog/{wildcards.bin_id}",
         sensmode=config.get("eggnog", {}).get("sensmode", "default")
     threads: get_threads("eggnog")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "eggnog_{bin_id}.log"
+        OUTDIR + "/{sample}/logs/eggnog_{bin_id}.log"
     conda:
         "../envs/functional.yaml"
     shell:
@@ -37,17 +38,17 @@ rule eggnog_mapper:
 rule interproscan:
     """Run InterProScan for detailed PFAM, TIGRFAM, CDD domain annotations"""
     input:
-        proteins=OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.faa"
+        proteins=OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.faa"
     output:
-        tsv=OUTPUT_DIR / SAMPLE / "functional" / "interpro" / "{bin_id}.tsv",
-        gff=OUTPUT_DIR / SAMPLE / "functional" / "interpro" / "{bin_id}.gff3"
+        tsv=OUTDIR + "/{sample}/functional/interpro/{bin_id}.tsv",
+        gff=OUTDIR + "/{sample}/functional/interpro/{bin_id}.gff3"
     params:
-        output_dir=OUTPUT_DIR / SAMPLE / "functional" / "interpro",
+        output_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/functional/interpro",
         applications=config.get("interproscan", {}).get("applications", "Pfam,TIGRFAM,CDD"),
         interproscan_path=config.get("interproscan", {}).get("path", "interproscan.sh")
     threads: get_threads("interproscan")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "interproscan_{bin_id}.log"
+        OUTDIR + "/{sample}/logs/interproscan_{bin_id}.log"
     shell:
         """
         mkdir -p {params.output_dir}
@@ -68,32 +69,32 @@ rule interproscan:
 # ============ Aggregate Functional Annotations ============
 def get_all_eggnog_outputs(wildcards):
     """Get all eggNOG output files for HQ bins"""
-    checkpoint_output = checkpoints.filter_hq_bins.get(**wildcards).output.hq_list
+    checkpoint_output = checkpoints.filter_hq_bins.get(sample=wildcards.sample).output.hq_list
     with open(checkpoint_output) as f:
         bin_ids = [line.strip() for line in f if line.strip()]
     return expand(
-        OUTPUT_DIR / SAMPLE / "functional" / "eggnog" / "{bin_id}.emapper.annotations",
-        bin_id=bin_ids
+        OUTDIR + "/{sample}/functional/eggnog/{bin_id}.emapper.annotations",
+        sample=wildcards.sample, bin_id=bin_ids
     )
 
 def get_all_interpro_outputs(wildcards):
     """Get all InterProScan output files for HQ bins"""
-    checkpoint_output = checkpoints.filter_hq_bins.get(**wildcards).output.hq_list
+    checkpoint_output = checkpoints.filter_hq_bins.get(sample=wildcards.sample).output.hq_list
     with open(checkpoint_output) as f:
         bin_ids = [line.strip() for line in f if line.strip()]
     return expand(
-        OUTPUT_DIR / SAMPLE / "functional" / "interpro" / "{bin_id}.tsv",
-        bin_id=bin_ids
+        OUTDIR + "/{sample}/functional/interpro/{bin_id}.tsv",
+        sample=wildcards.sample, bin_id=bin_ids
     )
 
 def get_all_bakta_gff(wildcards):
     """Get all Bakta GFF files for HQ bins"""
-    checkpoint_output = checkpoints.filter_hq_bins.get(**wildcards).output.hq_list
+    checkpoint_output = checkpoints.filter_hq_bins.get(sample=wildcards.sample).output.hq_list
     with open(checkpoint_output) as f:
         bin_ids = [line.strip() for line in f if line.strip()]
     return expand(
-        OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.gff3",
-        bin_id=bin_ids
+        OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.gff3",
+        sample=wildcards.sample, bin_id=bin_ids
     )
 
 
@@ -103,19 +104,19 @@ rule aggregate_functional:
         eggnog_files=get_all_eggnog_outputs,
         interpro_files=get_all_interpro_outputs,
         bakta_gff_files=get_all_bakta_gff,
-        gtdbtk_summary=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk" / "gtdbtk.bac120.summary.tsv",
-        checkm_quality=OUTPUT_DIR / SAMPLE / "binning" / "checkm2" / "quality_report.tsv"
+        gtdbtk_summary=OUTDIR + "/{sample}/annotation/gtdbtk/gtdbtk.bac120.summary.tsv",
+        checkm_quality=OUTDIR + "/{sample}/binning/checkm2/quality_report.tsv"
     output:
-        summary=OUTPUT_DIR / SAMPLE / "functional" / "summary" / "functional_summary.json",
-        annotations=OUTPUT_DIR / SAMPLE / "functional" / "summary" / "all_annotations.tsv"
+        summary=OUTDIR + "/{sample}/functional/summary/functional_summary.json",
+        annotations=OUTDIR + "/{sample}/functional/summary/all_annotations.tsv"
     params:
-        sample=SAMPLE,
+        sample=lambda wildcards: wildcards.sample,
         project=config.get("project_name", ""),
-        eggnog_dir=OUTPUT_DIR / SAMPLE / "functional" / "eggnog",
-        interpro_dir=OUTPUT_DIR / SAMPLE / "functional" / "interpro",
-        bakta_dir=OUTPUT_DIR / SAMPLE / "annotation" / "bakta"
+        eggnog_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/functional/eggnog",
+        interpro_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/functional/interpro",
+        bakta_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/annotation/bakta"
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "aggregate_functional.log"
+        OUTDIR + "/{sample}/logs/aggregate_functional.log"
     script:
         "../scripts/aggregate_functional.py"
 
@@ -124,21 +125,21 @@ rule aggregate_functional:
 rule prepare_mag_upload:
     """Prepare lightweight data for server upload (no full sequences)"""
     input:
-        functional_summary=OUTPUT_DIR / SAMPLE / "functional" / "summary" / "functional_summary.json",
-        checkm_quality=OUTPUT_DIR / SAMPLE / "binning" / "checkm2" / "quality_report.tsv",
-        gtdbtk_summary=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk" / "gtdbtk.bac120.summary.tsv",
-        hq_bins_dir=OUTPUT_DIR / SAMPLE / "binning" / "hq_bins"
+        functional_summary=OUTDIR + "/{sample}/functional/summary/functional_summary.json",
+        checkm_quality=OUTDIR + "/{sample}/binning/checkm2/quality_report.tsv",
+        gtdbtk_summary=OUTDIR + "/{sample}/annotation/gtdbtk/gtdbtk.bac120.summary.tsv",
+        hq_bins_dir=OUTDIR + "/{sample}/binning/hq_bins"
     output:
-        upload_json=OUTPUT_DIR / SAMPLE / "upload" / "mags_upload.json"
+        upload_json=OUTDIR + "/{sample}/upload/mags_upload.json"
     params:
-        sample=SAMPLE,
+        sample=lambda wildcards: wildcards.sample,
         project=config.get("project_name", ""),
         subproject=config.get("subproject", ""),
         date=config.get("date", ""),
-        bakta_dir=OUTPUT_DIR / SAMPLE / "annotation" / "bakta",
-        functional_dir=OUTPUT_DIR / SAMPLE / "functional" / "summary"
+        bakta_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/annotation/bakta",
+        functional_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/functional/summary"
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "prepare_mag_upload.log"
+        OUTDIR + "/{sample}/logs/prepare_mag_upload.log"
     script:
         "../scripts/prepare_mag_upload.py"
 
@@ -147,16 +148,16 @@ rule prepare_mag_upload:
 rule upload_mags:
     """Upload MAG data to MMonitor server"""
     input:
-        upload_json=OUTPUT_DIR / SAMPLE / "upload" / "mags_upload.json"
+        upload_json=OUTDIR + "/{sample}/upload/mags_upload.json"
     output:
-        status=OUTPUT_DIR / SAMPLE / "upload" / "upload_complete.json"
+        status=OUTDIR + "/{sample}/upload/upload_complete.json"
     params:
         server_url=config.get("server", {}).get("url", "http://localhost:8000"),
         username=config.get("server", {}).get("username", ""),
         password=config.get("server", {}).get("password", ""),
         upload=config.get("server", {}).get("upload_results", True)
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "upload_mags.log"
+        OUTDIR + "/{sample}/logs/upload_mags.log"
     script:
         "../scripts/upload_mags.py"
 
@@ -165,9 +166,9 @@ rule upload_mags:
 rule functional_analysis:
     """Run complete functional annotation pipeline with upload"""
     input:
-        upload_status=OUTPUT_DIR / SAMPLE / "upload" / "upload_complete.json"
+        upload_status=OUTDIR + "/{sample}/upload/upload_complete.json"
     output:
-        complete=OUTPUT_DIR / SAMPLE / "functional" / "functional_analysis_complete.json"
+        complete=OUTDIR + "/{sample}/functional/functional_analysis_complete.json"
     shell:
         """
         echo '{{"status": "complete", "pipeline": "functional_analysis"}}' > {output.complete}

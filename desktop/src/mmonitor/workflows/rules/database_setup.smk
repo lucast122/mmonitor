@@ -14,11 +14,62 @@ from pathlib import Path
 
 
 def get_db_path(tool, subkey="database"):
-    """Get configured database path, or default download location."""
+    """Get configured database path, or default download location.
+
+    For centrifuger: if the path is a directory, auto-detect the index prefix
+    from .cfr files inside it (centrifuger needs -x <prefix>, not a directory).
+    """
     configured = config.get(tool, {}).get(subkey, "")
-    if configured:
-        return configured
-    return str(DB_BASE / tool)
+    if not configured:
+        configured = str(DB_BASE / tool)
+
+    if tool == "centrifuger":
+        configured = _resolve_centrifuger_prefix(configured)
+    elif tool == "checkm2":
+        configured = _resolve_checkm2_db(configured)
+
+    return configured
+
+
+def _resolve_centrifuger_prefix(path_str):
+    """Resolve a centrifuger database path to an index prefix.
+
+    - If path is a directory, find *.1.cfr and derive the prefix.
+    - If path already points to a prefix (not a dir), return as-is.
+    """
+    p = Path(path_str)
+    if not p.is_dir():
+        # Already a prefix like /path/to/cfr_gtdb_r226, or doesn't exist yet
+        return path_str
+
+    # Look for .1.cfr files in the directory (and one level of subdirs)
+    for search_dir in [p] + [d for d in p.iterdir() if d.is_dir()]:
+        cfr_files = sorted(search_dir.glob("*.1.cfr"))
+        if cfr_files:
+            # Prefix is the path without .1.cfr
+            prefix = str(cfr_files[0])[:-len(".1.cfr")]
+            return prefix
+
+    # No .cfr files found — return as-is (will fail at runtime with a clear error)
+    return path_str
+
+
+def _resolve_checkm2_db(path_str):
+    """Resolve CheckM2 database path to the .dmnd file.
+
+    CheckM2 --database_path expects the .dmnd file, not a directory.
+    If given a directory, find the .dmnd file inside it.
+    """
+    p = Path(path_str)
+    if not p.is_dir():
+        return path_str
+
+    for search_dir in [p] + [d for d in p.rglob("*") if d.is_dir()]:
+        dmnd_files = sorted(search_dir.glob("*.dmnd"))
+        if dmnd_files:
+            return str(dmnd_files[0])
+
+    return path_str
 
 
 # ============ EMU Database ============
@@ -29,8 +80,6 @@ rule setup_emu_db:
     params:
         db_dir=str(DB_BASE / "emu"),
         configured=config.get("emu", {}).get("database", "")
-    conda:
-        "../envs/taxonomy.yaml"
     log:
         str(DB_BASE / "emu" / "download.log")
     shell:
@@ -50,15 +99,12 @@ rule setup_emu_db:
             exit 0
         fi
 
-        echo "Downloading EMU default database..." | tee {log}
-        # EMU uses osf.io for its default database
+        echo "Downloading EMU default database via osfclient..." | tee {log}
+        pip install osfclient 2>&1 | tee -a {log}
         cd {params.db_dir}
-        emu download-db 2>&1 | tee -a {log} || {{
-            echo "emu download-db failed, trying direct download..." | tee -a {log}
-            wget -q "https://osf.io/56uf7/download" -O emu_database.tar.gz 2>&1 | tee -a {log}
-            tar xzf emu_database.tar.gz 2>&1 | tee -a {log}
-            rm -f emu_database.tar.gz
-        }}
+        osf -p 56uf7 fetch osfstorage/emu-prebuilt/emu.tar emu.tar 2>&1 | tee -a {log}
+        tar -xvf emu.tar 2>&1 | tee -a {log}
+        rm -f emu.tar
 
         touch {output.sentinel}
         """

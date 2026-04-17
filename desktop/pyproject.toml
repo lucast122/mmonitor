@@ -24,6 +24,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 
+[project.scripts]
+mmonitor = "mmonitor.cli.main:main"
+
 [project.urls]
 Homepage = "https://github.com/lucast122/MMonitor"
 

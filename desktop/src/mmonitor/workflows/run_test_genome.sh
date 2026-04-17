@@ -66,7 +66,6 @@ snakemake \
     --config input_fasta="${SCRIPT_DIR}/${RESULTS_DIR}/genome/${GENOME_ID}.fasta" \
     --cores 8 \
     --use-conda \
-    --conda-frontend mamba \
     --rerun-incomplete \
     annotate_genome_complete \
     2>&1 | tee "${RESULTS_DIR}/logs/snakemake.log"

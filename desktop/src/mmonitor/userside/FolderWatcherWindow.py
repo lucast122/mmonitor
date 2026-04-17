@@ -23,6 +23,8 @@ from mmonitor.userside.utils import create_tooltip
 from mmonitor.userside.MMonitorCMD import MMonitorCMD
 from mmonitor.userside.PipelineConfig import PipelineConfig
 from mmonitor.database.django_db_interface import DjangoDBInterface
+from mmonitor.pipeline.runner import SnakemakeRunner
+from mmonitor.pipeline.watcher import SequencingWatcher, concatenate_fastq, preload_index
 from Bio import SeqIO
 import numpy as np
 import time
@@ -30,6 +32,7 @@ import multiprocessing
 import csv
 import tempfile
 import argparse
+import yaml as _yaml
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import glob
@@ -788,23 +791,27 @@ class FolderWatcherWindow(ctk.CTkFrame):
             # Stop existing observer if any
             if self.observer:
                 self.stop_watching()
-            
+
             # Scan existing files first
             self.scan_existing_files(folder)
-            
-            # Set up new observer
+
+            # Set up new observer for the GUI file tree
             self.event_handler = FileSystemEventHandler()
             self.event_handler.on_created = lambda event: self.file_queue.put(event)
             self.event_handler.on_modified = lambda event: self.file_queue.put(event)
             self.event_handler.on_deleted = lambda event: self.file_queue.put(event)
-            
+
             self.observer = Observer()
             self.observer.schedule(self.event_handler, folder, recursive=True)
             self.observer.start()
-            
+
             # Record start time
             self.watch_start_time = datetime.datetime.now()
-            
+
+            # If auto-analyze is enabled, start the SequencingWatcher
+            if self.auto_analyze_var.get():
+                self.start_realtime_watcher(folder)
+
         except Exception as e:
             print(f"Error starting folder watch: {e}")
             traceback.print_exc()
@@ -814,14 +821,18 @@ class FolderWatcherWindow(ctk.CTkFrame):
         """Stop watching the folder for changes"""
         if not self.watching:
             return
-            
+
         try:
             self.watching = False
+
+            # Stop the SequencingWatcher (real-time auto-analysis)
+            self.stop_realtime_watcher()
+
             if self.folder_monitor:
                 self.folder_monitor.stop()
                 self.folder_monitor.join()
                 self.folder_monitor = None
-            
+
             # Cancel any running realtime analyses
             for sample_name in list(self.analysis_cancelled.keys()):
                 self.analysis_cancelled[sample_name] = True
@@ -1452,293 +1463,197 @@ class FolderWatcherWindow(ctk.CTkFrame):
                 print(f"Error closing progress popup: {e}")
                 self.progress_popup = None
                 
+    def _build_snakemake_watch_config(self, samples_dict):
+        """Build Snakemake config dict for watch-mode analysis."""
+        # Load pipeline config (YAML or JSON)
+        pipeline_cfg = {}
+        if hasattr(self.gui, 'pipeline_config_frame') and self.gui.pipeline_config_frame:
+            pipeline_cfg = getattr(self.gui.pipeline_config_frame, 'pipeline_config', {})
+
+        yaml_path = os.path.join(os.path.expanduser('~'), '.mmonitor', 'config.yaml')
+        if not pipeline_cfg and os.path.exists(yaml_path):
+            try:
+                with open(yaml_path) as f:
+                    pipeline_cfg = _yaml.safe_load(f) or {}
+            except Exception:
+                pass
+
+        # Also read legacy JSON config for db paths
+        legacy_config = {}
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    legacy_config = json.load(f)
+            except Exception:
+                pass
+
+        cfg = dict(pipeline_cfg)
+        cfg['samples'] = samples_dict
+        cfg['project_name'] = self.project_var.get()
+        cfg['subproject_name'] = self.subproject_var.get()
+        cfg['sample_date'] = self.date_var.get()
+        cfg['output_dir'] = os.path.join(os.path.expanduser('~'), 'mmonitor_results')
+        cfg['threads'] = int(legacy_config.get('threads', cfg.get('threads', 4)))
+
+        # Filtlong
+        cfg.setdefault('filtlong', {})
+        cfg['filtlong']['enabled'] = self.use_filtlong.get()
+
+        # Database paths from legacy config
+        if legacy_config.get('emu_db'):
+            cfg.setdefault('emu', {})['database'] = legacy_config['emu_db']
+        if legacy_config.get('centrifuger_db'):
+            cfg.setdefault('centrifuger', {})['database'] = legacy_config['centrifuger_db']
+
+        # Server config
+        db_config = {}
+        db_config_path = self.gui.db_path if hasattr(self.gui, 'db_path') and self.gui.db_path else os.path.join(RESOURCES_DIR, "db_config.json")
+        if os.path.exists(db_config_path):
+            try:
+                with open(db_config_path) as f:
+                    db_config = json.load(f)
+            except Exception:
+                pass
+
+        cfg['server'] = {
+            'url': db_config.get('server_url', cfg.get('server', {}).get('url', 'http://localhost:8000')),
+            'username': db_config.get('user', cfg.get('server', {}).get('username', '')),
+            'password': db_config.get('password', cfg.get('server', {}).get('password', '')),
+            'upload_results': not getattr(self.gui, 'offline_mode', False),
+        }
+
+        return cfg
+
+    def _get_snakemake_target(self):
+        """Map analysis type to Snakemake target."""
+        mapping = {
+            'taxonomy-16s': 'taxonomy_16s',
+            'taxonomy-wgs': 'taxonomy_wgs',
+            'assembly': 'assembly',
+            'assembly-full': 'assembly_full',
+        }
+        return mapping.get(self.analysis_type.get(), 'taxonomy_16s')
+
     def _run_analysis_thread(self, sample_name):
-        """Thread function to run analysis for a single sample"""
+        """Thread function to run Snakemake analysis for a single sample."""
         try:
             # Get files for this sample
             files = self.all_samples[sample_name]['files']
             if not files:
                 print(f"No files found for sample {sample_name}")
                 return
-                
-            # Load configuration
-            with open(self.config_file, 'r') as f:
-                config = json.load(f)
-                
-            # Initialize command runner
-            cmd_runner = MMonitorCMD()
-            
-            # Collect Filtlong parameters from config and UI
-            use_filtlong = self.use_filtlong.get()
-            
-            # Set up args for analysis
-            args = argparse.Namespace(
-                analysis=self.analysis_type.get(),
-                config=self.config_file,
-                threads=int(config.get('threads', 12)),
-                sample=sample_name,
-                project=self.project_var.get(),
-                subproject=self.subproject_var.get(),
-                date=datetime.datetime.strptime(self.date_var.get(), '%Y-%m-%d').date(),
-                input=files,
-                multicsv=None,
-                centrifuger_db=config.get('centrifuger_db', ''),
-                emu_db=os.path.abspath(config.get('emu_db', '')),
-                min_length=config.get('min_length', 1000),
-                min_quality=config.get('min_quality', 10.0),
-                min_abundance=float(config.get('min_abundance', 0.01)),
-                
-                # Filtlong parameters
-                use_filtlong=use_filtlong,
-                filtlong_min_length=int(config.get('filtlong_min_length', 1000)),
-                filtlong_min_mean_q=float(config.get('filtlong_min_mean_q', 7.0)),
-                filtlong_keep_percent=float(config.get('filtlong_keep_percent', 90.0)),
-                filtlong_target_bases=config.get('filtlong_target_bases'),
-                filtlong_trim=config.get('filtlong_trim', False),
-                filtlong_split=config.get('filtlong_split', False),
-                filtlong_max_length=config.get('filtlong_max_length'),
-                
-                overwrite=True,
-                qc=True,
-                update=False,
-                verbose=True,
-                loglevel='INFO'
-            )
-            
-            # Initialize and run analysis
-            cmd_runner.initialize_from_args(args)
-            
-            # Check for cancellation before starting
+
+            # Check for cancellation
             if sample_name in self.running_analyses and self.running_analyses[sample_name]['cancel']:
                 print(f"Analysis canceled for {sample_name}")
                 return
-                
-            # Run analysis with realtime mode if enabled
-            if self.auto_analyze_var.get() and self.analysis_type.get() == "taxonomy-wgs":
-                success = self.run_realtime_analysis(cmd_runner, sample_name, files)
-            else:
-                success = cmd_runner.run()
-            
+
+            # Concatenate files for this sample
+            output_dir = os.path.join(os.path.expanduser('~'), 'mmonitor_results')
+            concat_dir = os.path.join(output_dir, '_concat', sample_name)
+            concat_path = os.path.join(concat_dir, f"{sample_name}_concatenated.fastq.gz")
+            print(f"Concatenating {len(files)} files for {sample_name}...")
+            concatenate_fastq(list(files), concat_path)
+
+            # Build Snakemake config
+            samples_dict = {sample_name: {'fastq': [concat_path]}}
+            cfg = self._build_snakemake_watch_config(samples_dict)
+            target = self._get_snakemake_target()
+
+            # Run Snakemake pipeline
+            print(f"Running {target} pipeline for {sample_name} via Snakemake...")
+            runner = SnakemakeRunner()
+            exit_code = runner.run(
+                target, cfg,
+                threads=cfg.get('threads', 4),
+                callback=lambda line: print(line),
+            )
+
             # Check for cancellation after run
             if sample_name in self.running_analyses and self.running_analyses[sample_name]['cancel']:
                 print(f"Analysis canceled for {sample_name}")
                 return
-            
-            if success:
-                # Get the output directory
-                output_dir = os.path.join(cmd_runner.pipeline_out, sample_name)
-                
-                # Update database with results
-                if self.analysis_type.get() == "taxonomy-16s":
-                    print(f"\nUpdating database with EMU results for {sample_name}...")
-                    try:
-                        cmd_runner.django_db.update_django_with_emu_out(
-                            emu_out_path=output_dir,
-                            tax_rank="species",
-                            sample_name=sample_name,
-                            project_name=self.project_var.get(),
-                            subproject_name=self.subproject_var.get(),
-                            sample_date=self.date_var.get(),
-                            overwrite=True
-                        )
-                        print("Database update completed")
-                    except Exception as e:
-                        print(f"Error updating database: {e}")
-                        self.after(0, lambda: self.analysis_failed(sample_name))
-                        return
-                        
-                elif self.analysis_type.get() == "taxonomy-wgs":
-                    print(f"\nUpdating database with Centrifuger results for {sample_name}...")
-                    try:
-                        # Construct the path to the Centrifuger report file
-                        centrifuger_report = os.path.join(output_dir, f"{sample_name}_centrifuger_report.tsv")
-                        if not os.path.isfile(centrifuger_report):
-                            raise FileNotFoundError(f"Centrifuger report not found at {centrifuger_report}")
-                            
-                        cmd_runner.django_db.send_nanopore_record_centrifuger(
-                            kraken_out_path=centrifuger_report,
-                            sample_name=sample_name,
-                            project_id=self.project_var.get(),
-                            subproject_id=self.subproject_var.get(),
-                            date=datetime.datetime.now().strftime("%Y-%m-%d"),
-                            overwrite=True
-                        )
-                        print("Successfully updated database with Centrifuger results")
-                    except Exception as e:
-                        print(f"Error updating database: {str(e)}")
-                        self.after(0, lambda: self.analysis_failed(sample_name))
-                        return
-                
+
+            if exit_code == 0:
+                print(f"Pipeline completed successfully for {sample_name}")
                 self.after(0, lambda: self.analysis_completed(sample_name))
             else:
+                print(f"Pipeline failed with exit code {exit_code} for {sample_name}")
                 self.after(0, lambda: self.analysis_failed(sample_name))
-            
+
         except Exception as e:
             print(f"Error running analysis for {sample_name}: {e}")
+            traceback.print_exc()
             self.after(0, lambda: self.analysis_failed(sample_name))
 
-    def run_realtime_analysis(self, cmd_runner, sample_name, files):
-        """Run Centrifuger in realtime mode"""
-        try:
-            # Get min_files from config
-            min_files = 5  # Default
-            if os.path.exists(self.config_file):
+    def start_realtime_watcher(self, watch_folder):
+        """Start the SequencingWatcher for real-time auto-analysis.
+
+        Called when the user enables auto-analyze mode. Uses the same
+        SequencingWatcher as the CLI 'mmonitor watch' command.
+        """
+        # Get min_files from config
+        min_files = 5
+        interval = 300
+        if os.path.exists(self.config_file):
+            try:
                 with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-                    min_files = int(config.get("min_files_for_auto_analysis", 5))
-            
-            # Get the database path, making sure to use centrifuger_db as the key
-            db_path = cmd_runner.config.get('centrifuger_db', '')
-            if not db_path and 'centrifuge_db' in cmd_runner.config:
-                # Fallback to centrifuge_db if present (for backward compatibility)
-                db_path = cmd_runner.config.get('centrifuge_db', '')
-                print(f"WARNING: Using legacy 'centrifuge_db' config key. Please update to 'centrifuger_db'")
-            
-            # Ensure the sample output directory exists for results
-            sample_out_dir = os.path.join(cmd_runner.pipeline_out, sample_name)
-            os.makedirs(sample_out_dir, exist_ok=True)
-            
-            # Get the watch directory from the UI or use the first file's directory as fallback
-            watch_dir = self.folder_var.get() if hasattr(self, 'folder_var') else ""
-            
-            # If watch_dir is not valid, create a new one
-            if not watch_dir or not os.path.exists(watch_dir):
-                watch_dir = os.path.join(sample_out_dir, "watch_dir")
-                os.makedirs(watch_dir, exist_ok=True)
-                print(f"Created watch directory: {watch_dir}")
-            
-            # If files were passed, copy them to the watch directory
-            if files:
-                for file in files:
-                    if os.path.exists(file):
-                        dest = os.path.join(watch_dir, os.path.basename(file))
-                        try:
-                            shutil.copy2(file, dest)
-                            print(f"Copied {file} to {dest}")
-                        except Exception as e:
-                            print(f"Error copying file {file}: {e}")
-            
-            # Store CMD runner for use in threads
-            self.cmd_runner = cmd_runner
-            
-            # Output file paths
-            output_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_classifications.txt")
-            report_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger_report.tsv")
-            log_file = os.path.join(sample_out_dir, f"{sample_name}_centrifuger.log")
-            
-            # Setup database monitoring
-            self.db_update_thread = None
-            self.stop_db_monitoring = False
-            
-            def monitor_db_updates():
-                last_size = 0
-                last_record_count = 0
-                last_check_time = time.time()
-                
-                while not self.stop_db_monitoring and not self.analysis_cancelled.get(sample_name, False):
-                    try:
-                        current_time = time.time()
-                        
-                        # Check for new classification results every 10 seconds
-                        if os.path.exists(output_file) and current_time - last_check_time > 10:
-                            current_size = os.path.getsize(output_file)
-                            
-                            # If the file has grown, new data is available
-                            if current_size > last_size:
-                                try:
-                                    # Count records in the file
-                                    with open(output_file, 'r') as f:
-                                        current_record_count = sum(1 for _ in f) - 1  # Subtract header
-                                    
-                                    # Calculate new records since last check
-                                    new_records = current_record_count - last_record_count
-                                    
-                                    db_msg = f"Database update: {new_records} new classifications detected (total: {current_record_count})"
-                                    print(db_msg)
-                                    
-                                    if hasattr(self, 'progress_popup') and self.progress_popup.safely_exists():
-                                        self.progress_popup.update_progress(db_msg)
-                                    
-                                    # Update local DB or export data as needed
-                                    if new_records > 0:
-                                        self.update_database_with_results(sample_name, output_file, current_record_count)
-                                    
-                                    # Update our tracking variables
-                                    last_size = current_size
-                                    last_record_count = current_record_count
-                                except Exception as e:
-                                    print(f"Error processing classification results: {e}")
-                            
-                            last_check_time = current_time
-                        
-                        time.sleep(2)  # Check frequently but not too frequently
-                    except Exception as e:
-                        print(f"Error in database monitoring: {e}")
-                        time.sleep(5)
-            
-            # Start DB monitoring thread
-            self.db_update_thread = threading.Thread(target=monitor_db_updates, name="DBMonitorThread")
-            self.db_update_thread.daemon = True
-            self.db_update_thread.start()
-            
-            # Set up progress tracking in the UI
-            if hasattr(self, 'progress_popup') and self.progress_popup.safely_exists():
-                log_callback = self.progress_popup.update_progress
-            else:
-                log_callback = lambda msg: print(msg)
-            
-            # Run Centrifuger in realtime mode
-            success = cmd_runner.centrifuger_runner.run_centrifuger(
-                input_file=None,  # Not needed in realtime mode
-                sample_name=sample_name,
-                db_path=db_path,
-                realtime_mode=True,
-                watch_dir=watch_dir,  # Use the actual folder being watched
-                min_files=min_files,
-                log_callback=log_callback
+                    cfg = json.load(f)
+                    min_files = int(cfg.get("min_files_for_auto_analysis", 5))
+                    interval = int(cfg.get("realtime_interval", 300))
+            except Exception:
+                pass
+
+        output_dir = os.path.join(os.path.expanduser('~'), 'mmonitor_results')
+
+        def analysis_callback(samples_dict, concat_dir):
+            """Called by SequencingWatcher when samples are ready."""
+            snk_cfg = self._build_snakemake_watch_config(samples_dict)
+            target = self._get_snakemake_target()
+
+            sample_names = list(samples_dict.keys())
+            print(f"\n--- Auto-analysis triggered for {', '.join(sample_names)} ---")
+
+            runner = SnakemakeRunner()
+            exit_code = runner.run(
+                target, snk_cfg,
+                threads=snk_cfg.get('threads', 4),
+                callback=lambda line: print(line),
             )
-            
-            # Stop the DB monitoring thread
-            self.stop_db_monitoring = True
-            if self.db_update_thread and self.db_update_thread.is_alive():
-                self.db_update_thread.join(timeout=2)
-            
-            # Set flag to stop the monitoring thread
-            self.analysis_cancelled[sample_name] = True
-            
-            print(f"\n{'='*60}")
-            print(f"REALTIME ANALYSIS {'COMPLETED' if success else 'FAILED'}")
-            print(f"{'='*60}")
-            if success:
-                print(f"Realtime analysis for {sample_name} completed successfully")
-                print(f"Results available at: {os.path.join(cmd_runner.pipeline_out, sample_name)}")
-                
-                # Generate or update the report after completion
-                if os.path.exists(output_file):
-                    try:
-                        print("Generating final Kraken-style report...")
-                        cmd_runner.centrifuger_runner.make_kraken_report(
-                            output_file, 
-                            db_path, 
-                            report_file
-                        )
-                        print(f"Final report generated: {report_file}")
-                        
-                        # Final database update
-                        self.update_database_with_results(sample_name, output_file, None, final=True)
-                    except Exception as e:
-                        print(f"Error generating final report: {e}")
-            else:
-                print(f"Realtime analysis for {sample_name} failed or was cancelled")
-                print(f"Check log file for details: {os.path.join(cmd_runner.pipeline_out, sample_name, f'{sample_name}_centrifuger.log')}")
-            
-            return success
-            
-        except Exception as e:
-            print(f"Error in realtime analysis: {e}")
-            traceback.print_exc()
-            self.stop_db_monitoring = True
-            return False
+            if exit_code != 0:
+                raise RuntimeError(f"Snakemake exited with code {exit_code}")
+            print(f"Auto-analysis completed for {', '.join(sample_names)}")
+
+        def on_status(msg):
+            print(f"[Watcher] {msg}")
+
+        # Preload centrifuger index if using WGS taxonomy
+        if self.analysis_type.get() == "taxonomy-wgs":
+            snk_cfg = self._build_snakemake_watch_config({})
+            db_path = snk_cfg.get('centrifuger', {}).get('database', '')
+            if db_path:
+                print("Preloading centrifuger index into page cache...")
+                threading.Thread(
+                    target=preload_index, args=(db_path,), daemon=True
+                ).start()
+
+        self._sequencing_watcher = SequencingWatcher(
+            watch_dir=watch_folder,
+            analysis_callback=analysis_callback,
+            min_files=min_files,
+            interval=interval,
+            concat_dir=os.path.join(output_dir, '_concat'),
+            on_status=on_status,
+        )
+        self._sequencing_watcher.start()
+        print(f"Real-time watcher started (interval={interval}s, min_files={min_files})")
+
+    def stop_realtime_watcher(self):
+        """Stop the SequencingWatcher if running."""
+        if hasattr(self, '_sequencing_watcher') and self._sequencing_watcher:
+            self._sequencing_watcher.stop()
+            self._sequencing_watcher = None
+            print("Real-time watcher stopped")
             
     def update_database_with_results(self, sample_name, classification_file, record_count, final=False):
         """Update the database with classification results"""

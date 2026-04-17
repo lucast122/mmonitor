@@ -1,5 +1,6 @@
 # Metagenomic Assembly Pipeline
 # Workflow: Flye assembly -> Medaka polishing
+# All rules use {sample} wildcard for multi-sample support
 
 # ============ Flye Assembly ============
 rule flye_assembly:
@@ -7,17 +8,17 @@ rule flye_assembly:
     input:
         fastq=get_filtered_reads
     output:
-        assembly=OUTPUT_DIR / SAMPLE / "assembly" / "flye" / "assembly.fasta",
-        info=OUTPUT_DIR / SAMPLE / "assembly" / "flye" / "assembly_info.txt",
-        graph=OUTPUT_DIR / SAMPLE / "assembly" / "flye" / "assembly_graph.gfa"
+        assembly=OUTDIR + "/{sample}/assembly/flye/assembly.fasta",
+        info=OUTDIR + "/{sample}/assembly/flye/assembly_info.txt",
+        graph=OUTDIR + "/{sample}/assembly/flye/assembly_graph.gfa"
     params:
         mode=config.get("flye", {}).get("mode", "nano-raw"),
         min_overlap=config.get("flye", {}).get("min_overlap", 1000),
         meta=config.get("flye", {}).get("meta", True),
-        output_dir=OUTPUT_DIR / SAMPLE / "assembly" / "flye"
+        output_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/assembly/flye"
     threads: get_threads("flye")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "flye_assembly.log"
+        OUTDIR + "/{sample}/logs/flye_assembly.log"
     conda:
         "../envs/assembly.yaml"
     shell:
@@ -36,17 +37,17 @@ rule medaka_consensus:
     """Polish assembly using Medaka with auto-detect model (fallback to config)"""
     input:
         reads=get_filtered_reads,
-        assembly=OUTPUT_DIR / SAMPLE / "assembly" / "flye" / "assembly.fasta"
+        assembly=OUTDIR + "/{sample}/assembly/flye/assembly.fasta"
     output:
-        consensus=OUTPUT_DIR / SAMPLE / "assembly" / "polished" / "consensus.fasta",
-        bam=OUTPUT_DIR / SAMPLE / "assembly" / "polished" / "calls_to_draft.bam"
+        consensus=OUTDIR + "/{sample}/assembly/polished/consensus.fasta",
+        bam=OUTDIR + "/{sample}/assembly/polished/calls_to_draft.bam"
     params:
         wrapper=str(Path(workflow.basedir) / "scripts" / "medaka_wrapper.sh"),
         model=config.get("medaka", {}).get("model", "r1041_e82_400bps_hac_v5.0.0"),
-        output_dir=OUTPUT_DIR / SAMPLE / "assembly" / "polished"
+        output_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/assembly/polished"
     threads: get_threads("medaka")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "medaka_consensus.log"
+        OUTDIR + "/{sample}/logs/medaka_consensus.log"
     conda:
         "../envs/medaka.yaml"
     shell:
@@ -64,12 +65,12 @@ rule medaka_consensus:
 rule assembly_stats:
     """Calculate assembly statistics using seqkit"""
     input:
-        raw=OUTPUT_DIR / SAMPLE / "assembly" / "flye" / "assembly.fasta",
-        polished=OUTPUT_DIR / SAMPLE / "assembly" / "polished" / "consensus.fasta"
+        raw=OUTDIR + "/{sample}/assembly/flye/assembly.fasta",
+        polished=OUTDIR + "/{sample}/assembly/polished/consensus.fasta"
     output:
-        stats=OUTPUT_DIR / SAMPLE / "assembly" / "assembly_stats.tsv"
+        stats=OUTDIR + "/{sample}/assembly/assembly_stats.tsv"
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "assembly_stats.log"
+        OUTDIR + "/{sample}/logs/assembly_stats.log"
     conda:
         "../envs/assembly.yaml"
     shell:

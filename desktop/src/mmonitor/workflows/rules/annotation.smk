@@ -1,22 +1,23 @@
 # MAG Annotation Pipeline
 # Workflow: GTDB-TK classification -> Bakta annotation -> KEGGCharter
+# All rules use {sample} wildcard for multi-sample support
 
 # ============ GTDB-TK Classification ============
 rule gtdbtk_classify:
     """Classify MAGs using GTDB-TK"""
     input:
-        bins_dir=OUTPUT_DIR / SAMPLE / "binning" / "hq_bins",
-        hq_list=OUTPUT_DIR / SAMPLE / "binning" / "hq_bins.txt",
+        bins_dir=OUTDIR + "/{sample}/binning/hq_bins",
+        hq_list=OUTDIR + "/{sample}/binning/hq_bins.txt",
         db_ready=DB_BASE / "gtdbtk" / ".db_ready"
     output:
-        summary=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk" / "gtdbtk.bac120.summary.tsv",
-        done=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk" / "gtdbtk.done"
+        summary=OUTDIR + "/{sample}/annotation/gtdbtk/gtdbtk.bac120.summary.tsv",
+        done=OUTDIR + "/{sample}/annotation/gtdbtk/gtdbtk.done"
     params:
         db=get_db_path("gtdbtk"),
-        output_dir=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk"
+        output_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/annotation/gtdbtk"
     threads: get_threads("gtdbtk")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "gtdbtk_classify.log"
+        OUTDIR + "/{sample}/logs/gtdbtk_classify.log"
     conda:
         "../envs/gtdbtk.yaml"
     shell:
@@ -37,19 +38,19 @@ rule gtdbtk_classify:
 rule bakta_annotate:
     """Annotate each MAG using Bakta"""
     input:
-        bin_fasta=OUTPUT_DIR / SAMPLE / "binning" / "hq_bins" / "{bin_id}.fa",
+        bin_fasta=OUTDIR + "/{sample}/binning/hq_bins/{bin_id}.fa",
         db_ready=DB_BASE / "bakta" / ".db_ready"
     output:
-        gff=OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.gff3",
-        faa=OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.faa",
-        tsv=OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.tsv"
+        gff=OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.gff3",
+        faa=OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.faa",
+        tsv=OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.tsv"
     params:
         db=get_db_path("bakta"),
-        output_dir=OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}",
+        output_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/annotation/bakta/{wildcards.bin_id}",
         min_contig=config.get("bakta", {}).get("min_contig_length", 1)
     threads: get_threads("bakta")
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "bakta_{bin_id}.log"
+        OUTDIR + "/{sample}/logs/bakta_{bin_id}.log"
     conda:
         "../envs/annotation.yaml"
     shell:
@@ -67,12 +68,12 @@ rule bakta_annotate:
 # ============ Aggregate Bakta Annotations ============
 def get_all_bakta_outputs(wildcards):
     """Get all Bakta output files for HQ bins"""
-    checkpoint_output = checkpoints.filter_hq_bins.get(**wildcards).output.hq_list
+    checkpoint_output = checkpoints.filter_hq_bins.get(sample=wildcards.sample).output.hq_list
     with open(checkpoint_output) as f:
         bin_ids = [line.strip() for line in f if line.strip()]
     return expand(
-        OUTPUT_DIR / SAMPLE / "annotation" / "bakta" / "{bin_id}" / "{bin_id}.tsv",
-        bin_id=bin_ids
+        OUTDIR + "/{sample}/annotation/bakta/{bin_id}/{bin_id}.tsv",
+        sample=wildcards.sample, bin_id=bin_ids
     )
 
 # Note: filter_hq_bins checkpoint is defined in binning.smk
@@ -81,17 +82,17 @@ def get_all_bakta_outputs(wildcards):
 rule aggregate_annotations:
     """Combine all annotation results"""
     input:
-        gtdbtk=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk" / "gtdbtk.done",
+        gtdbtk=OUTDIR + "/{sample}/annotation/gtdbtk/gtdbtk.done",
         bakta_files=get_all_bakta_outputs
     output:
-        summary=OUTPUT_DIR / SAMPLE / "annotation" / "annotation_summary.json"
+        summary=OUTDIR + "/{sample}/annotation/annotation_summary.json"
     params:
-        sample=SAMPLE,
+        sample=lambda wildcards: wildcards.sample,
         project=config.get("project_name", ""),
-        gtdbtk_dir=OUTPUT_DIR / SAMPLE / "annotation" / "gtdbtk",
-        bakta_dir=OUTPUT_DIR / SAMPLE / "annotation" / "bakta"
+        gtdbtk_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/annotation/gtdbtk",
+        bakta_dir=lambda wildcards: OUTDIR + f"/{wildcards.sample}/annotation/bakta"
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "aggregate_annotations.log"
+        OUTDIR + "/{sample}/logs/aggregate_annotations.log"
     script:
         "../scripts/aggregate_annotations.py"
 
@@ -99,16 +100,16 @@ rule aggregate_annotations:
 rule upload_annotation_results:
     """Upload annotation results to MMonitor server"""
     input:
-        summary=OUTPUT_DIR / SAMPLE / "annotation" / "annotation_summary.json"
+        summary=OUTDIR + "/{sample}/annotation/annotation_summary.json"
     output:
-        status=OUTPUT_DIR / SAMPLE / "annotation" / "annotation_complete.json"
+        status=OUTDIR + "/{sample}/annotation/annotation_complete.json"
     params:
         server_url=config.get("server", {}).get("url", "http://localhost:8000"),
         username=config.get("server", {}).get("username", ""),
         password=config.get("server", {}).get("password", ""),
         upload=config.get("server", {}).get("upload_results", True)
     log:
-        OUTPUT_DIR / SAMPLE / "logs" / "upload_annotations.log"
+        OUTDIR + "/{sample}/logs/upload_annotations.log"
     script:
         "../scripts/upload_annotation_results.py"
 
@@ -116,9 +117,9 @@ rule upload_annotation_results:
 rule functional_complete:
     """Run complete functional analysis pipeline"""
     input:
-        annotation=OUTPUT_DIR / SAMPLE / "annotation" / "annotation_complete.json"
+        annotation=OUTDIR + "/{sample}/annotation/annotation_complete.json"
     output:
-        complete=OUTPUT_DIR / SAMPLE / "functional" / "functional_complete.json"
+        complete=OUTDIR + "/{sample}/functional/functional_complete.json"
     shell:
         """
         cp {input.annotation} {output.complete}
